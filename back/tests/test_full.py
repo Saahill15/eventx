@@ -134,7 +134,7 @@ class TestAuth:
 
     def test_duplicate_email_rejected(self):
         signup("Alice", "alice@test.com")
-        r = client.post("/api/auth/signup", json={"name": "Alice2", "email": "alice@test.com", "password": "x"})
+        r = client.post("/api/auth/signup", json={"name": "Alice2", "email": "alice@test.com", "password": "password123"})
         assert r.status_code == 400
 
     def test_wrong_password_rejected(self):
@@ -554,5 +554,5 @@ class TestEventEditProtection:
         r = client.patch(f"/api/events/{self.event['id']}",
                          json={"registration_limit": 0},
                          headers=auth(self.org_token))
-        assert r.status_code == 400
-        assert "locked" in r.json()["detail"]
+        # a zero limit is rejected outright (it would also be below the current count)
+        assert r.status_code == 422

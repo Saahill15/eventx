@@ -1,16 +1,28 @@
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
-from typing import Optional, List, Literal
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator, model_validator
+from typing import Annotated, Optional, List, Literal
 from datetime import datetime
+
+MIN_PASSWORD_LENGTH = 8
 
 # Auth
 class SignupEmail(BaseModel):
-    name: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     email: EmailStr
-    password: str
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v):
+        return v.lower()
 
 class LoginEmail(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v):
+        return v.lower()
 
 class Token(BaseModel):
     access_token: str
@@ -40,19 +52,24 @@ class InterestOut(BaseModel):
 class SetInterests(BaseModel):
     interest_ids: List[int]
 
+    @field_validator("interest_ids")
+    @classmethod
+    def unique_ids(cls, v):
+        return list(dict.fromkeys(v))
+
 # Events
 class EventCreate(BaseModel):
     # event_type MUST be declared first so model_validator has access to it
     event_type: Literal["fest", "city"]
-    title: str
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     description: Optional[str] = None
     location: Optional[str] = None
     date: datetime
     time: Optional[str] = None
     image_url: Optional[str] = None
     category: Optional[str] = None
-    price: Optional[float] = 0.0
-    is_free: Optional[bool] = True
+    price: float = Field(default=0.0, ge=0)
+    is_free: bool = True
     college_id: Optional[int] = None
     fest_id: Optional[int] = None  # required when event_type="fest", must be null when "city"
 
@@ -64,6 +81,12 @@ class EventCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
+        if self.is_free:
+            self.price = 0.0
+        elif self.price <= 0:
+            raise ValueError("price must be > 0 for a paid event")
+        if self.registration_limit is not None and self.registration_limit <= 0:
+            raise ValueError("registration_limit must be > 0")
         if self.event_type == "fest" and self.fest_id is None:
             raise ValueError("fest_id is required when event_type is 'fest'")
         if self.event_type == "city" and self.fest_id is not None:
@@ -107,7 +130,7 @@ class EventOut(BaseModel):
 
 class EventUpdate(BaseModel):
     """Fields allowed to be patched on an existing event."""
-    title:              Optional[str]   = None
+    title:              Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]] = None
     description:        Optional[str]   = None
     location:           Optional[str]   = None
     date:               Optional[datetime] = None
@@ -117,19 +140,28 @@ class EventUpdate(BaseModel):
     # Registration mutable fields — locked if registrations exist
     requires_registration: Optional[bool]  = None
     is_paid:               Optional[bool]  = None
-    price:                 Optional[float] = None
-    registration_limit:    Optional[int]   = None
+    price:                 Optional[float] = Field(default=None, ge=0)
+    registration_limit:    Optional[int]   = Field(default=None, gt=0)
     approval_mode:         Optional[Literal["auto", "manual"]] = None
 
 # Fest
+RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass"}
+
 class FestCreate(BaseModel):
-    slug: str
-    name: str
+    slug: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", min_length=2, max_length=100)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     tagline: Optional[str] = None
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
     college_id: Optional[int] = None
     status: Optional[str] = "draft"
+
+    @field_validator("slug")
+    @classmethod
+    def slug_not_reserved(cls, v):
+        if v in RESERVED_FEST_SLUGS:
+            raise ValueError("this slug is reserved")
+        return v
 
 class FestOut(BaseModel):
     id: int
@@ -173,7 +205,7 @@ class AddFestMember(BaseModel):
 
 # College
 class CollegeCreate(BaseModel):
-    name: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     area: Optional[str] = None
     emoji: Optional[str] = "🏛️"
     website: Optional[str] = None
@@ -210,6 +242,11 @@ class FestPassOut(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+
+class FestPassDetailOut(FestPassOut):
+    fest_slug: Optional[str] = None
+    fest_name: Optional[str] = None
 
 
 # EventRegistration

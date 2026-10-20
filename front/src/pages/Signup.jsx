@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { errorMessage } from '../lib/errors'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { signup } from '../services/api'
@@ -22,7 +23,7 @@ export default function Signup() {
       saveAuth(res.data)
       navigate('/interests') // Always go to interests after new signup
     } catch (err) {
-      setError(err.response?.data?.detail || 'Signup failed. Please try again.')
+      setError(errorMessage(err, 'Signup failed. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -80,12 +81,13 @@ export default function Signup() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
               <input
                 type="password"
+                minLength={8}
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400/50 focus:border-orange-300 transition-all text-sm"
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 characters"
               />
             </div>
 

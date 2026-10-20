@@ -48,6 +48,8 @@ def register_for_event(
             status_code=400,
             detail="Registration is only available for fest events",
         )
+    if event.status != models.StatusEnum.approved:
+        raise HTTPException(status_code=404, detail="Event not found")
 
     # ── 2. Registration must be enabled ──────────────────────────────────────
     if not event.requires_registration:

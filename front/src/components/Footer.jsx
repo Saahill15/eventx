@@ -1,11 +1,14 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function Footer() {
+  const { isLoggedIn, isOrganizer } = useAuth()
   const cols = [
     {
       title: 'Discover',
       links: [
-        { label: 'Browse Events', to: '/discover' },
+        { label: 'City Events', to: '/events' },
+        { label: 'College Fests', to: '/fests' },
         { label: 'My Passes',     to: '/my-passes' },
         { label: 'Profile',       to: '/profile' },
       ],
@@ -13,17 +16,22 @@ export default function Footer() {
     {
       title: 'For Organisers',
       links: [
-        { label: 'Create Event',         to: '/events/create' },
-        { label: 'Organiser Dashboard',  to: '/organizer' },
-        { label: 'Request Organiser Role', to: '/profile' },
+        ...(isOrganizer
+          ? [
+              { label: 'Create Event',        to: '/events/create' },
+              { label: 'Organiser Dashboard', to: '/organizer' },
+            ]
+          : [{ label: 'Request Organiser Role', to: '/profile' }]),
       ],
     },
     {
       title: 'Account',
-      links: [
-        { label: 'Sign Up', to: '/signup' },
-        { label: 'Log In',  to: '/login' },
-      ],
+      links: isLoggedIn
+        ? [{ label: 'Profile', to: '/profile' }]
+        : [
+            { label: 'Sign Up', to: '/signup' },
+            { label: 'Log In',  to: '/login' },
+          ],
     },
   ]
 

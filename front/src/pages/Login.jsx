@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { errorMessage } from '../lib/errors'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { login } from '../services/api'
@@ -30,7 +31,7 @@ export default function Login() {
         navigate('/discover')
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Please try again.')
+      setError(errorMessage(err, 'Login failed. Please try again.'))
     } finally {
       setLoading(false)
     }

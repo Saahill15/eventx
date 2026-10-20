@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { getMe } from '../services/api'
 
 const AuthContext = createContext(null)
@@ -23,6 +23,8 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false))
   }, [token])
 
+  const clearAuthRef = useRef(null)
+
   const saveAuth = useCallback(({ access_token, role, interests_set }) => {
     localStorage.setItem('token', access_token)
     localStorage.setItem('role', role)
@@ -38,6 +40,15 @@ export function AuthProvider({ children }) {
     setRole(null)
     setUser(null)
     setInterestsSet(false)
+  }, [])
+
+  clearAuthRef.current = clearAuth
+
+  // The API client fires this when the server rejects our token (expired or revoked)
+  useEffect(() => {
+    const onExpired = () => clearAuthRef.current?.()
+    window.addEventListener('auth:expired', onExpired)
+    return () => window.removeEventListener('auth:expired', onExpired)
   }, [])
 
   const value = {

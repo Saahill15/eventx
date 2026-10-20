@@ -7,6 +7,19 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// An expired or revoked token (401 on a request that carried one) signs the user out everywhere in the app
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const hadToken = !!err.config?.headers?.Authorization
+    const isLoginCall = err.config?.url?.includes('/api/auth/')
+    if (err.response?.status === 401 && hadToken && !isLoginCall) {
+      window.dispatchEvent(new Event('auth:expired'))
+    }
+    return Promise.reject(err)
+  },
+)
+
 // Attach JWT token on every request if present
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -49,6 +62,13 @@ export const registerPass = (eventId) =>
   api.post(`/api/passes/${eventId}/register`)
 
 export const getMyPasses = () => api.get('/api/passes/my')
+
+// ─── Fest passes & event registration ────────────────────────────────────────
+export const claimEntryPass       = (slug)    => api.post(`/api/fests/${slug}/entry-pass`)
+export const getMyFestPass        = (slug)    => api.get(`/api/fests/${slug}/my-pass`)
+export const getMyFestPasses      = ()        => api.get('/api/users/me/fest-passes')
+export const registerForFestEvent = (eventId) => api.post(`/api/fest-events/${eventId}/register`)
+export const getMyRegistrations   = ()        => api.get('/api/fest-events/my-registrations')
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
 export const getOrganizerRequests = () =>

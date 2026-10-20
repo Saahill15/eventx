@@ -18,3 +18,9 @@ dist/
 # Misc
 .DS_Store
 *.log
+
+# Local environment and databases
+.env
+.env.local
+*.db
+venv/

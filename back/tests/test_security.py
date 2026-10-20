@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app import main, models
+from app import main, models, seed as seed_module
 from app.auth import jwt as auth_jwt
 from app.database import Base
 
@@ -29,7 +29,7 @@ def seed_db(monkeypatch):
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(bind=engine)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    monkeypatch.setattr(main, "SessionLocal", session_factory)
+    monkeypatch.setattr(seed_module, "SessionLocal", session_factory)
     yield session_factory
 
 
@@ -56,20 +56,20 @@ class TestJwtSecret:
 
 class TestSeededAccounts:
     def test_no_accounts_created_without_credentials(self, seed_db):
-        main.seed()
+        seed_module.seed()
         db = seed_db()
         assert db.query(models.User).count() == 0
         db.close()
 
     def test_fests_are_created_without_owners(self, seed_db):
-        main.seed()
+        seed_module.seed()
         db = seed_db()
         assert db.query(models.Fest).count() == 3
         assert db.query(models.FestMember).count() == 0
         db.close()
 
     def test_old_default_logins_do_not_work(self, seed_db):
-        main.seed()
+        seed_module.seed()
         db = seed_db()
         for email in ("admin@eventx.com", "organizer@moodindigo.com", "organizer@malhar.com", "organizer@kaleidoscope.com"):
             assert db.query(models.User).filter(models.User.email == email).first() is None
@@ -78,7 +78,7 @@ class TestSeededAccounts:
     def test_weak_admin_password_is_rejected(self, seed_db, monkeypatch):
         monkeypatch.setenv("ADMIN_EMAIL", "owner@example.com")
         monkeypatch.setenv("ADMIN_PASSWORD", "short")
-        main.seed()
+        seed_module.seed()
         db = seed_db()
         assert db.query(models.User).filter(models.User.role == "admin").count() == 0
         db.close()
@@ -86,7 +86,7 @@ class TestSeededAccounts:
     def test_admin_created_from_environment(self, seed_db, monkeypatch):
         monkeypatch.setenv("ADMIN_EMAIL", "owner@example.com")
         monkeypatch.setenv("ADMIN_PASSWORD", "a-long-enough-password")
-        main.seed()
+        seed_module.seed()
         db = seed_db()
         admin = db.query(models.User).filter(models.User.role == "admin").one()
         assert admin.email == "owner@example.com"
@@ -96,7 +96,7 @@ class TestSeededAccounts:
     def test_organizer_created_from_environment_and_owns_fest(self, seed_db, monkeypatch):
         monkeypatch.setenv("ORGANIZER_MALHAR_EMAIL", "malhar@example.com")
         monkeypatch.setenv("ORGANIZER_MALHAR_PASSWORD", "another-long-password")
-        main.seed()
+        seed_module.seed()
         db = seed_db()
         member = db.query(models.FestMember).one()
         assert db.query(models.User).filter(models.User.id == member.user_id).one().email == "malhar@example.com"
