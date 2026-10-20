@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
@@ -9,8 +10,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="EventX API")
 
-# Allow the hosted frontend + localhost; if you change the frontend URL, add it here.
-ALLOWED_ORIGINS = ["*"]  # TODO: lock down to specific origins before prod
+# Comma-separated list of frontend origins allowed to call the API (set ALLOWED_ORIGINS in production).
+DEFAULT_DEV_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", DEFAULT_DEV_ORIGINS).split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +32,19 @@ app.include_router(colleges.router,      prefix="/api/colleges",    tags=["Colle
 app.include_router(fests.router,         prefix="/api/fests",       tags=["Fests"])
 app.include_router(entry_passes.router,  prefix="/api/fests",       tags=["FestPasses"])
 app.include_router(fest_events.router,   prefix="/api/fest-events", tags=["FestEventRegistrations"])
+
+MIN_SEED_PASSWORD_LENGTH = 12
+
+def _seed_credentials(email_var: str, password_var: str):
+    """Read an account's email/password from the environment. Returns None unless both are set and the password is strong enough."""
+    email = os.getenv(email_var, "").strip()
+    password = os.getenv(password_var, "")
+    if not email or not password:
+        return None
+    if len(password) < MIN_SEED_PASSWORD_LENGTH:
+        print(f"[seed] {password_var} is shorter than {MIN_SEED_PASSWORD_LENGTH} characters; skipping that account")
+        return None
+    return email, password
 
 def seed():
     db = SessionLocal()
@@ -56,22 +71,26 @@ def seed():
             db.commit()
 
         if db.query(models.User).filter(models.User.role == "admin").count() == 0:
-            from passlib.context import CryptContext
-            pwd = CryptContext(
-                schemes=["bcrypt"],
-                deprecated="auto",
-                bcrypt__truncate_error=False,  # truncate >72 bytes to avoid backend ValueError
-            )
-            admin = models.User(
-                name="EventX Admin",
-                email="admin@eventx.com",
-                hashed_password=pwd.hash("admin123"[:72]),
-                role=models.RoleEnum.admin,
-                auth_provider=models.AuthProviderEnum.email,
-                interests_set=True,
-            )
-            db.add(admin)
-            db.commit()
+            creds = _seed_credentials("ADMIN_EMAIL", "ADMIN_PASSWORD")
+            if creds:
+                from passlib.context import CryptContext
+                pwd = CryptContext(
+                    schemes=["bcrypt"],
+                    deprecated="auto",
+                    bcrypt__truncate_error=False,  # truncate >72 bytes to avoid backend ValueError
+                )
+                admin_email, admin_password = creds
+                db.add(models.User(
+                    name="EventX Admin",
+                    email=admin_email,
+                    hashed_password=pwd.hash(admin_password[:72]),
+                    role=models.RoleEnum.admin,
+                    auth_provider=models.AuthProviderEnum.email,
+                    interests_set=True,
+                ))
+                db.commit()
+            else:
+                print("[seed] No admin exists and ADMIN_EMAIL / ADMIN_PASSWORD are not set; no admin account created")
 
         # Seed fests + their organizer accounts + owner FestMember rows
         # Everything happens in one transaction so the DB is never in a half-seeded state.
@@ -88,24 +107,31 @@ def seed():
             nmims  = db.query(models.College).filter(models.College.name == "NMIMS").first()
 
             # ── Seed organizer accounts (one per flagship fest) ───────────────
-            # These represent real fest committee owners that can log in and
-            # manage their fest via the organizer dashboard.
+            # Credentials come from the environment (ORGANIZER_<SLUG>_EMAIL / ORGANIZER_<SLUG>_PASSWORD,
+            # e.g. ORGANIZER_MOOD_INDIGO_EMAIL). A fest without configured credentials is created with no
+            # owner; an admin can assign one afterwards.
             seed_organizers = [
-                {"name": "Mood Indigo Team",   "email": "organizer@moodindigo.com",   "password": "moodindigo123"},
-                {"name": "Malhar Team",         "email": "organizer@malhar.com",        "password": "malhar123"},
-                {"name": "Kaleidoscope Team",   "email": "organizer@kaleidoscope.com", "password": "kaleidoscope123"},
+                {"slug": "mood-indigo",  "name": "Mood Indigo Team"},
+                {"slug": "malhar",       "name": "Malhar Team"},
+                {"slug": "kaleidoscope", "name": "Kaleidoscope Team"},
             ]
             organizer_users = []
             for o in seed_organizers:
+                prefix = "ORGANIZER_" + o["slug"].upper().replace("-", "_")
+                creds = _seed_credentials(prefix + "_EMAIL", prefix + "_PASSWORD")
+                if not creds:
+                    organizer_users.append(None)
+                    continue
+                email, password = creds
                 # Skip if account already exists (idempotent re-runs)
-                existing = db.query(models.User).filter(models.User.email == o["email"]).first()
+                existing = db.query(models.User).filter(models.User.email == email).first()
                 if existing:
                     organizer_users.append(existing)
                 else:
                     user = models.User(
                         name=o["name"],
-                        email=o["email"],
-                        hashed_password=pwd.hash(o["password"][:72]),
+                        email=email,
+                        hashed_password=pwd.hash(password[:72]),
                         role=models.RoleEnum.organizer,
                         auth_provider=models.AuthProviderEnum.email,
                         interests_set=True,
@@ -156,11 +182,13 @@ def seed():
                 db.add(fest)
                 db.flush()  # populate fest.id before FK reference
 
-                db.add(models.FestMember(
-                    fest_id=fest.id,
-                    user_id=organizer_users[owner_idx].id,
-                    role=models.FestMemberRoleEnum.owner,
-                ))
+                owner = organizer_users[owner_idx]
+                if owner is not None:
+                    db.add(models.FestMember(
+                        fest_id=fest.id,
+                        user_id=owner.id,
+                        role=models.FestMemberRoleEnum.owner,
+                    ))
 
             db.commit()  # single commit — fest + organizer + member rows are atomic
 
