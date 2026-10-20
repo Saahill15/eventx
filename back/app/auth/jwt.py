@@ -5,7 +5,18 @@ import os
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "changethis")
+MIN_SECRET_LENGTH = 32
+
+def _load_secret_key() -> str:
+    key = os.getenv("SECRET_KEY", "")
+    if len(key) < MIN_SECRET_LENGTH:
+        raise RuntimeError(
+            f"SECRET_KEY must be set to a random value of at least {MIN_SECRET_LENGTH} characters "
+            "(generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\")"
+        )
+    return key
+
+SECRET_KEY = _load_secret_key()
 ALGORITHM  = os.getenv("ALGORITHM", "HS256")
 EXPIRE_MIN = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 10080))
 
