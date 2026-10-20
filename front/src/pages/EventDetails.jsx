@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { errorMessage } from '../lib/errors'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import { getEvent, registerPass } from '../services/api'
+import { getEvent, registerPass, claimEntryPass, registerForFestEvent } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 export default function EventDetails() {
@@ -15,6 +16,7 @@ export default function EventDetails() {
   const [loading, setLoading]     = useState(true)
   const [regLoading, setRegLoading] = useState(false)
   const [regDone, setRegDone]     = useState(false)
+  const [regResult, setRegResult] = useState(null)
   const [regError, setRegError]   = useState('')
   const [error, setError]         = useState('')
 
@@ -30,10 +32,17 @@ export default function EventDetails() {
     setRegLoading(true)
     setRegError('')
     try {
-      await registerPass(id)
+      if (event.event_type === 'fest') {
+        // Fest events need the fest entry pass first (free, idempotent), then the event registration
+        await claimEntryPass(event.fest_slug)
+        const res = await registerForFestEvent(id)
+        setRegResult(res.data)
+      } else {
+        await registerPass(id)
+      }
       setRegDone(true)
     } catch (err) {
-      setRegError(err.response?.data?.detail || 'Registration failed.')
+      setRegError(errorMessage(err, 'Registration failed.'))
     } finally {
       setRegLoading(false)
     }
@@ -52,6 +61,10 @@ export default function EventDetails() {
       <Link to="/discover" className="text-orange-500 font-semibold hover:underline">← Back to Discover</Link>
     </div>
   )
+
+  const isFestEvent = event.event_type === 'fest'
+  const hasEnded = new Date(event.date) < new Date()
+  const festOpenAccess = isFestEvent && !event.requires_registration
 
   const dateStr = new Date(event.date).toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -81,13 +94,16 @@ export default function EventDetails() {
             <span className="text-xs font-semibold bg-orange-50 text-orange-600 border border-orange-100 px-3 py-1.5 rounded-full">
               {event.category ?? 'Event'}
             </span>
-            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
-              event.status === 'approved'
-                ? 'bg-green-50 text-green-600 border border-green-100'
-                : 'bg-yellow-50 text-yellow-600 border border-yellow-100'
-            }`}>
-              {event.status}
-            </span>
+            {event.status !== 'approved' && (
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-yellow-50 text-yellow-600 border border-yellow-100 capitalize">
+                {event.status} · only you can see this
+              </span>
+            )}
+            {isFestEvent && event.fest_name && (
+              <Link to={`/fest/${event.fest_slug}`} className="text-xs font-semibold bg-violet-50 text-violet-600 border border-violet-100 px-3 py-1.5 rounded-full hover:bg-violet-100 transition-colors">
+                🎪 {event.fest_name}
+              </Link>
+            )}
             {event.is_free && (
               <span className="text-xs font-semibold bg-teal-50 text-teal-600 border border-teal-100 px-3 py-1.5 rounded-full">
                 FREE
@@ -120,8 +136,19 @@ export default function EventDetails() {
               {regDone ? (
                 <div className="text-center">
                   <span className="text-3xl block mb-2">🎉</span>
-                  <p className="font-semibold text-gray-900 mb-1">You're registered!</p>
+                  <p className="font-semibold text-gray-900 mb-1">
+                    {regResult?.approval_status === 'pending' ? 'Request sent: waiting for the organisers to approve it' : "You're registered!"}
+                  </p>
                   <p className="text-sm text-gray-500 mb-4">Check your pass in <Link to="/my-passes" className="text-orange-500 font-semibold hover:underline">My Passes</Link></p>
+                </div>
+              ) : hasEnded ? (
+                <p className="text-center text-gray-500 font-medium">This event has already taken place.</p>
+              ) : festOpenAccess ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <p className="text-gray-600">No registration needed. Entry is included with the free fest entry pass.</p>
+                  <Link to={`/fest/${event.fest_slug}`} className="bg-gray-900 text-white font-semibold px-8 py-3.5 rounded-full hover:bg-gray-700 transition-all text-center">
+                    Get the fest pass
+                  </Link>
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

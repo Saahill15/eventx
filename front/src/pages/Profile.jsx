@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { errorMessage } from '../lib/errors'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
@@ -27,7 +28,7 @@ export default function Profile() {
       const r = await requestOrganizer()
       setReqMsg(r.data.message)
     } catch (err) {
-      setReqMsg(err.response?.data?.detail || 'Failed to submit request.')
+      setReqMsg(errorMessage(err, 'Failed to submit request.'))
     } finally {
       setReqLoading(false)
     }

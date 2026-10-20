@@ -243,6 +243,14 @@ class FestPass(Base):
     fest          = relationship("Fest", back_populates="entry_passes")
     registrations = relationship("EventRegistration", back_populates="fest_pass")
 
+    @property
+    def fest_slug(self):
+        return self.fest.slug if self.fest else None
+
+    @property
+    def fest_name(self):
+        return self.fest.name if self.fest else None
+
 
 class EventRegistration(Base):
     """A FestPass holder registering for a specific fest event."""

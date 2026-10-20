@@ -17,7 +17,7 @@ def _load_secret_key() -> str:
     return key
 
 SECRET_KEY = _load_secret_key()
-ALGORITHM  = os.getenv("ALGORITHM", "HS256")
+ALGORITHM  = "HS256"
 EXPIRE_MIN = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 10080))
 
 def create_token(data: dict):

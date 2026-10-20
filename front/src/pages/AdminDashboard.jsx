@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { errorMessage } from '../lib/errors'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
@@ -34,8 +35,10 @@ export default function AdminDashboard() {
 
   useEffect(() => { refresh() }, [])
 
+  const [actionError, setActionError] = useState('')
   const action = async (fn, ...args) => {
-    try { await fn(...args); refresh() } catch {}
+    setActionError('')
+    try { await fn(...args); refresh() } catch (err) { setActionError(errorMessage(err, 'That action failed.')); refresh() }
   }
 
   const handleAddCollege = async (e) => {
@@ -47,7 +50,7 @@ export default function AdminDashboard() {
       setCollegeMsg('College added!')
       refresh()
     } catch (err) {
-      setCollegeMsg(err.response?.data?.detail || 'Failed to add college.')
+      setCollegeMsg(errorMessage(err, 'Failed to add college.'))
     }
   }
 
@@ -87,6 +90,10 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {actionError && (
+          <div className="mb-6 bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl">{actionError}</div>
+        )}
+
         {loading ? (
           <div className="text-gray-400 text-center py-10">Loading…</div>
         ) : (
@@ -105,7 +112,10 @@ export default function AdminDashboard() {
                       className="bg-white rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm"
                     >
                       <div>
-                        <p className="font-semibold text-gray-900 text-sm">User #{req.user_id}</p>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {req.user_name ?? `User #${req.user_id}`}
+                          {req.user_email && <span className="font-normal text-gray-400"> · {req.user_email}</span>}
+                        </p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           Requested {new Date(req.requested_at).toLocaleDateString('en-IN')}
                         </p>

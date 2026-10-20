@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { errorMessage } from '../lib/errors'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
@@ -45,6 +46,7 @@ export default function CreateEvent() {
     try {
       const payload = {
         ...form,
+        event_type: 'city',
         date: new Date(form.date).toISOString(),
         price: form.is_free ? 0 : parseFloat(form.price),
         college_id: form.college_id ? parseInt(form.college_id) : null,
@@ -52,7 +54,7 @@ export default function CreateEvent() {
       await createEvent(payload)
       setSuccess(true)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create event.')
+      setError(errorMessage(err, 'Failed to create event.'))
     } finally {
       setLoading(false)
     }

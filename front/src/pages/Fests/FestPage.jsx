@@ -4,7 +4,8 @@ import { motion } from 'framer-motion'
 import Navbar from '../../components/Navbar'
 import Footer from '../../components/Footer'
 import { useAuth } from '../../context/AuthContext'
-import { getFest, getFestEvents, getFestMembers, getColleges } from '../../services/api'
+import { getFest, getFestEvents, getFestMembers, getColleges, getMyFestPass, claimEntryPass } from '../../services/api'
+import { errorMessage } from '../../lib/errors'
 
 /* ─── Inline EventCard ───────────────────────────────────────────────────── */
 const CATEGORY_EMOJIS = {
@@ -110,6 +111,30 @@ export default function FestPage() {
   const [festLoading,   setFestLoading]   = useState(true)
   const [eventsLoading, setEventsLoading] = useState(true)
   const [error,         setError]         = useState('')
+  const [entryPass,     setEntryPass]     = useState(null)
+  const [passBusy,      setPassBusy]      = useState(false)
+  const [passError,     setPassError]     = useState('')
+
+  useEffect(() => {
+    setEntryPass(null)
+    setPassError('')
+    if (!isLoggedIn) return
+    getMyFestPass(slug).then((r) => setEntryPass(r.data)).catch(() => {})
+  }, [slug, isLoggedIn])
+
+  const handleClaimPass = async () => {
+    if (!isLoggedIn) { navigate('/login'); return }
+    setPassBusy(true)
+    setPassError('')
+    try {
+      const r = await claimEntryPass(slug)
+      setEntryPass(r.data)
+    } catch (err) {
+      setPassError(errorMessage(err, 'Could not get your entry pass.'))
+    } finally {
+      setPassBusy(false)
+    }
+  }
 
   useEffect(() => {
     setFestLoading(true)
@@ -120,7 +145,7 @@ export default function FestPage() {
     // Parallel fetch: fest + events + colleges (members only if logged in)
     const festP    = getFest(slug)
     const eventsP  = getFestEvents(slug)
-    const collegesP = getColleges()
+    const collegesP = getColleges().catch(() => ({ data: [] }))
     const membersP = isLoggedIn ? getFestMembers(slug).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
 
     Promise.all([festP, eventsP, collegesP, membersP])
@@ -281,6 +306,36 @@ export default function FestPage() {
           PAGE BODY
       ════════════════════════════════════════════════════════════════ */}
       <div className="max-w-5xl mx-auto px-6 md:px-10">
+
+        {/* Entry pass */}
+        {fest.status === 'live' && (
+          <section className="pt-10">
+            <div className="rounded-2xl bg-gray-900 text-white px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <p className="font-bold">{entryPass ? 'You have an entry pass 🎟️' : 'Free entry pass'}</p>
+                <p className="text-sm text-white/60 mt-0.5">
+                  {entryPass
+                    ? 'Show the QR code from My Passes at the gate, and register for events below.'
+                    : 'Get your pass first. You need it to register for events at this fest.'}
+                </p>
+                {passError && <p className="text-sm text-red-300 mt-2">{passError}</p>}
+              </div>
+              {entryPass ? (
+                <Link to="/my-passes" className="text-sm font-semibold bg-white text-gray-900 px-5 py-2.5 rounded-full hover:bg-gray-100 transition-colors text-center">
+                  View my pass
+                </Link>
+              ) : (
+                <button
+                  onClick={handleClaimPass}
+                  disabled={passBusy}
+                  className="text-sm font-semibold bg-white text-gray-900 px-5 py-2.5 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-60"
+                >
+                  {passBusy ? 'Getting pass…' : isLoggedIn ? 'Get my pass' : 'Sign in to get a pass'}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* ────────────────────────────────────────────────────────────
             2. ABOUT

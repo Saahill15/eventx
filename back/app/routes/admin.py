@@ -10,17 +10,32 @@ router = APIRouter()
 @router.get("/organizer-requests")
 def get_organizer_requests(db: Session = Depends(get_db), _=Depends(require_admin)):
     requests = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.status == "pending").all()
-    return requests
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "user_name": r.user.name if r.user else None,
+            "user_email": r.user.email if r.user else None,
+            "status": r.status,
+            "requested_at": r.requested_at,
+        }
+        for r in requests
+    ]
 
 @router.post("/organizer-requests/{request_id}/approve")
 def approve_organizer(request_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
     req = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != models.StatusEnum.pending:
+        raise HTTPException(status_code=400, detail="Request was already reviewed")
     req.status = models.StatusEnum.approved
     req.reviewed_at = datetime.utcnow()
     user = db.query(models.User).filter(models.User.id == req.user_id).first()
-    user.role = models.RoleEnum.organizer
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role == models.RoleEnum.user:  # never downgrade an admin
+        user.role = models.RoleEnum.organizer
     db.commit()
     return {"message": "Organizer approved"}
 
@@ -29,6 +44,8 @@ def reject_organizer(request_id: int, db: Session = Depends(get_db), _=Depends(r
     req = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
+    if req.status != models.StatusEnum.pending:
+        raise HTTPException(status_code=400, detail="Request was already reviewed")
     req.status = models.StatusEnum.rejected
     req.reviewed_at = datetime.utcnow()
     db.commit()
