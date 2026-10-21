@@ -17,18 +17,14 @@ eventx/
 │   ├── tests/            pytest suite (in-memory SQLite)
 │   ├── .env.example      every setting the API reads
 │   └── requirements*.txt
-├── web/                  New HiveOut site: Next.js + Tailwind (student side)
+├── front/                HiveOut website: Next.js + Tailwind + TypeScript
+│   ├── public/           logo, icons
 │   └── src/
-│       ├── app/          pages (home, fests, events, fest and event detail, sign in, My passes, profile)
-│       ├── components/   glass UI pieces, cards, registration and pass panels
+│       ├── app/          pages: home, fests, events, fest and event detail, sign in, My passes, profile,
+│       │                 committee dashboard, admin
+│       ├── components/   UI pieces (cards, panels) plus committee/ and admin/ screens
 │       └── lib/          API client, auth, formatting, share-card images
-├── front/                Old React + Vite app (still serves the committee dashboard until it moves to web/)
-│   └── src/
-│       ├── pages/        route-level screens (Fests/ holds the fest screens)
-│       ├── components/   shared UI
-│       ├── context/      auth state
-│       ├── services/     API client
-│       └── lib/          helpers (error messages, static data)
+├── docs/                 user flow and brand material
 └── render.yaml           Render Blueprint for both services
 ```
 
@@ -47,13 +43,11 @@ cp .env.example .env      # then set SECRET_KEY (see the comment in the file)
 Website (Node 20+):
 
 ```bash
-cd web
+cd front
 npm install
 cp .env.example .env.local
 npm run dev               # http://localhost:3000
 ```
-
-Committee dashboard (old app, until it is rebuilt in `web/`): `cd front && npm install && npm run dev` (http://localhost:5173).
 
 Tests: `cd back && ./venv/bin/python -m pytest`
 

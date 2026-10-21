@@ -24,13 +24,13 @@ services:
 
   - type: web
     name: eventx-front
-    env: static
+    env: node
     buildCommand: cd front && npm install && npm run build
-    staticPublishPath: front/dist
+    startCommand: cd front && npm start -- --port $PORT
     envVars:
-      - key: VITE_API_URL
+      - key: NODE_VERSION
+        value: 20
+      - key: NEXT_PUBLIC_API_URL
         value: https://eventx-api.onrender.com
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://eventxapp.in
