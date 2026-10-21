@@ -8,7 +8,7 @@ export default function ProfilePage() {
   return (
     <RequireLogin>
       <div className="mx-auto max-w-2xl px-6 pb-8 pt-8">
-        <h1 className="mb-8 font-display text-4xl font-black tracking-tight">Profile</h1>
+        <h1 className="mb-8 font-display text-4xl font-bold tracking-tight">Profile</h1>
         <ProfileView />
       </div>
     </RequireLogin>

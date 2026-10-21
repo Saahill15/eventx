@@ -51,7 +51,7 @@ export function RegistrationsTab({ events, reload }: { events: ManagedEvent[]; r
             {withReg.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
           </select>
         </label>
-        <Button variant="glass" onClick={exportCsv} disabled={!rows || rows.length === 0}><Download className="h-4 w-4" /> Download CSV</Button>
+        <Button variant="outline" onClick={exportCsv} disabled={!rows || rows.length === 0}><Download className="h-4 w-4" /> Download CSV</Button>
       </div>
       <div className="mb-4"><ErrorNote>{error}</ErrorNote></div>
       {rows && <p className="mb-4 text-sm text-neutral-500">{rows.length} total · {count("approved")} confirmed · {count("pending")} waiting · {count("rejected")} rejected</p>}
@@ -61,7 +61,7 @@ export function RegistrationsTab({ events, reload }: { events: ManagedEvent[]; r
       ) : (
         <div className="space-y-3">
           {rows.map((r) => (
-            <div key={r.id} className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl p-4 sm:p-5">
+            <div key={r.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] flex flex-wrap items-center justify-between gap-3 rounded-3xl p-4 sm:p-5">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{r.user_name}</p>
                 <p className="truncate text-sm text-neutral-500">{r.user_email}</p>
@@ -72,7 +72,7 @@ export function RegistrationsTab({ events, reload }: { events: ManagedEvent[]; r
                 {r.approval_status === "pending" && (
                   <>
                     <Button size="sm" onClick={() => decide(r.id, true)}>Approve</Button>
-                    <Button size="sm" variant="glass" onClick={() => decide(r.id, false)}>Reject</Button>
+                    <Button size="sm" variant="outline" onClick={() => decide(r.id, false)}>Reject</Button>
                   </>
                 )}
               </div>

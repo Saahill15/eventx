@@ -10,10 +10,5 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const { id } = await params;
   const e = await getEventById(id);
   if (!e) return ogCard({ eyebrow: "HiveOut", title: "Every college fest in one place" });
-  return ogCard({
-    eyebrow: e.fest_name ?? "Event",
-    title: e.title,
-    line1: `${formatDay(e.date)}${e.time ? ` · ${formatTime(e.time)}` : ""}`,
-    line2: e.location ?? undefined,
-  });
+  return ogCard({ eyebrow: e.fest_name ?? "Event", title: e.title, line1: `${formatDay(e.date)}${e.time ? ` · ${formatTime(e.time)}` : ""}`, line2: e.location ?? undefined });
 }

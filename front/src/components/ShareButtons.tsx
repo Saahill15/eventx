@@ -33,30 +33,16 @@ function downloadIcs(info: CalendarInfo) {
 
 export function ShareButtons({ title, calendar }: { title: string; calendar?: CalendarInfo }) {
   const [copied, setCopied] = useState(false);
-
   const share = async () => {
     const url = window.location.href;
-    if (navigator.share) {
-      try { await navigator.share({ title, url }); return; } catch { /* cancelled: fall through to copy */ }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* clipboard blocked: nothing more to do */ }
+    if (navigator.share) { try { await navigator.share({ title, url }); return; } catch { /* cancelled: fall through to copy */ } }
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
-
-  const btn = "glass inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:bg-white/90 active:scale-[0.97]";
+  const btn = "hairline inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold transition hover:bg-wash active:scale-[0.97]";
   return (
     <div className="flex flex-wrap gap-2">
-      <button onClick={share} className={btn}>
-        {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />} {copied ? "Link copied" : "Share"}
-      </button>
-      {calendar && (
-        <button onClick={() => downloadIcs(calendar)} className={btn}>
-          <CalendarPlus className="h-4 w-4" /> Add to calendar
-        </button>
-      )}
+      <button onClick={share} className={btn}>{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />} {copied ? "Link copied" : "Share"}</button>
+      {calendar && <button onClick={() => downloadIcs(calendar)} className={btn}><CalendarPlus className="h-4 w-4" /> Add to calendar</button>}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import type { FestRole, Member } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Pill, Skeleton } from "@/components/ui/bits";
-import { Field, Notice } from "@/components/ui/form";
+import { Field, Notice } from "@/components/ui/bits";
 
 const LABEL: Record<string, string> = { owner: "Festival director", core: "Core team", volunteer: "Volunteer" };
 const HELP: Record<string, string> = { core: "Can manage events, registrations and the team", volunteer: "Helps on the day, no management access" };
@@ -49,7 +49,7 @@ export function TeamTab({ slug, myRole }: { slug: string; myRole: FestRole }) {
 
   return (
     <div className="space-y-8">
-      <form onSubmit={add} className="glass-strong space-y-4 rounded-[2rem] p-6 sm:p-8">
+      <form onSubmit={add} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] space-y-4 rounded-[2rem] p-6 sm:p-8">
         <h2 className="font-display text-xl font-extrabold tracking-tight">Add a team member</h2>
         <ErrorNote>{error}</ErrorNote>
         {notice && <Notice tone="ok">{notice}</Notice>}
@@ -70,7 +70,7 @@ export function TeamTab({ slug, myRole }: { slug: string; myRole: FestRole }) {
       {members === null ? <Skeleton className="h-20" /> : (
         <div className="space-y-3">
           {[...members].sort((a, b) => ORDER[a.role] - ORDER[b.role]).map((m) => (
-            <div key={m.id} className="glass flex items-center justify-between gap-4 rounded-3xl p-4 sm:p-5">
+            <div key={m.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] flex items-center justify-between gap-4 rounded-3xl p-4 sm:p-5">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{m.user_name}{m.user_id === user?.id ? " (you)" : ""}</p>
                 <p className="truncate text-sm text-neutral-500">{m.user_email}</p>

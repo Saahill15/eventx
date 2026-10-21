@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { QrCode } from "lucide-react";
 import { api } from "@/lib/api";
@@ -8,8 +7,9 @@ import { useAuth } from "@/lib/auth";
 import type { FestPass } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { ErrorNote } from "./ui/bits";
+import { TicketShell } from "./TicketShell";
 
-export function EntryPassPanel({ slug, isLive }: { slug: string; isLive: boolean }) {
+export function EntryPassPanel({ slug, name, isLive }: { slug: string; name: string; isLive: boolean }) {
   const { user, loading } = useAuth();
   const [pass, setPass] = useState<FestPass | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,23 +30,14 @@ export function EntryPassPanel({ slug, isLive }: { slug: string; isLive: boolean
   };
 
   return (
-    <div className="glass-strong flex flex-col gap-4 rounded-3xl p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-hive-100 text-hive-ink"><QrCode className="h-6 w-6" /></div>
-        <div>
-          <p className="font-display text-lg font-extrabold tracking-tight">{pass ? "You have your fest pass" : "Get your free fest pass"}</p>
-          <p className="text-sm text-neutral-500">{pass ? "Show the QR code at the gate and register for events below." : "You need it to enter and to register for events. It takes one tap."}</p>
-          <div className="mt-2"><ErrorNote>{error}</ErrorNote></div>
-        </div>
+    <TicketShell
+      head={<div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-ink">Fest pass</p><p className="mt-1 font-display text-2xl font-bold leading-tight tracking-tight">{name}</p></div><QrCode className="h-8 w-8 text-amber-ink" /></div>}
+    >
+      <p className="mb-4 text-sm text-mute">{pass ? "You are in. Show the QR code at the gate and register for events." : "Free for everyone. You need it to enter and to register for events."}</p>
+      <ErrorNote>{error}</ErrorNote>
+      <div className={error ? "mt-3" : ""}>
+        {loading ? <div className="h-14 animate-pulse rounded-full bg-wash" /> : pass ? <Button href="/my-passes" variant="ink" size="lg" className="w-full">View my pass</Button> : user ? <Button onClick={claim} disabled={busy} size="lg" className="w-full">{busy ? "Getting pass…" : "Get my free pass"}</Button> : <Button href={`/login?next=${encodeURIComponent(`/fest/${slug}`)}`} size="lg" className="w-full">Sign in to get it</Button>}
       </div>
-      {loading ? null : pass ? (
-        <Button href="/my-passes" variant="dark">View my pass</Button>
-      ) : user ? (
-        <Button onClick={claim} disabled={busy}>{busy ? "Getting pass…" : "Get my pass"}</Button>
-      ) : (
-        <Button href={`/login?next=${encodeURIComponent(`/fest/${slug}`)}`}>Sign in to get it</Button>
-      )}
-      {!user && !loading && <Link href={`/signup?next=${encodeURIComponent(`/fest/${slug}`)}`} className="sr-only">Create account</Link>}
-    </div>
+    </TicketShell>
   );
 }

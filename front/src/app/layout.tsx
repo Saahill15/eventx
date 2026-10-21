@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Inter } from "next/font/google";
+import { Bricolage_Grotesque, Inter } from "next/font/google";
 import { AuthProvider } from "@/lib/auth";
-import { MotionProvider } from "@/components/motion";
 import { SITE_URL } from "@/lib/api";
-import { Footer } from "@/components/Footer";
-import { Navbar } from "@/components/Navbar";
+import { MotionProvider } from "@/components/motion";
+import { TopBar } from "@/components/shell/TopBar";
+import { Dock } from "@/components/shell/Dock";
+import { Footer } from "@/components/shell/Footer";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo", display: "swap", weight: ["600", "700", "800", "900"] });
+const bricolage = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-bricolage", display: "swap", weight: ["500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -19,18 +20,18 @@ export const metadata: Metadata = {
   openGraph: { siteName: "HiveOut", type: "website", locale: "en_IN" },
   twitter: { card: "summary_large_image" },
 };
-
-export const viewport: Viewport = { themeColor: "#faf9f7", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#ffffff", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${archivo.variable}`}>
-      <body className="min-h-screen">
+    <html lang="en" className={`${inter.variable} ${bricolage.variable}`}>
+      <body className="min-h-screen pb-24 md:pb-0">
         <MotionProvider>
           <AuthProvider>
-            <Navbar />
-            <main className="pt-20 sm:pt-24">{children}</main>
+            <TopBar />
+            <main>{children}</main>
             <Footer />
+            <Dock />
           </AuthProvider>
         </MotionProvider>
       </body>

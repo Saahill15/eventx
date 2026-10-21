@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import type { Fest } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote } from "@/components/ui/bits";
-import { Field } from "@/components/ui/form";
+import { Field } from "@/components/ui/bits";
 
 export function FestSettingsTab({ fest, onSaved }: { fest: Fest; onSaved: () => void }) {
   const [form, setForm] = useState({ name: fest.name, tagline: fest.tagline ?? "", banner_url: fest.banner_url ?? "", logo_url: fest.logo_url ?? "" });
@@ -25,7 +25,7 @@ export function FestSettingsTab({ fest, onSaved }: { fest: Fest; onSaved: () => 
   };
 
   return (
-    <form onSubmit={submit} className="glass-strong max-w-xl space-y-4 rounded-[2rem] p-6 sm:p-8">
+    <form onSubmit={submit} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] max-w-xl space-y-4 rounded-[2rem] p-6 sm:p-8">
       <ErrorNote>{error}</ErrorNote>
       <Field label="Fest name"><input className="field" required value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
       <Field label="Tagline"><input className="field" value={form.tagline} onChange={(e) => set("tagline", e.target.value)} /></Field>

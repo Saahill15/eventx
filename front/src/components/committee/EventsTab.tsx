@@ -7,7 +7,7 @@ import type { Fest, ManagedEvent } from "@/lib/types";
 import { formatDay, priceLabel } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote } from "@/components/ui/bits";
-import { Field, Notice } from "@/components/ui/form";
+import { Field, Notice } from "@/components/ui/bits";
 
 const CATEGORIES = ["Cultural", "Technical", "Sports", "Music", "Business", "Gaming", "Fashion", "Literary", "Technology", "Finance", "Design", "Education"];
 
@@ -69,7 +69,7 @@ function EventForm({ fest, event, onSaved, onCancel }: { fest: Fest; event: Mana
   };
 
   return (
-    <form onSubmit={submit} className="glass-strong space-y-4 rounded-[2rem] p-6 sm:p-8">
+    <form onSubmit={submit} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] space-y-4 rounded-[2rem] p-6 sm:p-8">
       <h2 className="font-display text-xl font-extrabold tracking-tight">{event ? "Edit event" : "New event"}</h2>
       <ErrorNote>{error}</ErrorNote>
       <Field label="Title"><input className="field" required value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Battle of Bands" /></Field>
@@ -143,7 +143,7 @@ export function EventsTab({ fest, events, reload }: { fest: Fest; events: Manage
       ) : (
         <div className="space-y-3">
           {events.map((e) => (
-            <div key={e.id} className="glass flex flex-wrap items-center justify-between gap-4 rounded-3xl p-5">
+            <div key={e.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] flex flex-wrap items-center justify-between gap-4 rounded-3xl p-5">
               <div className="min-w-0">
                 <p className="font-semibold">{e.title}</p>
                 <p className="mt-0.5 text-sm text-neutral-500">{formatDay(e.date)}{e.time ? ` · ${e.time}` : ""}{e.location ? ` · ${e.location}` : ""} · {priceLabel(e)}</p>
@@ -155,7 +155,7 @@ export function EventsTab({ fest, events, reload }: { fest: Fest; events: Manage
               </div>
               <div className="flex gap-2">
                 <Button href={`/events/${e.id}`} variant="ghost" size="sm">View</Button>
-                <Button variant="glass" size="sm" onClick={() => setEditing(e)}>Edit</Button>
+                <Button variant="outline" size="sm" onClick={() => setEditing(e)}>Edit</Button>
               </div>
             </div>
           ))}
