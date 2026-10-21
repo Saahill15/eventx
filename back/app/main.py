@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401  (registers the tables with Base.metadata)
 from app.migrate import run_migrations
 from app.seed import seed
-from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student
+from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements
 
 app = FastAPI(title="EventX API")
 
@@ -30,6 +30,10 @@ app.include_router(colleges.router,      prefix="/api/colleges",    tags=["Colle
 app.include_router(fests.router,         prefix="/api/fests",       tags=["Fests"])
 app.include_router(entry_passes.router,  prefix="/api/fests",       tags=["FestPasses"])
 app.include_router(student.router,        prefix="/api/users/me/student", tags=["Student verification"])
+app.include_router(media.router,          prefix="/api/media",       tags=["Media"])
+app.include_router(event_questions.router, prefix="/api/events",     tags=["Event questions"])
+app.include_router(announcements.router,  prefix="/api/fests",       tags=["Announcements"])
+app.include_router(announcements.notifications_router, prefix="/api/users/me", tags=["Announcements"])
 app.include_router(gate.router,           prefix="/api/fests",       tags=["Gate"])
 app.include_router(fest_events.router,   prefix="/api/fest-events", tags=["FestEventRegistrations"])
 

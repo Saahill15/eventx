@@ -7,6 +7,7 @@ from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import require_admin
 from app.routes.student import verify_user
+from app.fest_review import fest_missing
 
 router = APIRouter()
 
@@ -28,6 +29,16 @@ def search_users(
     return query.order_by(models.User.created_at.desc()).limit(50).all()
 
 
+def _valid_partner_colleges(db: Session, ids: List[int]) -> List[models.College]:
+    colleges = db.query(models.College).filter(models.College.id.in_(ids)).all() if ids else []
+    if not ids or len(colleges) != len(set(ids)):
+        raise HTTPException(status_code=400, detail="Pick at least one existing college")
+    not_partner = [c.name for c in colleges if c.partner_status != "partner"]
+    if not_partner:
+        raise HTTPException(status_code=400, detail="Not a partner college yet: " + ", ".join(not_partner))
+    return colleges
+
+
 @router.post("/users/{user_id}/role", response_model=schemas.AdminUserOut)
 def set_user_role(
     user_id: int,
@@ -35,7 +46,10 @@ def set_user_role(
     db: Session = Depends(get_db),
     admin: models.User = Depends(require_admin),
 ):
-    """Make an account an organiser, or return it to a normal user. Admins are not managed here."""
+    """
+    Make an account an organiser for one or more partner colleges, or return it to a normal member.
+    Admins are not managed here.
+    """
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -52,10 +66,122 @@ def set_user_role(
         )
         if owns_fest:
             raise HTTPException(status_code=400, detail="This person owns a fest. Transfer the fest to someone else before removing organiser access.")
+        user.organizer_colleges.clear()
+    else:
+        colleges = _valid_partner_colleges(db, data.college_ids)
+        user.organizer_colleges.clear()
+        db.flush()
+        for c in colleges:
+            user.organizer_colleges.append(models.OrganizerCollege(college_id=c.id))
     user.role = new_role
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.put("/users/{user_id}/colleges", response_model=schemas.AdminUserOut)
+def set_organizer_colleges(user_id: int, data: schemas.CollegeAssignment, db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Change which colleges an existing organiser may list fests for."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user or user.role != models.RoleEnum.organizer:
+        raise HTTPException(status_code=404, detail="Organiser not found")
+    colleges = _valid_partner_colleges(db, data.college_ids)
+    user.organizer_colleges.clear()
+    db.flush()
+    for c in colleges:
+        user.organizer_colleges.append(models.OrganizerCollege(college_id=c.id))
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ─── Colleges (partnership details) ──────────────────────────────────────────
+
+@router.get("/colleges", response_model=List[schemas.CollegeAdminOut])
+def list_colleges_admin(db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Every college with its private partnership details."""
+    return db.query(models.College).order_by(models.College.name).all()
+
+
+# ─── Fest review ─────────────────────────────────────────────────────────────
+
+def _review_view(db: Session, fest: models.Fest) -> schemas.FestReviewOut:
+    events = db.query(models.Event).filter(models.Event.fest_id == fest.id).order_by(models.Event.date).all()
+    owners = (
+        db.query(models.FestMember)
+        .filter(models.FestMember.fest_id == fest.id, models.FestMember.role == models.FestMemberRoleEnum.owner)
+        .all()
+    )
+    return schemas.FestReviewOut(
+        fest=schemas.FestManageOut.model_validate(fest),
+        college=schemas.ReviewCollege.model_validate(fest.college, from_attributes=True) if fest.college else None,
+        events=[schemas.ReviewEvent.model_validate(e, from_attributes=True) for e in events],
+        missing=fest_missing(fest, events),
+        owners=[f"{m.user_name} <{m.user_email}>" for m in owners],
+    )
+
+
+@router.get("/fests", response_model=List[schemas.FestReviewOut])
+def list_fests_for_review(
+    review_status: str = Query(default="in_review", pattern="^(draft|in_review|changes_requested|approved|rejected)$"),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    fests = db.query(models.Fest).filter(models.Fest.review_status == review_status).order_by(models.Fest.submitted_at).limit(100).all()
+    return [_review_view(db, f) for f in fests]
+
+
+@router.get("/fests/{slug}", response_model=schemas.FestReviewOut)
+def get_fest_for_review(slug: str, db: Session = Depends(get_db), _=Depends(require_admin)):
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    return _review_view(db, fest)
+
+
+def _decide_fest(db: Session, slug: str, admin: models.User, outcome: str, note: Optional[str]) -> models.Fest:
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    if fest.review_status != "in_review":
+        raise HTTPException(status_code=400, detail="This fest is not waiting for review")
+    fest.review_status = outcome
+    fest.review_note = note
+    fest.reviewed_by = admin.id
+    fest.reviewed_at = datetime.utcnow()
+    return fest
+
+
+@router.post("/fests/{slug}/approve", response_model=schemas.FestReviewOut)
+def approve_fest(slug: str, data: Optional[schemas.ReviewNote] = None, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Approve the fest. The organiser can now make it live. A note is optional."""
+    fest = _decide_fest(db, slug, admin, "approved", data.note if data else None)
+    events = db.query(models.Event).filter(models.Event.fest_id == fest.id).all()
+    missing = fest_missing(fest, events)
+    if missing:
+        raise HTTPException(status_code=400, detail={"message": "The fest is incomplete", "missing": missing})
+    db.commit()
+    db.refresh(fest)
+    return _review_view(db, fest)
+
+
+@router.post("/fests/{slug}/request-changes", response_model=schemas.FestReviewOut)
+def request_fest_changes(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Send it back to the organiser with a note saying what to fix."""
+    fest = _decide_fest(db, slug, admin, "changes_requested", data.note)
+    db.commit()
+    db.refresh(fest)
+    return _review_view(db, fest)
+
+
+@router.post("/fests/{slug}/reject", response_model=schemas.FestReviewOut)
+def reject_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Decline the fest. The organiser sees the reason and may fix things and submit again."""
+    fest = _decide_fest(db, slug, admin, "rejected", data.note)
+    db.commit()
+    db.refresh(fest)
+    return _review_view(db, fest)
+
 
 @router.get("/events/pending")
 def get_pending_events(db: Session = Depends(get_db), _=Depends(require_admin)):

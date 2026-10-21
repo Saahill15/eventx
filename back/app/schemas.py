@@ -1,9 +1,37 @@
 import re
 from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator, model_validator
 from typing import Annotated, Optional, List, Literal
-from datetime import datetime
+from datetime import date, datetime
 
 MIN_PASSWORD_LENGTH = 8
+
+PHONE_PATTERN = r"^\+?[0-9 ()-]{7,20}$"
+TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
+MAX_EXTRA_SECTIONS = 10
+
+
+def clean_url(v):
+    """Image and link fields accept an uploaded image path or an https/http address."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if v.startswith("/api/media/") or re.fullmatch(r"https?://[^\s]{3,490}", v):
+        return v
+    raise ValueError("must be a web address starting with http:// or https://")
+
+
+class ExtraSection(BaseModel):
+    """A custom block of information shown on a fest or event page, such as Rules or Prizes."""
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
+def check_sections(v):
+    if v is not None and len(v) > MAX_EXTRA_SECTIONS:
+        raise ValueError(f"at most {MAX_EXTRA_SECTIONS} extra sections")
+    return v
 
 # Auth
 class SignupEmail(BaseModel):
@@ -53,6 +81,7 @@ class UserOut(BaseModel):
     study_year: Optional[int] = None
     student_verified_until: Optional[datetime] = None
     is_student_verified: bool = False
+    college_ids: List[int] = []   # for organisers: the colleges they may list fests for
     created_at: datetime
     class Config:
         from_attributes = True
@@ -87,6 +116,18 @@ class EventCreate(BaseModel):
     is_free: bool = True
     college_id: Optional[int] = None
     fest_id: Optional[int] = None  # required when event_type="fest", must be null when "city"
+    end_time: Optional[str] = Field(default=None, pattern=TIME_PATTERN)
+    extra_sections: Optional[List[ExtraSection]] = None
+
+    _check_sections = field_validator("extra_sections")(check_sections)
+    _clean_image = field_validator("image_url")(clean_url)
+
+    @field_validator("time")
+    @classmethod
+    def valid_time(cls, v):
+        if v is not None and not re.fullmatch(TIME_PATTERN, v):
+            raise ValueError("time must look like 18:30")
+        return v
 
     # ── Fest-event registration fields (only used when event_type='fest') ──────────
     requires_registration: Optional[bool] = False
@@ -115,6 +156,12 @@ class EventCreate(BaseModel):
             raise ValueError("fest_id is required when event_type is 'fest'")
         if self.event_type == "city" and self.fest_id is not None:
             raise ValueError("fest_id must be null when event_type is 'city'")
+        if self.event_type == "fest":
+            missing = [name for name, value in (("venue", self.location), ("start time", self.time), ("end time", self.end_time), ("description", self.description)) if not (value or "").strip()]
+            if missing:
+                raise ValueError("a fest event needs: " + ", ".join(missing))
+        if self.time and self.end_time and self.end_time <= self.time:
+            raise ValueError("end time must be after the start time")
         # Registration fields only matter for fest events
         if self.event_type == "fest" and self.requires_registration:
             if self.is_paid and (self.price is None or self.price <= 0):
@@ -131,8 +178,10 @@ class EventOut(BaseModel):
     location: Optional[str]
     date: datetime
     time: Optional[str]
+    end_time: Optional[str] = None
     image_url: Optional[str]
     category: Optional[str]
+    extra_sections: Optional[List[ExtraSection]] = None
     price: float
     is_free: bool
     status: str
@@ -162,9 +211,11 @@ class EventUpdate(BaseModel):
     description:        Optional[str]   = None
     location:           Optional[str]   = None
     date:               Optional[datetime] = None
-    time:               Optional[str]   = None
+    time:               Optional[str]   = Field(default=None, pattern=TIME_PATTERN)
+    end_time:           Optional[str]   = Field(default=None, pattern=TIME_PATTERN)
     image_url:          Optional[str]   = None
     category:           Optional[str]   = None
+    extra_sections:     Optional[List[ExtraSection]] = None
     # Registration mutable fields — locked if registrations exist
     requires_registration: Optional[bool]  = None
     is_paid:               Optional[bool]  = None
@@ -174,17 +225,18 @@ class EventUpdate(BaseModel):
     students_only:         Optional[bool] = None
     student_price:         Optional[float] = Field(default=None, ge=0)
 
+    _check_sections = field_validator("extra_sections")(check_sections)
+    _clean_image = field_validator("image_url")(clean_url)
+
 # Fest
-RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass"}
+RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass", "mine"}
 
 class FestCreate(BaseModel):
+    """Starting a fest needs only a name, a web address and the college. Everything else is filled in before review."""
     slug: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", min_length=2, max_length=100)
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
-    tagline: Optional[str] = None
-    banner_url: Optional[str] = None
-    logo_url: Optional[str] = None
-    college_id: Optional[int] = None
-    status: Optional[str] = "draft"
+    tagline: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    college_id: int
 
     @field_validator("slug")
     @classmethod
@@ -194,18 +246,40 @@ class FestCreate(BaseModel):
         return v
 
 class FestOut(BaseModel):
+    """What everyone can see about a fest."""
     id: int
     slug: str
     name: str
     tagline: Optional[str]
+    description: Optional[str] = None
     banner_url: Optional[str]
     logo_url: Optional[str]
     college_id: Optional[int]
     status: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    campus_address: Optional[str] = None
+    map_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    website_url: Optional[str] = None
+    extra_sections: Optional[List[ExtraSection]] = None
     event_count: int = 0
     created_at: datetime
     class Config:
         from_attributes = True
+
+class FestManageOut(FestOut):
+    """What the committee and admins see: adds private contact details and the review state."""
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    faculty_name: Optional[str] = None
+    faculty_phone: Optional[str] = None
+    faculty_email: Optional[str] = None
+    review_status: str = "draft"
+    review_note: Optional[str] = None
+    submitted_at: Optional[datetime] = None
+    reviewed_at: Optional[datetime] = None
 
 class FestWithEventsOut(BaseModel):
     id: int
@@ -244,13 +318,39 @@ class AddFestMember(BaseModel):
 
 class FestMineOut(FestOut):
     my_role: str  # owner | core | volunteer | admin
+    review_status: str = "draft"
+    review_note: Optional[str] = None
 
 class FestUpdate(BaseModel):
+    """Details an organiser can fill in. Name and college changes after approval send the fest back to review."""
     name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]] = None
-    tagline: Optional[str] = None
+    tagline: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]] = None
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
     college_id: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    campus_address: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    map_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    website_url: Optional[str] = None
+    extra_sections: Optional[List[ExtraSection]] = None
+    contact_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    contact_email: Optional[EmailStr] = None
+    contact_phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    faculty_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    faculty_phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    faculty_email: Optional[EmailStr] = None
+
+    _check_sections = field_validator("extra_sections")(check_sections)
+    _clean_links = field_validator("banner_url", "logo_url", "map_url", "instagram_url", "website_url")(clean_url)
+
+    @model_validator(mode="after")
+    def dates_in_order(self):
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("the fest cannot end before it starts")
+        return self
 
 # College
 class CollegeCreate(BaseModel):
@@ -259,6 +359,12 @@ class CollegeCreate(BaseModel):
     emoji: Optional[str] = "🏛️"
     website: Optional[str] = None
     email_domains: Optional[str] = None  # comma-separated email domains students of this college use
+    partner_status: Literal["prospect", "partner"] = "prospect"
+    coordinator_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    coordinator_phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    coordinator_email: Optional[EmailStr] = None
+    partner_since: Optional[date] = None
+    partner_notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
 
     @field_validator("email_domains")
     @classmethod
@@ -280,9 +386,18 @@ class CollegeOut(BaseModel):
     emoji: Optional[str]
     website: Optional[str]
     email_domains: Optional[str] = None
+    partner_status: str = "prospect"
     event_count: int = 0
     class Config:
         from_attributes = True
+
+class CollegeAdminOut(CollegeOut):
+    """Adds the private partnership details only admins see."""
+    coordinator_name: Optional[str] = None
+    coordinator_phone: Optional[str] = None
+    coordinator_email: Optional[str] = None
+    partner_since: Optional[date] = None
+    partner_notes: Optional[str] = None
 
 # Pass
 class PassOut(BaseModel):
@@ -329,6 +444,7 @@ class EventRegistrationDetailOut(EventRegistrationOut):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
     checked_in: bool = False
+    answers: List["AnswerOut"] = []
 
 class FestEventManageOut(EventOut):
     registration_count: int = 0   # approved + pending
@@ -341,12 +457,17 @@ class AdminUserOut(BaseModel):
     email: Optional[str]
     role: str
     is_active: bool
+    college_ids: List[int] = []
     created_at: datetime
     class Config:
         from_attributes = True
 
 class RoleChange(BaseModel):
     role: Literal["user", "organizer"]
+    college_ids: List[int] = []   # required (at least one) when making someone an organiser
+
+class CollegeAssignment(BaseModel):
+    college_ids: List[int] = Field(min_length=1)
 
 # Committee
 class CommitteeCreate(BaseModel):
@@ -464,3 +585,115 @@ class VerificationReview(BaseModel):
 
 class RejectVerification(BaseModel):
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+
+
+# Custom registration questions
+QUESTION_KINDS = ("short_text", "choice", "yes_no")
+MAX_QUESTIONS = 10
+
+class QuestionIn(BaseModel):
+    id: Optional[int] = None   # present when keeping an existing question
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    kind: Literal["short_text", "choice", "yes_no"]
+    required: bool = False
+    options: Optional[List[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]]] = None
+
+    @model_validator(mode="after")
+    def options_match_kind(self):
+        if self.kind == "choice":
+            if not self.options or not (2 <= len(self.options) <= 20):
+                raise ValueError("a choice question needs between 2 and 20 options")
+            if len(set(o.lower() for o in self.options)) != len(self.options):
+                raise ValueError("options must be different from each other")
+        else:
+            self.options = None
+        return self
+
+class QuestionsPut(BaseModel):
+    questions: List[QuestionIn] = Field(max_length=MAX_QUESTIONS)
+
+class QuestionOut(BaseModel):
+    id: int
+    label: str
+    kind: str
+    required: bool
+    options: Optional[List[str]] = None
+    position: int
+    class Config:
+        from_attributes = True
+
+class AnswerIn(BaseModel):
+    question_id: int
+    value: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
+
+class RegisterIn(BaseModel):
+    answers: List[AnswerIn] = []
+
+class AnswerOut(BaseModel):
+    question_id: int
+    label: str
+    answer: str
+
+
+# Media
+class MediaOut(BaseModel):
+    id: str
+    url: str
+
+
+# Announcements
+class AnnouncementIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+    event_id: Optional[int] = None   # none = the whole fest
+    send_email: bool = False
+
+class AnnouncementOut(BaseModel):
+    id: int
+    fest_id: int
+    fest_slug: Optional[str] = None
+    fest_name: Optional[str] = None
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    title: str
+    body: str
+    email_requested: bool = False
+    emails_sent: int = 0
+    emails_failed: int = 0
+    created_at: datetime
+
+
+# Fest review
+class ReviewNote(BaseModel):
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=1000)]
+
+class ReviewEvent(BaseModel):
+    id: int
+    title: str
+    date: datetime
+    time: Optional[str] = None
+    end_time: Optional[str] = None
+    location: Optional[str] = None
+    requires_registration: bool = False
+    price: float = 0
+
+class ReviewCollege(BaseModel):
+    id: int
+    name: str
+    partner_status: str
+    coordinator_name: Optional[str] = None
+    coordinator_phone: Optional[str] = None
+    coordinator_email: Optional[str] = None
+    partner_since: Optional[date] = None
+    partner_notes: Optional[str] = None
+
+class FestReviewOut(BaseModel):
+    fest: FestManageOut
+    college: Optional[ReviewCollege] = None
+    events: List[ReviewEvent] = []
+    missing: List[str] = []           # anything still incomplete
+    owners: List[str] = []            # names and emails of the fest's directors
+
+class SubmitOut(BaseModel):
+    fest: FestManageOut
+    missing: List[str] = []

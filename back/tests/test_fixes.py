@@ -117,7 +117,8 @@ class TestEventCreation:
         self.fest = create_fest(self.owner, self.college_id)
 
     def fest_payload(self):
-        return {"event_type": "fest", "title": "Talk", "date": "2026-12-01T10:00:00", "fest_id": self.fest["id"]}
+        return {"event_type": "fest", "title": "Talk", "date": "2026-12-01T10:00:00", "fest_id": self.fest["id"],
+                "location": "Hall A", "time": "10:00", "end_time": "11:00", "description": "A talk."}
 
     def test_outsider_cannot_add_event_to_someone_elses_fest(self):
         r = client.post("/api/events/", json=self.fest_payload(), headers=auth(self.outsider))
@@ -266,6 +267,7 @@ class TestAdminRoles:
         self.admin = user_token("Admin", "admin@test.com", "admin")
         self.user = user_token("Asha Rao", "asha@test.com")
         self.other = user_token("Other", "other@test.com")
+        self.college_id = create_college(self.admin)
 
     def test_requesting_organiser_access_no_longer_exists(self):
         assert client.post("/api/users/request-organizer", headers=auth(self.user)).status_code in (404, 405)
@@ -284,19 +286,19 @@ class TestAdminRoles:
 
     def test_promote_and_demote(self):
         uid = user_id("asha@test.com")
-        r = client.post(f"/api/admin/users/{uid}/role", json={"role": "organizer"}, headers=auth(self.admin))
-        assert r.status_code == 200 and r.json()["role"] == "organizer"
-        # the new organiser can create a fest straight away
-        assert client.post("/api/fests/", json={"slug": "asha-fest", "name": "Asha Fest"}, headers=auth(self.user)).status_code == 201
+        r = client.post(f"/api/admin/users/{uid}/role", json={"role": "organizer", "college_ids": [self.college_id]}, headers=auth(self.admin))
+        assert r.status_code == 200 and r.json()["role"] == "organizer" and r.json()["college_ids"] == [self.college_id]
+        # the new organiser can start a fest for that college straight away
+        assert client.post("/api/fests/", json={"slug": "asha-fest", "name": "Asha Fest", "college_id": self.college_id}, headers=auth(self.user)).status_code == 201
         # but cannot be demoted while they own a fest
         r = client.post(f"/api/admin/users/{uid}/role", json={"role": "user"}, headers=auth(self.admin))
         assert r.status_code == 400 and "owns a fest" in r.json()["detail"]
 
     def test_demote_organiser_with_no_fest(self):
         uid = user_id("other@test.com")
-        client.post(f"/api/admin/users/{uid}/role", json={"role": "organizer"}, headers=auth(self.admin))
+        client.post(f"/api/admin/users/{uid}/role", json={"role": "organizer", "college_ids": [self.college_id]}, headers=auth(self.admin))
         r = client.post(f"/api/admin/users/{uid}/role", json={"role": "user"}, headers=auth(self.admin))
-        assert r.status_code == 200 and r.json()["role"] == "user"
+        assert r.status_code == 200 and r.json()["role"] == "user" and r.json()["college_ids"] == []
 
     def test_guards(self):
         admin_id = user_id("admin@test.com")

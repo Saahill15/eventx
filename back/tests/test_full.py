@@ -83,18 +83,33 @@ def make_organizer(email):
     db.close()
 
 def create_college(token):
-    r = client.post("/api/colleges/", json={"name": "IIT Bombay", "area": "Powai"}, headers=auth(token))
+    r = client.post("/api/colleges/", json={"name": "IIT Bombay", "area": "Powai", "partner_status": "partner"}, headers=auth(token))
     assert r.status_code == 200, r.text
     return r.json()["id"]
 
 def create_fest(token, college_id, slug="techfest-2026"):
+    """Start a fest the way an organiser does, then (as an admin would) approve it and put it live."""
+    me = client.get("/api/users/me", headers=auth(token)).json()
+    db = TestingSessionLocal()
+    if me["role"] == "organizer" and not db.query(models.OrganizerCollege).filter_by(user_id=me["id"], college_id=college_id).first():
+        db.add(models.OrganizerCollege(user_id=me["id"], college_id=college_id))
+        db.commit()
+    db.close()
     r = client.post("/api/fests/", json={
         "slug": slug, "name": "TechFest 2026",
         "tagline": "Asia's largest science fest",
-        "college_id": college_id, "status": "live"
+        "college_id": college_id,
     }, headers=auth(token))
     assert r.status_code == 201, r.text
-    return r.json()
+    fest = r.json()
+    db = TestingSessionLocal()
+    row = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    row.review_status = "approved"
+    row.status = models.FestStatusEnum.live
+    db.commit()
+    db.close()
+    fest["status"] = "live"
+    return fest
 
 def create_fest_event(token, fest_id, college_id, **kwargs):
     payload = {
@@ -110,6 +125,10 @@ def create_fest_event(token, fest_id, college_id, **kwargs):
         "approval_mode": kwargs.get("approval_mode", "auto"),
         "registration_limit": kwargs.get("registration_limit", None),
         "category": "Technical",
+        "location": kwargs.get("location", "Main Hall"),
+        "time": kwargs.get("time", "10:00"),
+        "end_time": kwargs.get("end_time", "12:00"),
+        "description": kwargs.get("description", "A test event."),
     }
     r = client.post("/api/events/", json=payload, headers=auth(token))
     assert r.status_code == 200, r.text

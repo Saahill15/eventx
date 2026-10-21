@@ -31,7 +31,7 @@ class Setup:
         self.admin = user_token("Admin", "admin@test.com", "admin")
         self.student = user_token("Asha", "asha@gmail.com")
         self.other = user_token("Ben", "ben@gmail.com")
-        r = client.post("/api/colleges/", json={"name": "IIT Bombay", "email_domains": "iitb.ac.in"}, headers=auth(self.admin))
+        r = client.post("/api/colleges/", json={"name": "IIT Bombay", "email_domains": "iitb.ac.in", "partner_status": "partner"}, headers=auth(self.admin))
         assert r.status_code == 200, r.text
         self.college_id = r.json()["id"]
 
@@ -208,7 +208,8 @@ class TestStudentOnlyAndPricing(Setup):
         get_entry_pass(self.other, self.slug)
 
     def make_event(self, **kw):
-        payload = {"event_type": "fest", "title": kw.pop("title", "Hack"), "date": "2026-12-01T10:00:00", "fest_id": self.fest["id"], "requires_registration": True}
+        payload = {"event_type": "fest", "title": kw.pop("title", "Hack"), "date": "2026-12-01T10:00:00", "fest_id": self.fest["id"], "requires_registration": True,
+                   "location": "Hall", "time": "10:00", "end_time": "11:00", "description": "An event."}
         payload.update(kw)
         r = client.post("/api/events/", json=payload, headers=auth(self.owner))
         assert r.status_code == 200, r.text

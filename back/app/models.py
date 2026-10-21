@@ -1,4 +1,4 @@
-from sqlalchemy import LargeBinary, Column, Integer, String, Boolean, Float, DateTime, ForeignKey, Text, Enum, CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import JSON, Date, LargeBinary, Column, Integer, String, Boolean, Float, DateTime, ForeignKey, Text, Enum, CheckConstraint, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -80,6 +80,12 @@ class User(Base):
     fest_memberships  = relationship("FestMember", back_populates="user")
     fest_passes       = relationship("FestPass", back_populates="user", foreign_keys="FestPass.user_id")
 
+    organizer_colleges = relationship("OrganizerCollege", cascade="all, delete-orphan")
+
+    @property
+    def college_ids(self):
+        return sorted(oc.college_id for oc in self.organizer_colleges)
+
     @property
     def is_student_verified(self):
         from datetime import datetime
@@ -134,6 +140,8 @@ class Event(Base):
     is_paid               = Column(Boolean, default=False)
     registration_limit    = Column(Integer, nullable=True)   # None = unlimited
     approval_mode         = Column(Enum(ApprovalModeEnum), default=ApprovalModeEnum.auto)
+    end_time              = Column(String(50), nullable=True)
+    extra_sections        = Column(JSON, nullable=True)   # [{"title": "Rules", "body": "..."}]
     students_only         = Column(Boolean, default=False, nullable=False, server_default="0")
     student_price         = Column(Float, nullable=True)     # cheaper price for verified students; None = same price
 
@@ -147,6 +155,7 @@ class Event(Base):
     passes     = relationship("Pass", back_populates="event")
     committees = relationship("Committee", back_populates="event")
     registrations = relationship("EventRegistration", back_populates="event")
+    questions     = relationship("EventQuestion", back_populates="event", cascade="all, delete-orphan", order_by="EventQuestion.position")
 
     @property
     def cancelled(self):
@@ -194,6 +203,14 @@ class College(Base):
     website = Column(String(500), nullable=True)
     email_domains = Column(String(500), nullable=True)  # comma-separated, e.g. "iitb.ac.in"; students with these emails verify automatically
 
+    # Partnership: filled in by an admin after meeting the college. Only partner colleges can list fests.
+    partner_status    = Column(String(20), nullable=False, default="prospect", server_default="prospect")  # prospect | partner
+    coordinator_name  = Column(String(255), nullable=True)
+    coordinator_phone = Column(String(30), nullable=True)
+    coordinator_email = Column(String(255), nullable=True)
+    partner_since     = Column(Date, nullable=True)
+    partner_notes     = Column(Text, nullable=True)
+
     events = relationship("Event", back_populates="college")
     fests  = relationship("Fest", back_populates="college")
 
@@ -212,6 +229,28 @@ class Fest(Base):
     college_id = Column(Integer, ForeignKey("colleges.id"), nullable=True)
     status     = Column(Enum(FestStatusEnum), default=FestStatusEnum.draft)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    description    = Column(Text, nullable=True)
+    start_date     = Column(Date, nullable=True)
+    end_date       = Column(Date, nullable=True)
+    campus_address = Column(String(500), nullable=True)
+    map_url        = Column(String(500), nullable=True)
+    instagram_url  = Column(String(500), nullable=True)
+    website_url    = Column(String(500), nullable=True)
+    extra_sections = Column(JSON, nullable=True)   # [{"title": "...", "body": "..."}]
+    # Private: for the admin who reviews the fest
+    contact_name   = Column(String(255), nullable=True)
+    contact_email  = Column(String(255), nullable=True)
+    contact_phone  = Column(String(30), nullable=True)
+    faculty_name   = Column(String(255), nullable=True)
+    faculty_phone  = Column(String(30), nullable=True)
+    faculty_email  = Column(String(255), nullable=True)
+    # Review: draft -> in_review -> approved (or changes_requested / rejected). Only approved fests can go live.
+    review_status  = Column(String(20), nullable=False, default="draft", server_default="draft")
+    review_note    = Column(String(1000), nullable=True)
+    submitted_at   = Column(DateTime, nullable=True)
+    reviewed_by    = Column(Integer, ForeignKey("users.id", name="fk_fests_reviewed_by"), nullable=True)
+    reviewed_at    = Column(DateTime, nullable=True)
 
     college      = relationship("College", back_populates="fests")
     events       = relationship("Event", back_populates="fest")
@@ -299,6 +338,7 @@ class EventRegistration(Base):
 
     fest_pass = relationship("FestPass", back_populates="registrations")
     event     = relationship("Event", back_populates="registrations")
+    answers   = relationship("RegistrationAnswer", back_populates="registration", cascade="all, delete-orphan")
 
     @property
     def user_name(self):
@@ -354,3 +394,69 @@ class StudentVerification(Base):
 
     user    = relationship("User", foreign_keys=[user_id])
     college = relationship("College")
+
+
+class OrganizerCollege(Base):
+    """Which colleges an organiser may list fests for. Set by an admin when promoting the account."""
+    __tablename__ = "organizer_colleges"
+    user_id    = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    college_id = Column(Integer, ForeignKey("colleges.id"), primary_key=True)
+
+
+class Media(Base):
+    """An uploaded image (fest banner, event cover). Stored in the database and served with long caching."""
+    __tablename__ = "media"
+    id         = Column(String(32), primary_key=True)
+    owner_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    mime       = Column(String(100), nullable=False)
+    size       = Column(Integer, nullable=False)
+    data       = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+
+
+class EventQuestion(Base):
+    """A custom question the committee asks when someone registers for an event."""
+    __tablename__ = "event_questions"
+    id       = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+    label    = Column(String(200), nullable=False)
+    kind     = Column(String(20), nullable=False)          # short_text | choice | yes_no
+    required = Column(Boolean, nullable=False, default=False, server_default="0")
+    options  = Column(JSON, nullable=True)                 # for choice questions: list of strings
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+
+    event = relationship("Event", back_populates="questions")
+
+
+class RegistrationAnswer(Base):
+    __tablename__ = "registration_answers"
+    id              = Column(Integer, primary_key=True, index=True)
+    registration_id = Column(Integer, ForeignKey("event_registrations.id"), nullable=False, index=True)
+    question_id     = Column(Integer, ForeignKey("event_questions.id"), nullable=False)
+    answer          = Column(String(500), nullable=False)
+
+    registration = relationship("EventRegistration", back_populates="answers")
+    question     = relationship("EventQuestion")
+
+    @property
+    def label(self):
+        return self.question.label if self.question else ""
+
+
+class Announcement(Base):
+    """A notice from a fest committee to everyone holding a pass (fest-wide) or registered (one event)."""
+    __tablename__ = "announcements"
+    id             = Column(Integer, primary_key=True, index=True)
+    fest_id        = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    event_id       = Column(Integer, ForeignKey("events.id"), nullable=True)
+    author_id      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title          = Column(String(120), nullable=False)
+    body           = Column(String(2000), nullable=False)
+    email_requested = Column(Boolean, nullable=False, default=False, server_default="0")
+    emails_sent    = Column(Integer, nullable=False, default=0, server_default="0")
+    emails_failed  = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at     = Column(DateTime, nullable=False)
+
+    fest   = relationship("Fest")
+    event  = relationship("Event")
+    author = relationship("User")

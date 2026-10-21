@@ -10,7 +10,8 @@ Mounted under /api/fest-events by main.py.
 import csv
 import io
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Optional
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -18,6 +19,7 @@ from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user
 from app.permissions import is_fest_member, is_fest_staff
+from app.routes.event_questions import validate_answers
 
 router = APIRouter()
 
@@ -27,6 +29,7 @@ router = APIRouter()
 @router.post("/{event_id}/register", response_model=schemas.EventRegistrationOut, status_code=status.HTTP_201_CREATED)
 def register_for_event(
     event_id: int,
+    data: Optional[schemas.RegisterIn] = Body(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -94,6 +97,9 @@ def register_for_event(
     if existing:
         return existing
 
+    # Custom questions the committee added (a body is only needed when the event asks something)
+    answers = validate_answers(event, data.answers if data else [])
+
     # ── 4. Capacity check ────────────────────────────────────────────────────
     if event.registration_limit is not None:
         active_count = (
@@ -136,6 +142,9 @@ def register_for_event(
         amount_due      = amount_due,
     )
     db.add(registration)
+    db.flush()
+    for question, value in answers:
+        db.add(models.RegistrationAnswer(registration_id=registration.id, question_id=question.id, answer=value))
     db.commit()
     db.refresh(registration)
     return registration
@@ -287,8 +296,10 @@ def export_event_registrations(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["Name", "Email", "Approval", "Payment", "Amount due (INR)", "Checked in at fest", "Attended this event", "Registered at"])
+    questions = list(event.questions)
+    writer.writerow(["Name", "Email", "Approval", "Payment", "Amount due (INR)", "Checked in at fest", "Attended this event", "Registered at"] + [_csv_cell(q.label) for q in questions])
     for r in _registrations_for(db, event_id):
+        by_question = {a.question_id: a.answer for a in r.answers}
         writer.writerow([
             _csv_cell(r.user_name), _csv_cell(r.user_email),
             r.approval_status.value, r.payment_status.value,
@@ -296,7 +307,7 @@ def export_event_registrations(
             "yes" if r.checked_in else "no",
             "yes" if r.attended else "no",
             r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
-        ])
+        ] + [_csv_cell(by_question.get(q.id, "")) for q in questions])
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv",

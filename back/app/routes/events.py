@@ -1,11 +1,12 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user, require_organizer
 from app.permissions import can_view_event, is_fest_staff
+from app.routes.announcements import announce_cancellation
 
 router = APIRouter()
 
@@ -82,6 +83,9 @@ def create_event(data: schemas.EventCreate, db: Session = Depends(get_db), curre
     - event_type="fest":  fest_id required (enforced by schema); organizer_id stays NULL.
     """
     event_data = data.model_dump()
+
+    if data.event_type == "fest":
+        _assert_fest_editable(db, data.fest_id, current_user)
 
     if data.college_id is not None and not db.query(models.College).filter(models.College.id == data.college_id).first():
         raise HTTPException(status_code=400, detail="College not found")
@@ -202,12 +206,31 @@ def update_event(
                 detail=f"Cannot change locked fields while registrations exist: {', '.join(locked)}",
             )
 
+    if event.event_type == models.EventTypeEnum.fest:
+        _assert_fest_editable(db, event.fest_id, current_user)
+
     for field, value in updates.items():
         setattr(event, field, value)
+
+    if event.event_type == models.EventTypeEnum.fest:
+        gaps = [label for label, value in (("venue", event.location), ("start time", event.time), ("end time", event.end_time), ("description", event.description)) if not (value or "").strip()]
+        if gaps:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="A fest event needs: " + ", ".join(gaps))
+        if event.time and event.end_time and event.end_time <= event.time:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="The end time must be after the start time")
 
     db.commit()
     db.refresh(event)
     return event
+
+
+def _assert_fest_editable(db: Session, fest_id, user):
+    """A fest that is waiting for review is frozen so the admin reviews what the organiser submitted."""
+    fest = db.query(models.Fest).filter(models.Fest.id == fest_id).first()
+    if fest and fest.review_status == "in_review" and user.role != models.RoleEnum.admin:
+        raise HTTPException(status_code=400, detail="Your fest is waiting for review. Withdraw it first if you need to change events.")
 
 
 def _require_event_manager(db: Session, event: models.Event, user):
@@ -222,7 +245,7 @@ def _require_event_manager(db: Session, event: models.Event, user):
 
 
 @router.post("/{event_id}/cancel", response_model=schemas.EventOut)
-def cancel_event(event_id: int, data: schemas.CancelEvent, db: Session = Depends(get_db), current_user=Depends(require_organizer)):
+def cancel_event(event_id: int, data: schemas.CancelEvent, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user=Depends(require_organizer)):
     """Cancel an event. It stays listed, marked as cancelled, and nobody can register for it any more."""
     event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if not event:
@@ -234,7 +257,27 @@ def cancel_event(event_id: int, data: schemas.CancelEvent, db: Session = Depends
     event.cancel_reason = data.reason
     db.commit()
     db.refresh(event)
+    if event.event_type == models.EventTypeEnum.fest:
+        # Everyone registered is told
+        announce_cancellation(db, event, current_user, background_tasks)
     return event
+
+
+@router.delete("/{event_id}", status_code=204)
+def delete_event(event_id: int, db: Session = Depends(get_db), current_user=Depends(require_organizer)):
+    """Remove an event nobody has registered for. If people have registered, cancel it instead so they are told."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _require_event_manager(db, event, current_user)
+    if event.event_type == models.EventTypeEnum.fest:
+        _assert_fest_editable(db, event.fest_id, current_user)
+    if db.query(models.EventRegistration).filter(models.EventRegistration.event_id == event_id).count() > 0 or \
+       db.query(models.Pass).filter(models.Pass.event_id == event_id).count() > 0:
+        raise HTTPException(status_code=409, detail="People have registered for this event. Cancel it instead so they are told.")
+    db.query(models.Announcement).filter(models.Announcement.event_id == event_id).update({"event_id": None})
+    db.delete(event)
+    db.commit()
 
 
 @router.post("/{event_id}/restore", response_model=schemas.EventOut)

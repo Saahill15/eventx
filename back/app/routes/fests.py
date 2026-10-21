@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List
@@ -6,6 +7,7 @@ from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user
 from app.permissions import can_view_fest
+from app.fest_review import fest_missing
 
 router = APIRouter()
 
@@ -92,7 +94,7 @@ def list_my_fests(
             .all()
         ]
     return [
-        {**schemas.FestOut.model_validate(fest).model_dump(), "my_role": role}
+        {**schemas.FestOut.model_validate(fest).model_dump(), "my_role": role, "review_status": fest.review_status, "review_note": fest.review_note}
         for fest, role in rows
     ]
 
@@ -192,27 +194,130 @@ def fest_stats(
     )
 
 
+# ─── GET /fests/:slug/manage ─────────────────────────────────────────────────
+@router.get("/{slug}/manage", response_model=schemas.FestManageOut)
+def manage_fest(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The fest with its private contact details and review state (owner / core / admin)."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+    return fest
+
+
 # ─── PATCH /fests/:slug ──────────────────────────────────────────────────────
-@router.patch("/{slug}", response_model=schemas.FestOut)
+@router.patch("/{slug}", response_model=schemas.FestManageOut)
 def update_fest(
     slug: str,
     payload: schemas.FestUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Edit a fest's public details (owner / core / admin)."""
+    """
+    Fill in or change a fest's details (owner / core / admin).
+
+    While the fest waits for review it cannot be edited (withdraw it first). Once approved, dates and descriptions
+    change freely, but changing the name or college sends the fest back to review and takes it offline.
+    """
     fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
     if not fest:
         raise HTTPException(status_code=404, detail="Fest not found")
     _require_fest_privileged(fest, current_user, db)
 
+    if fest.review_status == "in_review" and current_user.role != models.RoleEnum.admin:
+        raise HTTPException(status_code=400, detail="Your fest is waiting for review. Withdraw it first if you need to make changes.")
+
     updates = payload.model_dump(exclude_unset=True)
     if updates.get("name") is None:
         updates.pop("name", None)
-    if updates.get("college_id") is not None and not db.query(models.College).filter(models.College.id == updates["college_id"]).first():
-        raise HTTPException(status_code=400, detail="College not found")
+
+    if "college_id" in updates:
+        new_college_id = updates["college_id"]
+        if new_college_id is None:
+            updates.pop("college_id")
+        elif new_college_id != fest.college_id:
+            college = db.query(models.College).filter(models.College.id == new_college_id).first()
+            if not college:
+                raise HTTPException(status_code=400, detail="College not found")
+            if current_user.role != models.RoleEnum.admin:
+                if not db.query(models.OrganizerCollege).filter(models.OrganizerCollege.user_id == current_user.id, models.OrganizerCollege.college_id == college.id).first():
+                    raise HTTPException(status_code=403, detail="You can only list fests for your own college.")
+                if college.partner_status != "partner":
+                    raise HTTPException(status_code=400, detail="HiveOut has not partnered with this college yet.")
+
+    new_start = updates.get("start_date", fest.start_date)
+    new_end = updates.get("end_date", fest.end_date)
+    if new_start and new_end and new_end < new_start:
+        raise HTTPException(status_code=400, detail="The fest cannot end before it starts")
+
+    sensitive_changed = [
+        f for f in ("name", "college_id") if f in updates and updates[f] != getattr(fest, f)
+    ]
     for field, value in updates.items():
+        if field == "extra_sections" and value is not None:
+            value = [section if isinstance(section, dict) else section.model_dump() for section in value]
         setattr(fest, field, value)
+
+    if sensitive_changed and fest.review_status == "approved" and current_user.role != models.RoleEnum.admin:
+        fest.review_status = "in_review"
+        fest.review_note = "Sent back to review because the fest's " + " and ".join(l.replace("_id", "") for l in sensitive_changed) + " changed."
+        fest.submitted_at = datetime.utcnow()
+        fest.status = models.FestStatusEnum.draft
+
+    db.commit()
+    db.refresh(fest)
+    return fest
+
+
+# ─── POST /fests/:slug/submit ────────────────────────────────────────────────
+@router.post("/{slug}/submit", response_model=schemas.SubmitOut)
+def submit_fest(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Send the fest, with its events, to HiveOut for review. Everything required must be filled in first."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+    if fest.review_status == "in_review":
+        raise HTTPException(status_code=400, detail="This fest is already waiting for review.")
+    if fest.review_status == "approved":
+        raise HTTPException(status_code=400, detail="This fest is already approved.")
+
+    events = db.query(models.Event).filter(models.Event.fest_id == fest.id).all()
+    missing = fest_missing(fest, events)
+    if missing:
+        raise HTTPException(status_code=400, detail={"message": "Finish these before submitting", "missing": missing})
+
+    fest.review_status = "in_review"
+    fest.review_note = None
+    fest.submitted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(fest)
+    return schemas.SubmitOut(fest=fest, missing=[])
+
+
+# ─── POST /fests/:slug/withdraw ──────────────────────────────────────────────
+@router.post("/{slug}/withdraw", response_model=schemas.FestManageOut)
+def withdraw_fest(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Take a fest back from review so it can be edited."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+    if fest.review_status != "in_review":
+        raise HTTPException(status_code=400, detail="This fest is not waiting for review.")
+    fest.review_status = "draft"
     db.commit()
     db.refresh(fest)
     return fest
@@ -233,36 +338,40 @@ def get_fest_members(
 
 
 # ─── POST /fests/ ────────────────────────────────────────────────────────────
-@router.post("/", response_model=schemas.FestOut, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=schemas.FestManageOut, status_code=status.HTTP_201_CREATED)
 def create_fest(
     payload: schemas.FestCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Start a fest as a draft. Organisers can only start fests for the colleges an admin assigned to them."""
     if current_user.role not in (models.RoleEnum.admin, models.RoleEnum.organizer):
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Committee tools are switched on by the HiveOut team. Get in touch to have your account set up.")
+
+    college = db.query(models.College).filter(models.College.id == payload.college_id).first()
+    if not college:
+        raise HTTPException(status_code=400, detail="College not found")
+    if current_user.role == models.RoleEnum.organizer:
+        assigned = db.query(models.OrganizerCollege).filter(
+            models.OrganizerCollege.user_id == current_user.id, models.OrganizerCollege.college_id == college.id
+        ).first()
+        if not assigned:
+            raise HTTPException(status_code=403, detail="You can only list fests for your own college. Ask HiveOut to add this college to your account.")
+    if college.partner_status != "partner" and current_user.role != models.RoleEnum.admin:
+        raise HTTPException(status_code=400, detail="HiveOut has not partnered with this college yet.")
 
     if db.query(models.Fest).filter(models.Fest.slug == payload.slug).first():
         raise HTTPException(status_code=400, detail="Slug already in use")
 
     fest = models.Fest(
-        slug=payload.slug,
-        name=payload.name,
-        tagline=payload.tagline,
-        banner_url=payload.banner_url,
-        logo_url=payload.logo_url,
-        college_id=payload.college_id,
-        status=models.FestStatusEnum.live if payload.status == "live" else models.FestStatusEnum.draft,
+        slug=payload.slug, name=payload.name, tagline=payload.tagline, college_id=college.id,
+        status=models.FestStatusEnum.draft, review_status="draft",
     )
     db.add(fest)
     db.flush()  # populate fest.id before creating the membership row
 
     # The creator is automatically the owner
-    db.add(models.FestMember(
-        fest_id=fest.id,
-        user_id=current_user.id,
-        role=models.FestMemberRoleEnum.owner,
-    ))
+    db.add(models.FestMember(fest_id=fest.id, user_id=current_user.id, role=models.FestMemberRoleEnum.owner))
     db.commit()
     db.refresh(fest)
     return fest
@@ -386,6 +495,9 @@ def set_fest_status(
     new_status = status_update.get("status")
     if new_status not in ("draft", "live"):
         raise HTTPException(status_code=400, detail="status must be 'draft' or 'live'")
+
+    if new_status == "live" and fest.review_status != "approved":
+        raise HTTPException(status_code=400, detail="An admin must approve your fest before it can go live.")
 
     # Guard: a fest cannot go live without at least one owner in its committee.
     # This prevents orphaned fests that no organizer can manage after launch.

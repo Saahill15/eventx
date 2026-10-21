@@ -39,7 +39,7 @@ def seed():
                 {"name": "Thadomal Shahani","area": "Bandra, Mumbai",   "emoji": "🏢"},
             ]
             for c in seed_colleges:
-                db.add(models.College(**c))
+                db.add(models.College(**{**c, "partner_status": "partner"}))
             db.commit()
 
         if db.query(models.User).filter(models.User.role == "admin").count() == 0:
@@ -150,7 +150,7 @@ def seed():
 
             for meta in seed_fests_meta:
                 owner_idx = meta.pop("owner_idx")
-                fest = models.Fest(**meta)
+                fest = models.Fest(**meta, review_status="approved")
                 db.add(fest)
                 db.flush()  # populate fest.id before FK reference
 
