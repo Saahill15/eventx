@@ -51,7 +51,7 @@ export function FestTimeline({ events }: { events: FestEvent[] }) {
               <motion.li key={e.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05, duration: 0.4 }} className="relative">
                 <span className="absolute -left-[2.15rem] top-6 h-4 w-4 rounded-full border-4 border-white sm:-left-[2.65rem]" style={{ background: t.ink }} />
                 <p className="mb-1.5 text-sm font-bold tabular-nums text-mute">{e.time ? formatTime(e.time) : "Time to be announced"}</p>
-                <Link href={`/events/${e.id}`} className="group flex items-center justify-between gap-4 rounded-3xl p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]" style={{ background: t.bg }}>
+                <Link href={`/events/${e.id}`} className="group flex items-center justify-between gap-4 rounded-3xl p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]" style={{ background: t.bg }}>
                   <div className="min-w-0" style={{ color: t.ink }}>
                     {e.category && <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] opacity-70">{e.category}</p>}
                     <h3 className="font-display text-xl font-bold leading-tight tracking-tight">{e.title}</h3>

@@ -69,7 +69,7 @@ function EventForm({ fest, event, onSaved, onCancel }: { fest: Fest; event: Mana
   };
 
   return (
-    <form onSubmit={submit} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] space-y-4 rounded-[2rem] p-6 sm:p-8">
+    <form onSubmit={submit} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] space-y-4 rounded-[2rem] p-6 sm:p-8">
       <h2 className="font-display text-xl font-extrabold tracking-tight">{event ? "Edit event" : "New event"}</h2>
       <ErrorNote>{error}</ErrorNote>
       <Field label="Title"><input className="field" required value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Battle of Bands" /></Field>
@@ -91,7 +91,7 @@ function EventForm({ fest, event, onSaved, onCancel }: { fest: Fest; event: Mana
 
       <div className="space-y-4 rounded-2xl bg-black/[0.03] p-4">
         <label className="flex items-center gap-3 text-sm font-medium">
-          <input type="checkbox" className="h-4 w-4 accent-[#f5a300]" checked={form.requires_registration} disabled={locked} onChange={(e) => set("requires_registration", e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-[#1530f0]" checked={form.requires_registration} disabled={locked} onChange={(e) => set("requires_registration", e.target.checked)} />
           Students must register for this event
         </label>
         {locked && <p className="text-xs text-neutral-500">Registration settings are locked because people have already registered.</p>}
@@ -107,7 +107,7 @@ function EventForm({ fest, event, onSaved, onCancel }: { fest: Fest; event: Mana
           </div>
         )}
         <label className="flex items-center gap-3 text-sm font-medium">
-          <input type="checkbox" className="h-4 w-4 accent-[#f5a300]" checked={form.paid} disabled={locked} onChange={(e) => set("paid", e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-[#1530f0]" checked={form.paid} disabled={locked} onChange={(e) => set("paid", e.target.checked)} />
           Paid event
         </label>
         {form.paid && (
@@ -143,7 +143,7 @@ export function EventsTab({ fest, events, reload }: { fest: Fest; events: Manage
       ) : (
         <div className="space-y-3">
           {events.map((e) => (
-            <div key={e.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] flex flex-wrap items-center justify-between gap-4 rounded-3xl p-5">
+            <div key={e.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] flex flex-wrap items-center justify-between gap-4 rounded-3xl p-5">
               <div className="min-w-0">
                 <p className="font-semibold">{e.title}</p>
                 <p className="mt-0.5 text-sm text-neutral-500">{formatDay(e.date)}{e.time ? ` · ${e.time}` : ""}{e.location ? ` · ${e.location}` : ""} · {priceLabel(e)}</p>

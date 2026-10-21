@@ -7,17 +7,17 @@ import type { FestEvent } from "@/lib/types";
 import { formatDayNumber, formatMonthShort, formatTime, priceLabel } from "@/lib/format";
 
 const TINTS = [
-  { bg: "linear-gradient(160deg,#ffe28a,#ffb347)", ink: "#4a2f00" },
-  { bg: "linear-gradient(160deg,#dcd3ff,#b7a8ff)", ink: "#2a1a6e" },
-  { bg: "linear-gradient(160deg,#c9f3dc,#8fe0b6)", ink: "#0d4a2c" },
-  { bg: "linear-gradient(160deg,#ffd6c2,#ff9f80)", ink: "#6b2410" },
-  { bg: "linear-gradient(160deg,#cfeaff,#8cc8ff)", ink: "#0b3a63" },
+  { bg: "linear-gradient(160deg,#dfe3ff,#aab6ff)", ink: "#1b1a6e" },
+  { bg: "linear-gradient(160deg,#d3e4ff,#8fb4ff)", ink: "#0f2a66" },
+  { bg: "linear-gradient(160deg,#e8e4ff,#bdb3ff)", ink: "#2a1a7a" },
+  { bg: "linear-gradient(160deg,#d4f0ff,#8fd3ff)", ink: "#0b3a63" },
+  { bg: "linear-gradient(160deg,#e2e6ff,#a3afff)", ink: "#1a2380" },
 ];
 
 export const tintFor = (id: number) => TINTS[id % TINTS.length];
 
 /** Cover art: the photo when there is one, otherwise a typographic poster so every listing looks designed. */
-export function PosterArt({ id, title, image, kicker, className = "" }: { id: number; title: string; image?: string | null; kicker?: string | null; className?: string }) {
+export function PosterArt({ id, title, image, kicker, className = "", showTitle = true }: { id: number; title: string; image?: string | null; kicker?: string | null; className?: string; showTitle?: boolean }) {
   if (image) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={image} alt={title} loading="lazy" referrerPolicy="no-referrer" className={`h-full w-full object-cover ${className}`} />;
@@ -27,7 +27,7 @@ export function PosterArt({ id, title, image, kicker, className = "" }: { id: nu
     <div className={`relative h-full w-full overflow-hidden ${className}`} style={{ background: t.bg, color: t.ink }} role="img" aria-label={title}>
       <svg className="absolute -right-8 -top-10 h-56 w-56 opacity-25" viewBox="0 0 100 115" aria-hidden><path d="M50 4 94 29v57L50 111 6 86V29z" fill="none" stroke="currentColor" strokeWidth="3" /><path d="M50 24 76 39v37L50 91 24 76V39z" fill="none" stroke="currentColor" strokeWidth="3" /></svg>
       <div className="absolute inset-x-5 top-5">{kicker && <span className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-70">{kicker}</span>}</div>
-      <p className="absolute inset-x-5 bottom-24 font-display text-[1.7rem] font-bold leading-[1.02] tracking-tight line-clamp-4 sm:text-3xl">{title}</p>
+      {showTitle && <p className="absolute inset-x-5 bottom-24 font-display text-[1.7rem] font-semibold leading-[1.02] tracking-tight line-clamp-4 sm:text-3xl">{title}</p>}
     </div>
   );
 }
@@ -36,9 +36,9 @@ export function PosterArt({ id, title, image, kicker, className = "" }: { id: nu
 export function PosterCard({ event, className = "" }: { event: FestEvent; className?: string }) {
   return (
     <motion.div whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 300, damping: 22 }} className={className}>
-      <Link href={`/events/${event.id}`} className="group relative block aspect-[3/4] overflow-hidden rounded-[var(--radius-poster)] bg-wash shadow-[var(--shadow-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+      <Link href={`/events/${event.id}`} className="group relative block aspect-[3/4] overflow-hidden rounded-3xl bg-wash shadow-[var(--shadow-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
         <div className="h-full w-full transition duration-700 group-hover:scale-105">
-          <PosterArt id={event.id} title={event.title} image={event.image_url} kicker={event.fest_name ?? event.category} />
+          <PosterArt id={event.id} title={event.title} image={event.image_url} kicker={event.fest_name ?? event.category} showTitle={false} />
         </div>
         <div className="absolute left-3 top-3 flex h-14 w-12 flex-col items-center justify-center rounded-2xl bg-white text-ink shadow-md">
           <span className="font-display text-xl font-bold leading-none">{formatDayNumber(event.date)}</span>

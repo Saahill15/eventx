@@ -5,14 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, LogOut, Search, ShieldCheck, Ticket, User as UserIcon } from "lucide-react";
+import { LayoutDashboard, LogOut, Menu, Search, ShieldCheck, Ticket, User as UserIcon, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "../ui/Button";
 import { SearchPalette } from "./SearchPalette";
 
 const NAV = [
-  { href: "/", label: "Discover" },
-  { href: "/fests", label: "Fests" },
+  { href: "/", label: "Home" },
+  { href: "/fests", label: "College fests" },
   { href: "/events", label: "Events" },
 ];
 
@@ -22,9 +22,10 @@ export function TopBar() {
   const router = useRouter();
   const [search, setSearch] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setMenu(false); }, [pathname]);
+  useEffect(() => { setMenu(false); setSheet(false); }, [pathname]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
@@ -39,33 +40,30 @@ export function TopBar() {
   }, []);
 
   const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href) || (href === "/fests" && pathname.startsWith("/fest/")));
+  const round = "flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[var(--shadow-card)] transition hover:bg-wash active:scale-95";
 
   return (
     <>
-      <header className="glass-bar sticky top-0 z-50">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
-          <Link href="/" aria-label="HiveOut home" className="shrink-0"><Image src="/logo.png" alt="HiveOut" width={116} height={28} priority className="h-6 w-auto max-w-none" /></Link>
+      <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <Link href="/" aria-label="HiveOut home" className="flex h-11 items-center rounded-2xl bg-white/90 px-4 shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:bg-white">
+            <Image src="/logo.png" alt="HiveOut" width={116} height={28} priority className="h-5 w-auto max-w-none" />
+          </Link>
 
-          <nav aria-label="Main" className="relative hidden rounded-full bg-wash p-1 md:flex">
+          <nav aria-label="Main" className="relative hidden rounded-full bg-white/80 p-1 shadow-[var(--shadow-card)] backdrop-blur-xl md:flex">
             {NAV.map((l) => (
-              <Link key={l.href} href={l.href} className={`relative rounded-full px-5 py-2 text-sm font-semibold transition-colors ${active(l.href) ? "text-ink" : "text-mute hover:text-ink"}`}>
-                {active(l.href) && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-full bg-white shadow-[var(--shadow-soft)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+              <Link key={l.href} href={l.href} className={`relative rounded-full px-5 py-2 text-sm font-medium transition-colors ${active(l.href) ? "text-brand" : "text-mute hover:text-ink"}`}>
+                {active(l.href) && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-full bg-chip" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
                 <span className="relative">{l.label}</span>
               </Link>
             ))}
           </nav>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => setSearch(true)} aria-label="Search" className="hairline flex h-10 items-center gap-2 rounded-full bg-white px-3 text-sm text-mute transition hover:bg-wash sm:px-4">
-              <Search className="h-4 w-4" />
-              <span className="hidden sm:inline">Search</span>
-              <kbd className="hidden rounded bg-wash px-1.5 text-xs lg:inline">/</kbd>
-            </button>
-            {loading ? <div className="h-10 w-20" /> : user ? (
-              <div className="relative" ref={menuRef}>
-                <button onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} aria-label="Account menu" className="flex h-10 w-10 items-center justify-center rounded-full bg-ink text-sm font-bold text-white transition hover:bg-neutral-700">
-                  {user.name.trim().charAt(0).toUpperCase()}
-                </button>
+            <button onClick={() => setSearch(true)} aria-label="Search" className={round}><Search className="h-[18px] w-[18px]" /></button>
+            {loading ? <div className="h-11 w-11" /> : user ? (
+              <div className="relative hidden md:block" ref={menuRef}>
+                <button onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} aria-label="Account menu" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-sm font-semibold text-white shadow-[var(--shadow-glow)] transition active:scale-95">{user.name.trim().charAt(0).toUpperCase()}</button>
                 <AnimatePresence>
                   {menu && (
                     <motion.div role="menu" initial={{ opacity: 0, y: -6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.96 }} transition={{ duration: 0.15 }} style={{ transformOrigin: "top right" }} className="glass absolute right-0 mt-2 w-60 rounded-2xl p-1.5 shadow-[var(--shadow-pop)]">
@@ -80,13 +78,34 @@ export function TopBar() {
                 </AnimatePresence>
               </div>
             ) : (
-              <>
-                <Link href="/login" className="hidden px-3 text-sm font-semibold text-mute hover:text-ink sm:block">Sign in</Link>
+              <div className="hidden items-center gap-2 md:flex">
+                <Link href="/login" className="px-3 text-sm font-medium text-mute hover:text-ink">Sign in</Link>
                 <Button href="/signup" size="sm">Join free</Button>
-              </>
+              </div>
             )}
+            <button onClick={() => setSheet((v) => !v)} aria-label={sheet ? "Close menu" : "Open menu"} aria-expanded={sheet} className={`${round} md:hidden`}>{sheet ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button>
           </div>
         </div>
+
+        <AnimatePresence>
+          {sheet && (
+            <motion.div initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }} transition={{ duration: 0.2 }} className="glass mx-auto mt-3 max-w-7xl rounded-3xl p-3 shadow-[var(--shadow-pop)] md:hidden">
+              {NAV.map((l) => <Link key={l.href} href={l.href} className={`block rounded-2xl px-4 py-3.5 text-lg font-medium ${active(l.href) ? "bg-chip text-brand" : ""}`}>{l.label}</Link>)}
+              <div className="my-2 border-t border-black/5" />
+              {user ? (
+                <>
+                  <Link href="/my-passes" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">My passes</Link>
+                  <Link href="/committee" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">Committee</Link>
+                  {user.role === "admin" && <Link href="/admin" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">Admin</Link>}
+                  <Link href="/profile" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">Profile</Link>
+                  <button onClick={() => { logout(); router.push("/"); }} className="block w-full rounded-2xl px-4 py-3.5 text-left text-lg font-medium text-mute">Sign out</button>
+                </>
+              ) : (
+                <div className="flex gap-2 p-1"><Button href="/login" variant="outline" className="flex-1">Sign in</Button><Button href="/signup" className="flex-1">Join free</Button></div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
       <SearchPalette open={search} onClose={() => setSearch(false)} />
     </>

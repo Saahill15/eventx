@@ -1,155 +1,175 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Users } from "lucide-react";
+import { ArrowRight, Building2, Check } from "lucide-react";
 import { getAllEvents, getColleges, getLiveFests } from "@/lib/api";
-import { isThisWeek, isUpcoming, formatDay } from "@/lib/format";
+import { dayKey, formatDay, isUpcoming } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
-import { SectionHead } from "@/components/ui/bits";
-import { Reveal, Stagger, StaggerItem, FadeUp } from "@/components/motion";
-import { SearchLauncher } from "@/components/SearchLauncher";
-import { HeroCarousel } from "@/components/HeroCarousel";
-import { DateStrip } from "@/components/DateStrip";
-import { PosterCard } from "@/components/Poster";
-import { Rail, RailItem } from "@/components/Rail";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { HeroShowcase } from "@/components/home/HeroShowcase";
+import { PosterArt } from "@/components/Poster";
+import { Programme } from "@/components/Programme";
+import { FestPoster } from "@/components/FestPoster";
+import { Faq } from "@/components/Faq";
 import { Marquee } from "@/components/Marquee";
-import { Countdown } from "@/components/Countdown";
-import { MiniTicket } from "@/components/home/MiniTicket";
+import { SearchLauncher } from "@/components/SearchLauncher";
 
 export const revalidate = 30;
 
-const VIBES = [
-  { name: "Cultural", tint: "bg-peach" }, { name: "Technical", tint: "bg-sky" }, { name: "Music", tint: "bg-lilac" }, { name: "Sports", tint: "bg-mint" },
-  { name: "Gaming", tint: "bg-butter" }, { name: "Design", tint: "bg-peach" }, { name: "Business", tint: "bg-sky" }, { name: "Literary", tint: "bg-lilac" },
+const VIBES = ["Cultural", "Technical", "Music", "Sports", "Gaming", "Design", "Business", "Literary", "Technology", "Education"];
+
+const FAQ = [
+  { q: "Is HiveOut really free?", a: "Yes. Students never pay to use HiveOut, and it is free for colleges and committees. Some fest events may have their own ticket price, which the organisers set." },
+  { q: "How do I register for an event?", a: "Create a free account, open a fest and get your fest pass, then register for the events you want. Events that need approval show as waiting until the organisers confirm." },
+  { q: "What is the QR pass?", a: "Each fest gives you one pass with a QR code. You will find it in My passes. Show it at the gate." },
+  { q: "Can I pay for tickets here?", a: "Online payment is not live yet. For paid events the organisers will tell you how to pay." },
+  { q: "I run a fest. How do I list it?", a: "Create an account, request organiser access from your profile, and then create your fest in the committee dashboard. Add your team, publish events and make the fest live when you are ready." },
+  { q: "Will you list city events too?", a: "Yes, later. We are starting with college fests, and the same account will work for everything else." },
 ];
 
 export default async function Home() {
   const [fests, events, colleges] = await Promise.all([getLiveFests(), getAllEvents(), getColleges()]);
   const collegeName = (id: number | null) => colleges?.find((c) => c.id === id)?.name ?? null;
+  const upcoming = (events ?? []).filter(isUpcoming).sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? ""));
+  const firstFest = fests?.[0];
+  const photo = firstFest ? { id: firstFest.id, title: firstFest.name, image: firstFest.banner_url } : upcoming[0] ? { id: upcoming[0].id, title: upcoming[0].title, image: upcoming[0].image_url } : null;
 
-  const upcoming = (events ?? []).filter(isUpcoming).sort((a, b) => a.date.localeCompare(b.date));
-  const thisWeek = upcoming.filter(isThisWeek);
-  const rail = thisWeek.length > 0 ? thisWeek : upcoming;
-  const free = upcoming.filter((e) => e.is_free || !e.price);
-  const next = upcoming[0];
-  const slides = (fests ?? []).slice(0, 5).map((f) => ({ id: f.id, slug: f.slug, name: f.name, tagline: f.tagline, banner: f.banner_url, college: collegeName(f.college_id), events: f.event_count }));
-  const countOf = (cat: string) => upcoming.filter((e) => e.category === cat).length;
+  // Next three days that have events, like an agenda
+  const byDay = new Map<string, typeof upcoming>();
+  for (const e of upcoming) { const k = dayKey(e.date); byDay.set(k, [...(byDay.get(k) ?? []), e]); }
+  const agenda = Array.from(byDay.entries()).slice(0, 3);
+  const showcase = (fests ?? []).slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-7xl px-5 sm:px-8">
-      {/* Intro */}
-      <section className="pb-8 pt-10 sm:pt-16">
-        <FadeUp><p className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-amber-ink">College fest season</p></FadeUp>
-        <FadeUp delay={0.06}>
-          <h1 className="max-w-4xl font-display text-[2.9rem] font-bold leading-[0.98] tracking-[-0.03em] sm:text-7xl lg:text-[5.5rem]">
-            Every fest.<br />Every event.<br /><span className="relative inline-block"><span className="relative z-10">One place.</span><span className="absolute inset-x-0 bottom-1 z-0 h-[0.38em] rounded-full bg-amber/80" /></span>
-          </h1>
-        </FadeUp>
-        <FadeUp delay={0.14} className="mt-8 max-w-2xl"><SearchLauncher /></FadeUp>
-      </section>
+    <>
+      <HeroShowcase photo={photo} />
 
-      {/* Featured fests */}
-      <section className="pb-12">
-        {slides.length > 0 ? <FadeUp delay={0.2}><HeroCarousel slides={slides} /></FadeUp> : (
-          <div className="rounded-[2rem] bg-wash px-6 py-20 text-center">
-            <p className="font-display text-2xl font-bold tracking-tight">{fests === null ? "We could not load fests right now" : "The first fests are being set up"}</p>
-            <p className="mt-2 text-mute">{fests === null ? "Please check your connection and try again in a moment." : "Check back soon, or run a fest? Open the committee dashboard."}</p>
-          </div>
-        )}
-      </section>
+      <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
+        <Reveal><div className="mx-auto max-w-2xl"><SearchLauncher /></div></Reveal>
 
-      {/* Pick a day */}
-      <section className="py-6">
-        <SectionHead kicker="Plan it" title="What is on, day by day" />
-        <DateStrip />
-      </section>
-
-      {/* This week rail */}
-      {rail.length > 0 && (
-        <section className="pt-10">
-          <SectionHead kicker={thisWeek.length > 0 ? "This week" : "Coming up"} title={thisWeek.length > 0 ? "Happening this week" : "Upcoming events"} action={<Link href="/events" className="hidden items-center gap-1 text-sm font-semibold sm:flex">See all <ArrowRight className="h-4 w-4" /></Link>} />
-          <Rail label="Events this week">{rail.slice(0, 12).map((e) => <RailItem key={e.id}><PosterCard event={e} /></RailItem>)}</Rail>
-        </section>
-      )}
-
-      {/* Bento */}
-      <section className="pt-16">
-        <SectionHead kicker="Why HiveOut" title="Built for fest season" />
-        <Stagger className="grid auto-rows-[minmax(14rem,auto)] gap-4 md:grid-cols-6">
-          <StaggerItem className="md:col-span-3 md:row-span-2">
-            <div className="flex h-full flex-col justify-between overflow-hidden rounded-[2rem] bg-butter p-8">
-              <div><p className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Walk in with a QR.</p><p className="mt-2 max-w-sm text-amber-ink">One pass per fest, one tap at the gate. No screenshots, no spreadsheets.</p></div>
-              <div className="pt-8"><MiniTicket /></div>
+        {/* Intro card with images */}
+        <Reveal>
+          <section className="card grid gap-8 overflow-hidden p-6 sm:p-10 lg:grid-cols-2">
+            <div className="flex flex-col justify-center">
+              <h2 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">Find every fest happening around you</h2>
+              <p className="mt-4 max-w-md text-lg text-mute">Browse fests by college, see the full programme and register for events without a spreadsheet in sight.</p>
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <span className="rounded-full bg-chip px-4 py-2 text-sm font-medium text-chip-ink">{(fests ?? []).length} live fest{(fests ?? []).length === 1 ? "" : "s"}</span>
+                <span className="rounded-full bg-chip px-4 py-2 text-sm font-medium text-chip-ink">{upcoming.length} upcoming event{upcoming.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="mt-8"><Button href="/fests" size="lg">See all fests <ArrowRight className="h-5 w-5" /></Button></div>
             </div>
-          </StaggerItem>
-          <StaggerItem className="md:col-span-3">
-            <div className="flex h-full flex-col justify-between rounded-[2rem] bg-lilac p-8">
-              <p className="font-display text-3xl font-bold tracking-tight">One account, every fest.</p>
-              <p className="max-w-sm text-violet-900/70">Sign up once. Register for events across colleges in a single tap.</p>
+            <div className="grid grid-cols-2 gap-4">
+              {showcase.length > 0 ? showcase.slice(0, 3).map((f, i) => (
+                <Link key={f.id} href={`/fest/${f.slug}`} className={`group relative overflow-hidden rounded-3xl bg-wash transition hover:-translate-y-1 hover:shadow-[var(--shadow-pop)] ${i === 0 ? "col-span-2 aspect-[16/9]" : "aspect-square"}`}>
+                  <div className="h-full w-full transition duration-700 group-hover:scale-105"><PosterArt id={f.id} title={f.name} image={f.banner_url} kicker="College fest" showTitle={false} /></div>
+                  <div className="glass-photo absolute inset-x-2.5 bottom-2.5 rounded-2xl px-4 py-3"><p className="truncate font-display text-lg font-semibold">{f.name}</p></div>
+                </Link>
+              )) : <div className="col-span-2 flex aspect-[16/9] items-center justify-center rounded-3xl bg-wash text-mute">Fests appear here soon</div>}
             </div>
-          </StaggerItem>
-          <StaggerItem className="md:col-span-1">
-            <div className="flex h-full flex-col justify-between rounded-[2rem] bg-mint p-6"><p className="font-display text-6xl font-bold tracking-tight">₹0</p><p className="font-semibold text-emerald-900/70">Free for students</p></div>
-          </StaggerItem>
-          <StaggerItem className="md:col-span-2">
-            {next ? (
-              <Link href={`/events/${next.id}`} className="group flex h-full flex-col justify-between rounded-[2rem] bg-peach p-6 transition hover:shadow-[var(--shadow-pop)]">
-                <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-900/60">Next up</p><p className="mt-1 line-clamp-2 font-display text-xl font-bold leading-tight tracking-tight">{next.title}</p><p className="text-sm text-orange-900/60">{formatDay(next.date)}</p></div>
-                <Countdown to={next.date} />
-              </Link>
-            ) : (
-              <div className="flex h-full flex-col justify-between rounded-[2rem] bg-peach p-6"><p className="font-display text-xl font-bold">Events land here soon</p></div>
-            )}
-          </StaggerItem>
-          <StaggerItem className="md:col-span-6">
-            <div className="flex flex-col items-start justify-between gap-6 rounded-[2rem] bg-sky p-8 sm:flex-row sm:items-center">
-              <div className="flex items-start gap-4"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><Users className="h-6 w-6 text-sky-900" /></span><div><p className="font-display text-2xl font-bold tracking-tight">Running a fest? Leave the spreadsheets behind.</p><p className="mt-1 max-w-xl text-sky-900/70">Publish events, take registrations, approve entries and manage your team from one dashboard. Free for colleges.</p></div></div>
-              <Button href="/committee" variant="ink" size="lg">Open the dashboard</Button>
-            </div>
-          </StaggerItem>
-        </Stagger>
-      </section>
-
-      {/* Vibes */}
-      <section className="pt-16">
-        <SectionHead kicker="Browse" title="Find your vibe" />
-        <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {VIBES.map((v) => (
-            <StaggerItem key={v.name}>
-              <Link href={`/events?category=${v.name}`} className={`group flex h-32 flex-col justify-between rounded-[1.5rem] ${v.tint} p-5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-soft)] active:scale-[0.98]`}>
-                <span className="font-display text-xl font-bold tracking-tight">{v.name}</span>
-                <span className="flex items-center justify-between text-sm font-medium text-black/50">{countOf(v.name)} upcoming <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span>
-              </Link>
-            </StaggerItem>
-          ))}
-        </Stagger>
-      </section>
-
-      {/* Free rail */}
-      {free.length > 0 && (
-        <section className="pt-16">
-          <SectionHead kicker="No ticket needed" title="Free to attend" action={<Link href="/events?free=1" className="hidden items-center gap-1 text-sm font-semibold sm:flex">See all <ArrowRight className="h-4 w-4" /></Link>} />
-          <Rail label="Free events">{free.slice(0, 12).map((e) => <RailItem key={e.id}><PosterCard event={e} /></RailItem>)}</Rail>
-        </section>
-      )}
-
-      {/* Colleges */}
-      {colleges && colleges.length > 0 && (
-        <Reveal className="pt-16">
-          <SectionHead kicker="Colleges" title="Fests from across the city" />
-          <Marquee items={colleges.map((c) => c.name)} />
-          <div className="mt-6 flex flex-wrap gap-2">
-            {colleges.map((c) => <Link key={c.id} href={`/fests?college=${c.id}`} className="hairline inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold transition hover:bg-wash"><Building2 className="h-4 w-4 text-amber-ink" />{c.name}</Link>)}
-          </div>
+          </section>
         </Reveal>
-      )}
 
-      {/* City teaser */}
-      <Reveal className="pt-16">
-        <div className="rounded-[2rem] border-2 border-dashed border-black/10 px-8 py-10 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-mute">Coming later</p>
-          <p className="mt-2 font-display text-2xl font-bold tracking-tight">Concerts, gigs and city events are next.</p>
-          <p className="mt-1 text-mute">We are starting with college fests. The same account will work for everything else.</p>
-        </div>
-      </Reveal>
-    </div>
+        {/* Agenda card */}
+        {agenda.length > 0 && (
+          <Reveal>
+            <section className="card p-6 sm:p-10">
+              <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Coming up</h2>
+              <ul className="mt-6 space-y-6">
+                {agenda.map(([k, list]) => (
+                  <li key={k} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+                    <span className="inline-flex w-fit shrink-0 items-center rounded-2xl bg-chip px-5 py-3 text-lg font-medium text-chip-ink sm:w-36 sm:justify-center">{formatDay(k)}</span>
+                    <p className="pt-1 text-lg leading-relaxed">
+                      {list.map((e, i) => <span key={e.id}><Link href={`/events/${e.id}`} className="font-medium transition hover:text-brand hover:underline">{e.title}</Link>{i < list.length - 1 ? ", " : ""}</span>)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8"><Link href="/events" className="inline-flex items-center gap-2 font-semibold text-brand">See the full calendar <ArrowRight className="h-4 w-4" /></Link></div>
+            </section>
+          </Reveal>
+        )}
+
+        {/* Vibes */}
+        <Reveal>
+          <section className="card p-6 sm:p-10">
+            <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Pick your kind of fest</h2>
+            <p className="mt-3 max-w-xl text-mute">Cultural nights, hackathons, gigs and sports. Jump straight to what you like.</p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              {VIBES.map((v) => <Link key={v} href={`/events?category=${v}`} className="rounded-full bg-chip px-5 py-2.5 text-base font-medium text-chip-ink transition hover:bg-brand hover:text-white active:scale-95">{v}</Link>)}
+            </div>
+          </section>
+        </Reveal>
+
+        {/* Featured fests */}
+        {(fests ?? []).length > 0 && (
+          <section className="card p-6 sm:p-10">
+            <div className="mb-6 flex items-end justify-between gap-4"><h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Fests on HiveOut</h2><Link href="/fests" className="hidden items-center gap-1 font-semibold text-brand sm:flex">All fests <ArrowRight className="h-4 w-4" /></Link></div>
+            <Stagger className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {(fests ?? []).slice(0, 8).map((f) => <StaggerItem key={f.id}><FestPoster fest={f} college={collegeName(f.college_id)} /></StaggerItem>)}
+            </Stagger>
+          </section>
+        )}
+
+        {/* Programme preview */}
+        {upcoming.length > 0 && <Reveal><Programme events={upcoming.slice(0, 12)} title="What is on" /></Reveal>}
+
+        {/* Colleges */}
+        {colleges && colleges.length > 0 && (
+          <Reveal>
+            <section className="card overflow-hidden p-6 sm:p-10">
+              <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Colleges on HiveOut</h2>
+              <div className="mt-6"><Marquee items={colleges.map((c) => c.name)} /></div>
+              <div className="mt-6 flex flex-wrap gap-2.5">{colleges.map((c) => <Link key={c.id} href={`/fests?college=${c.id}`} className="inline-flex items-center gap-2 rounded-full bg-wash px-4 py-2 text-sm font-medium transition hover:bg-chip hover:text-chip-ink"><Building2 className="h-4 w-4 text-brand" />{c.name}</Link>)}</div>
+            </section>
+          </Reveal>
+        )}
+
+        {/* Plans */}
+        <Reveal>
+          <section className="card p-6 sm:p-10">
+            <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Join HiveOut</h2>
+            <p className="mt-3 max-w-xl text-mute">Free for students and free for committees. No card, no catch.</p>
+            <Stagger className="mt-8 grid gap-4 md:grid-cols-3">
+              {[
+                { name: "Students", price: "Free", points: ["Browse every fest", "One-tap registration", "QR pass in your pocket"], cta: "Create an account", href: "/signup", main: true },
+                { name: "Committees", price: "Free", points: ["Publish events", "Approve registrations", "Manage your team"], cta: "Open the dashboard", href: "/committee", main: false },
+                { name: "City events", price: "Soon", points: ["Concerts and gigs", "Same HiveOut account", "Coming after fests"], cta: "Stay tuned", href: "/events", main: false },
+              ].map((p) => (
+                <StaggerItem key={p.name}>
+                  <div className={`flex h-full flex-col rounded-3xl p-7 ${p.main ? "bg-brand text-white shadow-[var(--shadow-glow)]" : "bg-wash"}`}>
+                    <p className={`text-sm font-semibold ${p.main ? "text-white/80" : "text-chip-ink"}`}>{p.name}</p>
+                    <p className="mt-1 font-display text-5xl font-semibold tracking-tight">{p.price}</p>
+                    <ul className="mt-6 flex-1 space-y-3">{p.points.map((pt) => <li key={pt} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${p.main ? "text-white" : "text-brand"}`} />{pt}</li>)}</ul>
+                    <Link href={p.href} className={`mt-8 inline-flex h-12 items-center justify-center rounded-full text-[0.9375rem] font-semibold transition active:scale-[0.97] ${p.main ? "bg-white text-brand hover:bg-chip" : "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-chip"}`}>{p.cta}</Link>
+                  </div>
+                </StaggerItem>
+              ))}
+            </Stagger>
+          </section>
+        </Reveal>
+
+        {/* FAQ */}
+        <Reveal>
+          <section className="card p-6 sm:p-10">
+            <h2 className="mb-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Questions, answered</h2>
+            <Faq items={FAQ} />
+          </section>
+        </Reveal>
+
+        {/* Final CTA */}
+        <Reveal>
+          <section className="dots relative overflow-hidden rounded-[1.5rem] bg-brand px-6 py-16 text-center text-white shadow-[var(--shadow-glow)]">
+            <div className="absolute inset-0 bg-brand/95" aria-hidden />
+            <div className="relative">
+              <h2 className="mx-auto max-w-2xl font-display text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">Join us this fest season</h2>
+              <p className="mx-auto mt-4 max-w-md text-lg text-white/80">Get your free pass and never miss an event.</p>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <Link href="/signup" className="inline-flex h-14 items-center rounded-full bg-white px-8 font-semibold text-brand transition hover:bg-chip active:scale-[0.97]">Join free</Link>
+                <Link href="/fests" className="inline-flex h-14 items-center rounded-full bg-white/15 px-8 font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/25 active:scale-[0.97]">Explore fests</Link>
+              </div>
+            </div>
+          </section>
+        </Reveal>
+      </div>
+    </>
   );
 }

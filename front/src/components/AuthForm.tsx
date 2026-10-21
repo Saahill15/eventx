@@ -40,19 +40,19 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
 
   return (
     <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl gap-6 px-5 py-6 sm:px-8 lg:grid-cols-2">
-      <motion.aside initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="relative hidden overflow-hidden rounded-[2rem] bg-gradient-to-br from-amber via-amber-300 to-orange-300 p-12 lg:flex lg:flex-col lg:justify-between">
-        <svg className="absolute -right-16 -top-16 h-96 w-96 opacity-25" viewBox="0 0 100 115" aria-hidden><path d="M50 4 94 29v57L50 111 6 86V29z" fill="none" stroke="#fff" strokeWidth="2" /><path d="M50 24 76 39v37L50 91 24 76V39z" fill="none" stroke="#fff" strokeWidth="2" /></svg>
+      <motion.aside initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="relative hidden overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand via-blue-600 to-indigo-500 p-12 lg:flex lg:flex-col lg:justify-between">
+        <svg className="absolute -right-16 -top-16 h-96 w-96 opacity-20" viewBox="0 0 100 115" aria-hidden><path d="M50 4 94 29v57L50 111 6 86V29z" fill="none" stroke="#fff" strokeWidth="2" /><path d="M50 24 76 39v37L50 91 24 76V39z" fill="none" stroke="#fff" strokeWidth="2" /></svg>
         <svg className="absolute -bottom-20 -left-10 h-80 w-80 opacity-20" viewBox="0 0 100 115" aria-hidden><path d="M50 4 94 29v57L50 111 6 86V29z" fill="#fff" /></svg>
-        <p className="relative text-xs font-bold uppercase tracking-[0.18em] text-amber-ink">HiveOut</p>
+        <p className="relative text-sm font-semibold text-white/80">HiveOut</p>
         <div className="relative">
-          <h2 className="font-display text-5xl font-bold leading-[1.02] tracking-[-0.02em] text-ink">Your fest season starts here.</h2>
-          <ul className="mt-8 space-y-4">{PERKS.map(({ icon: Icon, text }) => <li key={text} className="flex items-center gap-3 font-semibold text-ink"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/70"><Icon className="h-5 w-5" /></span>{text}</li>)}</ul>
+          <h2 className="font-display text-5xl font-bold leading-[1.02] tracking-[-0.02em] text-white">Your fest season starts here.</h2>
+          <ul className="mt-8 space-y-4">{PERKS.map(({ icon: Icon, text }) => <li key={text} className="flex items-center gap-3 font-medium text-white"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20"><Icon className="h-5 w-5" /></span>{text}</li>)}</ul>
         </div>
       </motion.aside>
 
       <div className="flex items-center justify-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="w-full max-w-md py-8">
-          <h1 className="font-display text-4xl font-bold tracking-[-0.02em]">{isSignup ? "Create your account" : "Welcome back"}</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">{isSignup ? "Create your account" : "Welcome back"}</h1>
           <p className="mb-8 mt-2 text-mute">{isSignup ? "One free account for every fest on HiveOut." : "Sign in to see your passes and register for events."}</p>
           <form onSubmit={submit} className="space-y-4">
             <ErrorNote>{error}</ErrorNote>

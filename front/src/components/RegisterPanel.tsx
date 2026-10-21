@@ -75,9 +75,9 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
   );
 
   if (state === "confirmed") return done(<CheckCircle2 className="h-5 w-5 text-emerald-600" />, "You are registered");
-  if (state === "waiting") return done(<Clock className="h-5 w-5 text-amber-600" />, "Request sent", "The organisers will confirm your spot. It will show here once approved.");
+  if (state === "waiting") return done(<Clock className="h-5 w-5 text-brand" />, "Request sent", "The organisers will confirm your spot. It will show here once approved.");
   if (state === "rejected") return done(<XCircle className="h-5 w-5 text-red-600" />, "Not approved", "The organisers could not confirm this registration.");
-  if (isFest && !needsRegistration && hasFestPass) return done(<Ticket className="h-5 w-5 text-amber-ink" />, "Entry included", "No registration needed. Your fest pass gets you in.");
+  if (isFest && !needsRegistration && hasFestPass) return done(<Ticket className="h-5 w-5 text-chip-ink" />, "Entry included", "No registration needed. Your fest pass gets you in.");
 
   return (
     <div className="space-y-3">

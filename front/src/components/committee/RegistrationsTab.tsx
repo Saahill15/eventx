@@ -61,7 +61,7 @@ export function RegistrationsTab({ events, reload }: { events: ManagedEvent[]; r
       ) : (
         <div className="space-y-3">
           {rows.map((r) => (
-            <div key={r.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] flex flex-wrap items-center justify-between gap-3 rounded-3xl p-4 sm:p-5">
+            <div key={r.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] flex flex-wrap items-center justify-between gap-3 rounded-3xl p-4 sm:p-5">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{r.user_name}</p>
                 <p className="truncate text-sm text-neutral-500">{r.user_email}</p>

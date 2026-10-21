@@ -37,7 +37,7 @@ function CreateFest({ colleges, onCancel }: { colleges: College[]; onCancel: () 
   };
 
   return (
-    <form onSubmit={submit} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] mb-8 space-y-4 rounded-[2rem] p-6 sm:p-8">
+    <form onSubmit={submit} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] mb-8 space-y-4 rounded-[2rem] p-6 sm:p-8">
       <h2 className="font-display text-xl font-extrabold tracking-tight">New fest</h2>
       <ErrorNote>{error}</ErrorNote>
       <Field label="Fest name">
@@ -79,7 +79,7 @@ export function CommitteeHome() {
     <div className="mx-auto max-w-7xl px-6 pb-8 pt-8">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-ink">Committee</p>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-chip-ink">Committee</p>
           <h1 className="mt-1 font-display text-4xl font-bold tracking-tight sm:text-5xl">Your fests</h1>
           <p className="mt-3 max-w-xl text-neutral-500">Run events, registrations and your team in one place.</p>
         </div>
@@ -100,7 +100,7 @@ export function CommitteeHome() {
       ) : (
         <div className="grid gap-5 md:grid-cols-2">
           {fests.map((f) => (
-            <Link key={f.id} href={`/committee/${f.slug}`} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] block rounded-3xl p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-lift)]">
+            <Link key={f.id} href={`/committee/${f.slug}`} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] block rounded-3xl p-6 transition hover:-translate-y-1 hover:shadow-[var(--shadow-lift)]">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Pill tone={f.status === "live" ? "green" : "neutral"}>{f.status === "live" ? "Live" : "Draft"}</Pill>
                 <span className="text-xs font-medium text-neutral-500">{ROLE_LABEL[f.my_role] ?? f.my_role}</span>

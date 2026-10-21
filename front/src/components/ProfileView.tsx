@@ -26,8 +26,8 @@ export function ProfileView() {
 
   return (
     <div className="space-y-5">
-      <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] flex items-center gap-5 rounded-[2rem] p-7">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber font-display text-2xl font-bold text-ink">{user.name.charAt(0).toUpperCase()}</div>
+      <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] flex items-center gap-5 rounded-[2rem] p-7">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand font-display text-2xl font-bold text-ink">{user.name.charAt(0).toUpperCase()}</div>
         <div className="min-w-0">
           <p className="truncate font-display text-2xl font-bold tracking-tight">{user.name}</p>
           <p className="truncate text-neutral-500">{user.email}</p>
@@ -36,7 +36,7 @@ export function ProfileView() {
       </div>
 
       {user.role === "user" && (
-        <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] rounded-3xl p-7">
+        <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] rounded-3xl p-7">
           <p className="font-display text-lg font-extrabold tracking-tight">Run a fest?</p>
           <p className="mb-4 mt-1 text-neutral-500">Request organiser access to publish events and manage registrations for your committee.</p>
           <ErrorNote>{error}</ErrorNote>

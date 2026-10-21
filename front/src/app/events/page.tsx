@@ -10,9 +10,9 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const events = await getAllEvents();
   return (
-    <div className="mx-auto max-w-7xl px-5 pb-4 pt-10 sm:px-8 sm:pt-14">
-      <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-amber-ink">Explore</p>
-      <h1 className="mb-8 font-display text-5xl font-bold tracking-[-0.03em] sm:text-6xl">All events</h1>
+    <div className="mx-auto max-w-7xl px-4 pb-4 pt-8 sm:px-6 sm:pt-12">
+      <div className="mb-8 text-center"><span className="inline-flex rounded-full bg-chip px-4 py-2 text-sm font-medium text-chip-ink">Explore</span></div>
+      <h1 className="mb-10 text-center font-display text-5xl font-semibold tracking-[-0.03em] sm:text-7xl">All events</h1>
       {events === null ? <EmptyState title="We could not load events" body="Please check your connection and try again in a moment." /> : (
         <EventExplorer events={events} initial={{ q: sp.q, category: sp.category, date: sp.date, free: sp.free === "1", view: sp.view }} />
       )}

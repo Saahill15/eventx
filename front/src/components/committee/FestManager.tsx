@@ -80,7 +80,7 @@ export function FestManager({ slug }: { slug: string }) {
             <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{fest.name}</h1>
             <Pill tone={fest.status === "live" ? "green" : "neutral"}>{fest.status === "live" ? "Live" : "Draft"}</Pill>
           </div>
-          <Link href={`/fest/${fest.slug}`} className="mt-1 inline-block text-sm font-semibold text-amber-ink hover:underline">View public page →</Link>
+          <Link href={`/fest/${fest.slug}`} className="mt-1 inline-block text-sm font-semibold text-chip-ink hover:underline">View public page →</Link>
         </div>
         <Button variant={fest.status === "live" ? "outline" : "amber"} onClick={toggleLive} disabled={busy}>
           {busy ? "Updating…" : fest.status === "live" ? "Take offline" : "Make fest live"}
@@ -90,13 +90,13 @@ export function FestManager({ slug }: { slug: string }) {
       {fest.status !== "live" && <div className="mb-6"><Notice tone="warn">This fest is a draft. Only your team can see it, and students cannot get passes yet. Make it live when you are ready.</Notice></div>}
       <div className="mb-4"><ErrorNote>{error}</ErrorNote></div>
 
-      <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-soft)] no-scrollbar mb-8 inline-flex max-w-full gap-1 overflow-x-auto rounded-full p-1.5" role="tablist">
+      <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] no-scrollbar mb-8 inline-flex max-w-full gap-1 overflow-x-auto rounded-full p-1.5" role="tablist">
         {TABS.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
             className={`relative whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${tab === t.id ? "text-white" : "text-neutral-600 hover:bg-black/5"}`}>
             {tab === t.id && <motion.span layoutId="manager-tab" className="absolute inset-0 rounded-full bg-ink" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
             <span className="relative">{t.label}</span>
-            {t.id === "registrations" && pending > 0 && <span className="relative ml-2 rounded-full bg-amber px-2 py-0.5 text-xs text-ink">{pending}</span>}
+            {t.id === "registrations" && pending > 0 && <span className="relative ml-2 rounded-full bg-brand px-2 py-0.5 text-xs text-ink">{pending}</span>}
           </button>
         ))}
       </div>

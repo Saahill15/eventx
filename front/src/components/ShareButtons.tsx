@@ -38,11 +38,11 @@ export function ShareButtons({ title, calendar }: { title: string; calendar?: Ca
     if (navigator.share) { try { await navigator.share({ title, url }); return; } catch { /* cancelled: fall through to copy */ } }
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
-  const btn = "hairline inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold transition hover:bg-wash active:scale-[0.97]";
+  const btn = "inline-flex h-12 items-center gap-2 rounded-full bg-white px-5 text-sm font-semibold shadow-[var(--shadow-card)] transition hover:bg-wash active:scale-[0.97]";
   return (
     <div className="flex flex-wrap gap-2">
-      <button onClick={share} className={btn}>{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />} {copied ? "Link copied" : "Share"}</button>
-      {calendar && <button onClick={() => downloadIcs(calendar)} className={btn}><CalendarPlus className="h-4 w-4" /> Add to calendar</button>}
+      <button onClick={share} className={btn}>{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4 text-brand" />} {copied ? "Link copied" : "Share"}</button>
+      {calendar && <button onClick={() => downloadIcs(calendar)} className={btn}><CalendarPlus className="h-4 w-4 text-brand" /> Add to calendar</button>}
     </div>
   );
 }

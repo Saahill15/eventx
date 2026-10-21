@@ -5,10 +5,10 @@ type Variant = "amber" | "ink" | "soft" | "outline" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
-  amber: "bg-amber text-ink hover:bg-amber-deep shadow-[0_8px_24px_rgba(245,163,0,0.35)]",
+  amber: "bg-brand text-white hover:bg-brand-deep shadow-[var(--shadow-glow)]",
   ink: "bg-ink text-white hover:bg-neutral-700",
-  soft: "bg-wash text-ink hover:bg-neutral-200",
-  outline: "hairline bg-white text-ink hover:bg-wash",
+  soft: "bg-chip text-chip-ink hover:bg-blue-100",
+  outline: "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-wash",
   ghost: "text-mute hover:bg-black/5 hover:text-ink",
 };
 const sizes: Record<Size, string> = { sm: "h-9 px-4 text-sm", md: "h-11 px-6 text-[0.9375rem]", lg: "h-14 px-8 text-base" };

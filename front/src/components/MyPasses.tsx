@@ -30,7 +30,7 @@ function FestPassCard({ pass, regs }: { pass: FestPass; regs: Registration[] }) 
   const blocked = pass.status !== "approved";
   return (
     <TicketShell
-      head={<div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-ink">Fest pass</p><Link href={`/fest/${pass.fest_slug}`} className="font-display text-2xl font-bold leading-tight tracking-tight hover:underline">{pass.fest_name ?? "Fest"}</Link></div><Pill tone={blocked ? "red" : pass.checked_in ? "neutral" : "green"}>{blocked ? "Blocked" : pass.checked_in ? "Used" : "Valid"}</Pill></div>}
+      head={<div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-chip-ink">Fest pass</p><Link href={`/fest/${pass.fest_slug}`} className="font-display text-2xl font-bold leading-tight tracking-tight hover:underline">{pass.fest_name ?? "Fest"}</Link></div><Pill tone={blocked ? "red" : pass.checked_in ? "neutral" : "green"}>{blocked ? "Blocked" : pass.checked_in ? "Used" : "Valid"}</Pill></div>}
     >
       <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
         <motion.div whileHover={{ scale: 1.04 }} className="shrink-0 rounded-2xl bg-white p-3 ring-1 ring-black/10"><QRCodeSVG value={pass.qr_code} size={156} aria-label="Pass QR code" /></motion.div>

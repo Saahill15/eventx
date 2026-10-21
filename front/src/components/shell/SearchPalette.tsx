@@ -62,7 +62,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
               {hits.map((h, i) => (
                 <li key={h.key}>
                   <button onMouseEnter={() => setActive(i)} onClick={() => go(h)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${i === active ? "bg-black/5" : ""}`}>
-                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${h.kind === "fest" ? "bg-butter text-amber-ink" : "bg-lilac text-violet-800"}`}>{h.kind === "fest" ? <Tent className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}</span>
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${h.kind === "fest" ? "bg-chip text-chip-ink" : "bg-lilac text-violet-800"}`}>{h.kind === "fest" ? <Tent className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}</span>
                     <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{h.title}</span><span className="block truncate text-sm text-mute">{h.sub}</span></span>
                     {i === active && <CornerDownLeft className="h-4 w-4 text-mute" />}
                   </button>

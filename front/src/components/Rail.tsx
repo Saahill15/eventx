@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 export function Rail({ children, label }: { children: React.ReactNode; label: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const move = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * (ref.current.clientWidth * 0.8), behavior: "smooth" });
-  const arrow = "hairline hidden h-10 w-10 items-center justify-center rounded-full bg-white shadow-[var(--shadow-soft)] transition hover:bg-wash md:flex";
+  const arrow = "hairline hidden h-10 w-10 items-center justify-center rounded-full bg-white shadow-[var(--shadow-card)] transition hover:bg-wash md:flex";
   return (
     <div className="group/rail relative">
       <div ref={ref} role="list" aria-label={label} className="no-scrollbar -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-5 pb-6 pt-2 sm:-mx-8 sm:gap-5 sm:px-8">
