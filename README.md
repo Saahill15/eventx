@@ -51,6 +51,10 @@ npm run dev               # http://localhost:3000
 
 Tests: `cd back && ./venv/bin/python -m pytest`
 
+## Database changes
+
+The schema is managed with Alembic (`back/migrations`). The API upgrades the database to the latest version on startup, and an older database with no version table is adopted automatically. To change the schema, edit `models.py` and run `./venv/bin/alembic revision --autogenerate -m "what changed"` from `back/`, then check the generated file. `DATABASE_URL` may be SQLite (local) or Postgres (`postgres://` URLs from hosts are accepted).
+
 ## Settings that matter
 
 - `SECRET_KEY` is required (32+ characters). The API refuses to start without it.

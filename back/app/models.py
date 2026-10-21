@@ -60,6 +60,8 @@ class User(Base):
     auth_provider    = Column(Enum(AuthProviderEnum), default=AuthProviderEnum.email)
     is_active        = Column(Boolean, default=True)
     interests_set    = Column(Boolean, default=False)
+    college_id       = Column(Integer, ForeignKey("colleges.id", name="fk_users_college_id"), nullable=True)
+    study_year       = Column(Integer, nullable=True)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 
     interests         = relationship("UserInterest", back_populates="user")
@@ -67,7 +69,7 @@ class User(Base):
     passes            = relationship("Pass", back_populates="user")
     organizer_request = relationship("OrganizerRequest", back_populates="user", uselist=False)
     fest_memberships  = relationship("FestMember", back_populates="user")
-    fest_passes       = relationship("FestPass", back_populates="user")
+    fest_passes       = relationship("FestPass", back_populates="user", foreign_keys="FestPass.user_id")
 
 class Interest(Base):
     __tablename__ = "interests"
@@ -119,12 +121,20 @@ class Event(Base):
     registration_limit    = Column(Integer, nullable=True)   # None = unlimited
     approval_mode         = Column(Enum(ApprovalModeEnum), default=ApprovalModeEnum.auto)
 
+    # A cancelled event stays visible (so registered students see why) but cannot be registered for
+    cancelled_at  = Column(DateTime, nullable=True)
+    cancel_reason = Column(String(500), nullable=True)
+
     organizer  = relationship("User", back_populates="events")
     college    = relationship("College", back_populates="events")
     fest       = relationship("Fest", back_populates="events")
     passes     = relationship("Pass", back_populates="event")
     committees = relationship("Committee", back_populates="event")
     registrations = relationship("EventRegistration", back_populates="event")
+
+    @property
+    def cancelled(self):
+        return self.cancelled_at is not None
 
     @property
     def college_name(self):
@@ -245,9 +255,11 @@ class FestPass(Base):
     status     = Column(Enum(FestPassStatusEnum), default=FestPassStatusEnum.approved)
     qr_code    = Column(String(100), unique=True, nullable=False)
     checked_in = Column(Boolean, default=False)
+    checked_in_at = Column(DateTime, nullable=True)
+    checked_in_by = Column(Integer, ForeignKey("users.id", name="fk_fest_passes_checked_in_by"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user          = relationship("User", back_populates="fest_passes")
+    user          = relationship("User", back_populates="fest_passes", foreign_keys=[user_id])
     fest          = relationship("Fest", back_populates="entry_passes")
     registrations = relationship("EventRegistration", back_populates="fest_pass")
 
@@ -272,6 +284,9 @@ class EventRegistration(Base):
     event_id        = Column(Integer, ForeignKey("events.id"), nullable=False)
     approval_status = Column(Enum(RegApprovalStatusEnum), default=RegApprovalStatusEnum.pending)
     payment_status  = Column(Enum(RegPaymentStatusEnum), default=RegPaymentStatusEnum.unpaid)
+    attended        = Column(Boolean, default=False, nullable=False, server_default="0")
+    attended_at     = Column(DateTime, nullable=True)
+    attended_by     = Column(Integer, ForeignKey("users.id", name="fk_event_registrations_attended_by"), nullable=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
 
     fest_pass = relationship("FestPass", back_populates="registrations")

@@ -1,12 +1,10 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
 from app import models  # noqa: F401  (registers the tables with Base.metadata)
+from app.migrate import run_migrations
 from app.seed import seed
-from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events
-
-Base.metadata.create_all(bind=engine)
+from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate
 
 app = FastAPI(title="EventX API")
 
@@ -31,10 +29,12 @@ app.include_router(committees.router,    prefix="/api/events",      tags=["Commi
 app.include_router(colleges.router,      prefix="/api/colleges",    tags=["Colleges"])
 app.include_router(fests.router,         prefix="/api/fests",       tags=["Fests"])
 app.include_router(entry_passes.router,  prefix="/api/fests",       tags=["FestPasses"])
+app.include_router(gate.router,           prefix="/api/fests",       tags=["Gate"])
 app.include_router(fest_events.router,   prefix="/api/fest-events", tags=["FestEventRegistrations"])
 
 @app.on_event("startup")
 def on_startup():
+    run_migrations()
     seed()
 
 @app.get("/")

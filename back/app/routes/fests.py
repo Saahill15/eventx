@@ -155,6 +155,43 @@ def manage_fest_events(
     return out
 
 
+# ─── GET /fests/:slug/manage/stats ───────────────────────────────────────────
+@router.get("/{slug}/manage/stats", response_model=schemas.FestStats)
+def fest_stats(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Numbers for the committee: passes issued and used, and per-event registrations and attendance."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+
+    passes = db.query(models.FestPass).filter(models.FestPass.fest_id == fest.id).all()
+    events = db.query(models.Event).filter(models.Event.fest_id == fest.id).order_by(models.Event.date).all()
+    rows = (
+        db.query(models.EventRegistration.event_id, models.EventRegistration.approval_status, models.EventRegistration.attended)
+        .filter(models.EventRegistration.event_id.in_([e.id for e in events] or [0]))
+        .all()
+    )
+    out = []
+    for e in events:
+        mine = [r for r in rows if r[0] == e.id]
+        out.append(schemas.EventStat(
+            id=e.id, title=e.title, date=e.date, cancelled=e.cancelled,
+            requires_registration=bool(e.requires_registration), registration_limit=e.registration_limit,
+            registered=sum(1 for r in mine if r[1] == models.RegApprovalStatusEnum.approved),
+            pending=sum(1 for r in mine if r[1] == models.RegApprovalStatusEnum.pending),
+            attended=sum(1 for r in mine if r[2]),
+        ))
+    return schemas.FestStats(
+        passes_issued=len(passes),
+        passes_checked_in=sum(1 for p in passes if p.checked_in),
+        events=out,
+    )
+
+
 # ─── PATCH /fests/:slug ──────────────────────────────────────────────────────
 @router.patch("/{slug}", response_model=schemas.FestOut)
 def update_fest(

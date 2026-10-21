@@ -24,6 +24,16 @@ class LoginEmail(BaseModel):
     def lowercase_email(cls, v):
         return v.lower()
 
+class ProfileUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]] = None
+    phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[0-9 ()-]{7,20}$")]] = None
+    college_id: Optional[int] = None
+    study_year: Optional[int] = Field(default=None, ge=1, le=8)
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -38,6 +48,8 @@ class UserOut(BaseModel):
     phone: Optional[str]
     role: str
     interests_set: bool
+    college_id: Optional[int] = None
+    study_year: Optional[int] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -123,6 +135,8 @@ class EventOut(BaseModel):
     is_paid: bool = False
     registration_limit: Optional[int] = None
     approval_mode: str = "auto"
+    cancelled: bool = False
+    cancel_reason: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -323,3 +337,47 @@ class DepartmentOut(BaseModel):
 class MemberAdd(BaseModel):
     user_id: int
     role: str = "member"
+
+# Gate / check-in
+class QrCodeIn(BaseModel):
+    qr_code: str = Field(min_length=8, max_length=100)
+
+class GateRegistration(BaseModel):
+    event_id: int
+    title: str
+    approval_status: str
+    attended: bool
+
+class GatePassOut(BaseModel):
+    pass_id: int
+    user_name: Optional[str]
+    user_email: Optional[str]
+    status: str
+    checked_in: bool
+    checked_in_at: Optional[datetime] = None
+    registrations: List[GateRegistration] = []
+
+class EventCheckInOut(BaseModel):
+    registration_id: int
+    user_name: Optional[str]
+    attended: bool
+    attended_at: Optional[datetime] = None
+
+class CancelEvent(BaseModel):
+    reason: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+class EventStat(BaseModel):
+    id: int
+    title: str
+    date: datetime
+    cancelled: bool
+    requires_registration: bool
+    registration_limit: Optional[int]
+    registered: int       # approved
+    pending: int
+    attended: int
+
+class FestStats(BaseModel):
+    passes_issued: int
+    passes_checked_in: int
+    events: List[EventStat]

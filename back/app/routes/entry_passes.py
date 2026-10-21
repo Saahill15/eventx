@@ -8,12 +8,14 @@ Mounted under /api/fests by main.py — so paths here are relative.
 """
 
 import uuid
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user
+from app.permissions import is_fest_member
 
 router = APIRouter()
 
@@ -106,28 +108,15 @@ def gate_scan(
       - checked_in must be False
       - Does NOT check event registrations
 
-    Requires: fest owner, core member, or admin.
+    Requires: any fest committee member (volunteers included), or admin.
     """
     fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
     if not fest:
         raise HTTPException(status_code=404, detail="Fest not found")
 
-    # Permission: must be admin or a fest owner/core
-    is_privileged = current_user.role == models.RoleEnum.admin or (
-        db.query(models.FestMember)
-        .filter(
-            models.FestMember.fest_id == fest.id,
-            models.FestMember.user_id == current_user.id,
-            models.FestMember.role.in_([
-                models.FestMemberRoleEnum.owner,
-                models.FestMemberRoleEnum.core,
-            ]),
-        )
-        .first()
-        is not None
-    )
-    if not is_privileged:
-        raise HTTPException(status_code=403, detail="Gate access requires owner or core member role")
+    # Permission: any member of the fest's committee (volunteers work the gate), or an admin
+    if not is_fest_member(db, fest.id, current_user):
+        raise HTTPException(status_code=403, detail="Gate access requires being on this fest's committee")
 
     fest_pass = (
         db.query(models.FestPass)
@@ -147,6 +136,8 @@ def gate_scan(
         raise HTTPException(status_code=400, detail="Pass already used — entry denied")
 
     fest_pass.checked_in = True
+    fest_pass.checked_in_at = datetime.utcnow()
+    fest_pass.checked_in_by = current_user.id
     db.commit()
     db.refresh(fest_pass)
     return fest_pass

@@ -13,6 +13,8 @@ def register_pass(event_id: int, db: Session = Depends(get_db), current_user=Dep
     event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if not event or event.status != models.StatusEnum.approved:
         raise HTTPException(status_code=404, detail="Event not found")
+    if event.cancelled:
+        raise HTTPException(status_code=400, detail="This event has been cancelled")
     if event.event_type != models.EventTypeEnum.city:
         raise HTTPException(
             status_code=400,

@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -195,6 +196,49 @@ def update_event(
     for field, value in updates.items():
         setattr(event, field, value)
 
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+def _require_event_manager(db: Session, event: models.Event, user):
+    if user.role == models.RoleEnum.admin:
+        return
+    if event.event_type == models.EventTypeEnum.city:
+        allowed = event.organizer_id == user.id
+    else:
+        allowed = is_fest_staff(db, event.fest_id, user)
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Not allowed to manage this event")
+
+
+@router.post("/{event_id}/cancel", response_model=schemas.EventOut)
+def cancel_event(event_id: int, data: schemas.CancelEvent, db: Session = Depends(get_db), current_user=Depends(require_organizer)):
+    """Cancel an event. It stays listed, marked as cancelled, and nobody can register for it any more."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _require_event_manager(db, event, current_user)
+    if event.cancelled:
+        raise HTTPException(status_code=400, detail="Event is already cancelled")
+    event.cancelled_at = datetime.utcnow()
+    event.cancel_reason = data.reason
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@router.post("/{event_id}/restore", response_model=schemas.EventOut)
+def restore_event(event_id: int, db: Session = Depends(get_db), current_user=Depends(require_organizer)):
+    """Undo a cancellation."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _require_event_manager(db, event, current_user)
+    if not event.cancelled:
+        raise HTTPException(status_code=400, detail="Event is not cancelled")
+    event.cancelled_at = None
+    event.cancel_reason = None
     db.commit()
     db.refresh(event)
     return event

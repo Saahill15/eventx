@@ -23,6 +23,19 @@ def is_fest_staff(db: Session, fest_id, user) -> bool:
     ) is not None
 
 
+def is_fest_member(db: Session, fest_id, user) -> bool:
+    """True for admins and for any member of the fest (including volunteers). Used for gate work."""
+    if user is None or fest_id is None:
+        return False
+    if user.role == models.RoleEnum.admin:
+        return True
+    return (
+        db.query(models.FestMember)
+        .filter(models.FestMember.fest_id == fest_id, models.FestMember.user_id == user.id)
+        .first()
+    ) is not None
+
+
 def can_view_event(db: Session, event: models.Event, user) -> bool:
     """Approved events are public. Others are visible only to their owner, fest staff and admins."""
     if event.status == models.StatusEnum.approved:

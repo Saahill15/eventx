@@ -11,20 +11,20 @@ Status key: **Done** = works today, **Partial** = exists but incomplete, **Missi
 |---|---|---|
 | 1 | College is onboarded; a fest is created with an owner | Partial: fests and owners exist, but only an admin can set them up, no self-serve onboarding |
 | 2 | Owner invites core members and volunteers, creates departments | Partial: roles exist in the API, no screen |
-| 3 | Add events: date, venue, capacity, team size, price, auto or manual approval | Partial: API supports it, no screen for fest events (the form only creates city events) |
-| 4 | Live registrations table, approve or reject, export CSV | Missing |
+| 3 | Add events: date, venue, capacity, team size, price, auto or manual approval | Done, plus cancel and restore an event. Team size is not built |
+| 4 | Live registrations table, approve or reject, export CSV | Done |
 | 5 | Announcements and schedule changes to registered students | Missing |
-| 6 | Gate and event check-in by scanning pass QR codes | Partial: scan API exists, no scanner screen |
-| 7 | After the fest: attendance and registration numbers | Missing |
+| 6 | Gate and event check-in by scanning pass QR codes | Backend done (look up a pass by QR, check in at the gate, check in at an event, undo; volunteers can scan). No scanner screen yet |
+| 7 | After the fest: attendance and registration numbers | Backend done (`GET /api/fests/{slug}/manage/stats`, attendance column in the CSV). No screen yet |
 
 ## 2. Student flow
 
 | Step | What happens | Status |
 |---|---|---|
 | 1 | Opens a fest from a poster QR code or shared link, browses without logging in | Done |
-| 2 | Signs in with Google (name, email); adds college and year | Missing: email/password only today |
+| 2 | Signs in with Google (name, email); adds college and year | Email and password work, and the profile now stores college, year and phone and allows changing the password. Google sign-in and password reset are missing |
 | 3 | Gets the free fest entry pass | Done |
-| 4 | Registers for events; team events need a team and invites | Missing for teams; single registration is Done |
+| 4 | Registers for events; team events need a team and invites | Single registration and cancelling a registration are Done; teams and waitlists are missing |
 | 5 | Pays for paid events | Missing: paid events are marked paid without charging |
 | 6 | Sees pass QR and registrations in My Passes | Done |
 | 7 | Gets reminders and schedule updates | Missing |
@@ -32,7 +32,7 @@ Status key: **Done** = works today, **Partial** = exists but incomplete, **Missi
 
 ## 3. Gate volunteer flow
 
-Open the scanner on a phone, scan a pass, see valid / already used / blocked immediately. Must work on weak mobile data. Status: Missing (API only).
+Open the scanner on a phone, scan a pass, see valid / already used / blocked immediately. Must work on weak mobile data. Status: backend done (QR lookup, check-in, undo); no scanner screen yet.
 
 ## Build order
 

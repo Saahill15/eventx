@@ -9,6 +9,7 @@ Mounted under /api/fest-events by main.py.
 
 import csv
 import io
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -16,7 +17,7 @@ from typing import List
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user
-from app.permissions import is_fest_staff
+from app.permissions import is_fest_member, is_fest_staff
 
 router = APIRouter()
 
@@ -53,6 +54,8 @@ def register_for_event(
         )
     if event.status != models.StatusEnum.approved:
         raise HTTPException(status_code=404, detail="Event not found")
+    if event.cancelled:
+        raise HTTPException(status_code=400, detail="This event has been cancelled")
 
     # ── 2. Registration must be enabled ──────────────────────────────────────
     if not event.requires_registration:
@@ -153,6 +156,93 @@ def _csv_cell(value) -> str:
     return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
 
 
+# ─── DELETE /fest-events/{event_id}/register ─────────────────────────────────
+
+@router.delete("/{event_id}/register", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_my_registration(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Cancel the current user's registration. Frees the seat. Not possible once they have been checked in."""
+    registration = (
+        db.query(models.EventRegistration)
+        .join(models.FestPass, models.EventRegistration.fest_pass_id == models.FestPass.id)
+        .filter(models.EventRegistration.event_id == event_id, models.FestPass.user_id == current_user.id)
+        .first()
+    )
+    if not registration:
+        raise HTTPException(status_code=404, detail="You are not registered for this event")
+    if registration.attended:
+        raise HTTPException(status_code=400, detail="You have already attended this event")
+    db.delete(registration)
+    db.commit()
+
+
+# ─── POST /fest-events/{event_id}/check-in ───────────────────────────────────
+
+@router.post("/{event_id}/check-in", response_model=schemas.EventCheckInOut)
+def check_in_to_event(
+    event_id: int,
+    data: schemas.QrCodeIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Mark a student as present at one event, by their fest pass QR code (any committee member)."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event or event.event_type != models.EventTypeEnum.fest:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if not is_fest_member(db, event.fest_id, current_user):
+        raise HTTPException(status_code=403, detail="Only this fest's committee can check people in")
+
+    fest_pass = (
+        db.query(models.FestPass)
+        .filter(models.FestPass.qr_code == data.qr_code, models.FestPass.fest_id == event.fest_id)
+        .first()
+    )
+    if not fest_pass:
+        raise HTTPException(status_code=404, detail="No pass with that code for this fest")
+    if fest_pass.status != models.FestPassStatusEnum.approved:
+        raise HTTPException(status_code=400, detail="Pass is blocked: entry denied")
+
+    if event.requires_registration:
+        registration = (
+            db.query(models.EventRegistration)
+            .filter(models.EventRegistration.fest_pass_id == fest_pass.id, models.EventRegistration.event_id == event_id)
+            .first()
+        )
+        if not registration:
+            raise HTTPException(status_code=400, detail="This student is not registered for the event")
+        if registration.approval_status != models.RegApprovalStatusEnum.approved:
+            raise HTTPException(status_code=400, detail="Registration is not approved yet")
+    else:
+        # Open events have no registration: record attendance on demand
+        registration = (
+            db.query(models.EventRegistration)
+            .filter(models.EventRegistration.fest_pass_id == fest_pass.id, models.EventRegistration.event_id == event_id)
+            .first()
+        )
+        if not registration:
+            registration = models.EventRegistration(
+                fest_pass_id=fest_pass.id, event_id=event_id,
+                approval_status=models.RegApprovalStatusEnum.approved, payment_status=models.RegPaymentStatusEnum.unpaid,
+            )
+            db.add(registration)
+            db.flush()
+
+    if registration.attended:
+        raise HTTPException(status_code=400, detail="Already checked in to this event")
+    registration.attended = True
+    registration.attended_at = datetime.utcnow()
+    registration.attended_by = current_user.id
+    db.commit()
+    db.refresh(registration)
+    return schemas.EventCheckInOut(
+        registration_id=registration.id, user_name=registration.user_name,
+        attended=True, attended_at=registration.attended_at,
+    )
+
+
 # ─── GET /fest-events/{event_id}/registrations ───────────────────────────────
 
 @router.get("/{event_id}/registrations", response_model=List[schemas.EventRegistrationDetailOut])
@@ -188,12 +278,13 @@ def export_event_registrations(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["Name", "Email", "Approval", "Payment", "Checked in at fest", "Registered at"])
+    writer.writerow(["Name", "Email", "Approval", "Payment", "Checked in at fest", "Attended this event", "Registered at"])
     for r in _registrations_for(db, event_id):
         writer.writerow([
             _csv_cell(r.user_name), _csv_cell(r.user_email),
             r.approval_status.value, r.payment_status.value,
             "yes" if r.checked_in else "no",
+            "yes" if r.attended else "no",
             r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
         ])
     return Response(
