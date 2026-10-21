@@ -78,12 +78,12 @@ export default async function Home() {
                   <li key={k} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
                     <span className="inline-flex w-fit shrink-0 items-center rounded-2xl bg-chip px-5 py-3 text-lg font-medium text-chip-ink sm:w-36 sm:justify-center">{formatDay(k)}</span>
                     <p className="pt-1 text-lg leading-relaxed">
-                      {list.map((e, i) => <span key={e.id}><Link href={`/events/${e.id}`} className="font-medium transition hover:text-brand hover:underline">{e.title}</Link>{i < list.length - 1 ? ", " : ""}</span>)}
+                      {list.map((e, i) => <span key={e.id}><Link href={`/events/${e.id}`} className="font-medium transition hover:text-chip-ink hover:underline">{e.title}</Link>{i < list.length - 1 ? ", " : ""}</span>)}
                     </p>
                   </li>
                 ))}
               </ul>
-              <div className="mt-8"><Link href="/events" className="inline-flex items-center gap-2 font-semibold text-brand">See the full calendar <ArrowRight className="h-4 w-4" /></Link></div>
+              <div className="mt-8"><Link href="/events" className="inline-flex items-center gap-2 font-semibold text-chip-ink">See the full calendar <ArrowRight className="h-4 w-4" /></Link></div>
             </section>
           </Reveal>
         )}
@@ -102,7 +102,7 @@ export default async function Home() {
         {/* Featured fests */}
         {(fests ?? []).length > 0 && (
           <section className="card p-6 sm:p-10">
-            <div className="mb-6 flex items-end justify-between gap-4"><h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Fests on HiveOut</h2><Link href="/fests" className="hidden items-center gap-1 font-semibold text-brand sm:flex">All fests <ArrowRight className="h-4 w-4" /></Link></div>
+            <div className="mb-6 flex items-end justify-between gap-4"><h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Fests on HiveOut</h2><Link href="/fests" className="hidden items-center gap-1 font-semibold text-chip-ink sm:flex">All fests <ArrowRight className="h-4 w-4" /></Link></div>
             <Stagger className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {(fests ?? []).slice(0, 8).map((f) => <StaggerItem key={f.id}><FestPoster fest={f} college={collegeName(f.college_id)} /></StaggerItem>)}
             </Stagger>
@@ -118,7 +118,7 @@ export default async function Home() {
             <section className="card overflow-hidden p-6 sm:p-10">
               <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Colleges on HiveOut</h2>
               <div className="mt-6"><Marquee items={colleges.map((c) => c.name)} /></div>
-              <div className="mt-6 flex flex-wrap gap-2.5">{colleges.map((c) => <Link key={c.id} href={`/fests?college=${c.id}`} className="inline-flex items-center gap-2 rounded-full bg-wash px-4 py-2 text-sm font-medium transition hover:bg-chip hover:text-chip-ink"><Building2 className="h-4 w-4 text-brand" />{c.name}</Link>)}</div>
+              <div className="mt-6 flex flex-wrap gap-2.5">{colleges.map((c) => <Link key={c.id} href={`/fests?college=${c.id}`} className="inline-flex items-center gap-2 rounded-full bg-wash px-4 py-2 text-sm font-medium transition hover:bg-chip hover:text-chip-ink"><Building2 className="h-4 w-4 text-chip-ink" />{c.name}</Link>)}</div>
             </section>
           </Reveal>
         )}
@@ -135,11 +135,11 @@ export default async function Home() {
                 { name: "City events", price: "Soon", points: ["Concerts and gigs", "Same HiveOut account", "Coming after fests"], cta: "Stay tuned", href: "/events", main: false },
               ].map((p) => (
                 <StaggerItem key={p.name}>
-                  <div className={`flex h-full flex-col rounded-3xl p-7 ${p.main ? "bg-brand text-white shadow-[var(--shadow-glow)]" : "bg-wash"}`}>
-                    <p className={`text-sm font-semibold ${p.main ? "text-white/80" : "text-chip-ink"}`}>{p.name}</p>
+                  <div className={`flex h-full flex-col rounded-3xl p-7 ${p.main ? "bg-brand text-on-brand shadow-[var(--shadow-glow)]" : "bg-wash"}`}>
+                    <p className={`text-sm font-semibold ${p.main ? "text-on-brand/80" : "text-chip-ink"}`}>{p.name}</p>
                     <p className="mt-1 font-display text-5xl font-semibold tracking-tight">{p.price}</p>
-                    <ul className="mt-6 flex-1 space-y-3">{p.points.map((pt) => <li key={pt} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${p.main ? "text-white" : "text-brand"}`} />{pt}</li>)}</ul>
-                    <Link href={p.href} className={`mt-8 inline-flex h-12 items-center justify-center rounded-full text-[0.9375rem] font-semibold transition active:scale-[0.97] ${p.main ? "bg-white text-brand hover:bg-chip" : "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-chip"}`}>{p.cta}</Link>
+                    <ul className="mt-6 flex-1 space-y-3">{p.points.map((pt) => <li key={pt} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${p.main ? "text-on-brand" : "text-chip-ink"}`} />{pt}</li>)}</ul>
+                    <Link href={p.href} className={`mt-8 inline-flex h-12 items-center justify-center rounded-full text-[0.9375rem] font-semibold transition active:scale-[0.97] ${p.main ? "bg-white text-chip-ink hover:bg-chip" : "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-chip"}`}>{p.cta}</Link>
                   </div>
                 </StaggerItem>
               ))}
@@ -157,14 +157,14 @@ export default async function Home() {
 
         {/* Final CTA */}
         <Reveal>
-          <section className="dots relative overflow-hidden rounded-[1.5rem] bg-brand px-6 py-16 text-center text-white shadow-[var(--shadow-glow)]">
+          <section className="dots relative overflow-hidden rounded-[1.5rem] bg-brand px-6 py-16 text-center text-on-brand shadow-[var(--shadow-glow)]">
             <div className="absolute inset-0 bg-brand/95" aria-hidden />
             <div className="relative">
               <h2 className="mx-auto max-w-2xl font-display text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">Join us this fest season</h2>
-              <p className="mx-auto mt-4 max-w-md text-lg text-white/80">Get your free pass and never miss an event.</p>
+              <p className="mx-auto mt-4 max-w-md text-lg text-on-brand/80">Get your free pass and never miss an event.</p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link href="/signup" className="inline-flex h-14 items-center rounded-full bg-white px-8 font-semibold text-brand transition hover:bg-chip active:scale-[0.97]">Join free</Link>
-                <Link href="/fests" className="inline-flex h-14 items-center rounded-full bg-white/15 px-8 font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/25 active:scale-[0.97]">Explore fests</Link>
+                <Link href="/signup" className="inline-flex h-14 items-center rounded-full bg-white px-8 font-semibold text-chip-ink transition hover:bg-chip active:scale-[0.97]">Join free</Link>
+                <Link href="/fests" className="inline-flex h-14 items-center rounded-full bg-black/10 px-8 font-semibold text-on-brand ring-1 ring-black/20 transition hover:bg-black/15 active:scale-[0.97]">Explore fests</Link>
               </div>
             </div>
           </section>

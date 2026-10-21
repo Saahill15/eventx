@@ -42,8 +42,8 @@ export function HeroShowcase({ photo }: { photo: { id: number; title: string; im
           <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-mute">Find what is happening, register in seconds and walk in with a QR pass. Free for students and committees.</p>
         </FadeUp>
         <FadeUp delay={0.24} className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Link href="/fests" className="inline-flex h-14 items-center gap-3 rounded-full bg-brand px-8 text-base font-semibold text-white shadow-[var(--shadow-glow)] transition hover:bg-brand-deep active:scale-[0.97]">Explore fests <Ticket className="h-5 w-5" /></Link>
-          <Link href="/events" className="inline-flex h-14 items-center gap-3 rounded-full bg-white px-8 text-base font-semibold text-ink shadow-[var(--shadow-card)] transition hover:bg-wash active:scale-[0.97]">Browse events <CalendarDays className="h-5 w-5 text-brand" /></Link>
+          <Link href="/fests" className="inline-flex h-14 items-center gap-3 rounded-full bg-brand px-8 text-base font-semibold text-on-brand shadow-[var(--shadow-glow)] transition hover:bg-brand-deep active:scale-[0.97]">Explore fests <Ticket className="h-5 w-5" /></Link>
+          <Link href="/events" className="inline-flex h-14 items-center gap-3 rounded-full bg-white px-8 text-base font-semibold text-ink shadow-[var(--shadow-card)] transition hover:bg-wash active:scale-[0.97]">Browse events <CalendarDays className="h-5 w-5 text-chip-ink" /></Link>
         </FadeUp>
       </div>
     </section>

@@ -91,7 +91,7 @@ function EventForm({ fest, event, onSaved, onCancel }: { fest: Fest; event: Mana
 
       <div className="space-y-4 rounded-2xl bg-black/[0.03] p-4">
         <label className="flex items-center gap-3 text-sm font-medium">
-          <input type="checkbox" className="h-4 w-4 accent-[#1530f0]" checked={form.requires_registration} disabled={locked} onChange={(e) => set("requires_registration", e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-[#f5a300]" checked={form.requires_registration} disabled={locked} onChange={(e) => set("requires_registration", e.target.checked)} />
           Students must register for this event
         </label>
         {locked && <p className="text-xs text-neutral-500">Registration settings are locked because people have already registered.</p>}
@@ -107,7 +107,7 @@ function EventForm({ fest, event, onSaved, onCancel }: { fest: Fest; event: Mana
           </div>
         )}
         <label className="flex items-center gap-3 text-sm font-medium">
-          <input type="checkbox" className="h-4 w-4 accent-[#1530f0]" checked={form.paid} disabled={locked} onChange={(e) => set("paid", e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-[#f5a300]" checked={form.paid} disabled={locked} onChange={(e) => set("paid", e.target.checked)} />
           Paid event
         </label>
         {form.paid && (

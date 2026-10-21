@@ -30,19 +30,19 @@ export function EntryPassPanel({ slug, name, isLive }: { slug: string; name: str
   };
 
   return (
-    <div id="pass" className="rounded-3xl bg-brand p-8 text-white shadow-[var(--shadow-glow)] sm:p-10">
-      <p className="text-sm font-semibold text-white/80">Fest pass</p>
+    <div id="pass" className="rounded-3xl bg-brand p-8 text-on-brand shadow-[var(--shadow-glow)] sm:p-10">
+      <p className="text-sm font-semibold text-on-brand/80">Fest pass</p>
       <p className="mt-1 font-display text-6xl font-semibold tracking-tight">Free</p>
-      <p className="mt-2 text-white/80">{name}</p>
+      <p className="mt-2 text-on-brand/80">{name}</p>
       <ul className="mt-6 space-y-3">{["Entry to the fest with a QR code", "Register for any event", "Keep every pass in one place"].map((t) => <li key={t} className="flex items-center gap-2.5"><Check className="h-4 w-4" />{t}</li>)}</ul>
       <div className="mt-8 space-y-3">
         <ErrorNote>{error}</ErrorNote>
         {loading ? <div className="h-14 animate-pulse rounded-full bg-white/20" /> : pass ? (
-          <Button href="/my-passes" variant="outline" size="lg" className="w-full !text-brand">You have your pass. View it</Button>
+          <Button href="/my-passes" variant="outline" size="lg" className="w-full !text-chip-ink">You have your pass. View it</Button>
         ) : user ? (
-          <Button onClick={claim} disabled={busy} variant="outline" size="lg" className="w-full !text-brand">{busy ? "Getting pass…" : "Get my free pass"}</Button>
+          <Button onClick={claim} disabled={busy} variant="outline" size="lg" className="w-full !text-chip-ink">{busy ? "Getting pass…" : "Get my free pass"}</Button>
         ) : (
-          <Button href={`/login?next=${encodeURIComponent(`/fest/${slug}`)}`} variant="outline" size="lg" className="w-full !text-brand">Sign in to get it</Button>
+          <Button href={`/login?next=${encodeURIComponent(`/fest/${slug}`)}`} variant="outline" size="lg" className="w-full !text-chip-ink">Sign in to get it</Button>
         )}
       </div>
     </div>

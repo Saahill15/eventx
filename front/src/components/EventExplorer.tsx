@@ -55,13 +55,13 @@ export function EventExplorer({ events, initial }: { events: FestEvent[]; initia
       <div className="card mb-5 space-y-4 p-4 sm:p-6">
       <div className="flex items-center gap-3">
         <label className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-full bg-wash px-5 focus-within:ring-4 focus-within:ring-brand/25">
-          <Search className="h-5 w-5 text-brand" />
+          <Search className="h-5 w-5 text-chip-ink" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search events, venues or fests" aria-label="Search events" className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-neutral-400" />
           {q && <button onClick={() => setQ("")} aria-label="Clear search" className="rounded-full p-1 hover:bg-wash"><X className="h-4 w-4" /></button>}
         </label>
         <div className="flex shrink-0 rounded-full bg-chip p-1" role="group" aria-label="View">
           {([["list", List, "List view"], ["grid", LayoutGrid, "Poster view"]] as const).map(([v, Icon, label]) => (
-            <button key={v} onClick={() => setView(v)} aria-pressed={view === v} aria-label={label} className={`flex h-10 w-10 items-center justify-center rounded-full transition sm:h-12 sm:w-12 ${view === v ? "bg-white text-brand shadow-[var(--shadow-card)]" : "text-chip-ink/70"}`}><Icon className="h-5 w-5" /></button>
+            <button key={v} onClick={() => setView(v)} aria-pressed={view === v} aria-label={label} className={`flex h-10 w-10 items-center justify-center rounded-full transition sm:h-12 sm:w-12 ${view === v ? "bg-white text-chip-ink shadow-[var(--shadow-card)]" : "text-chip-ink/70"}`}><Icon className="h-5 w-5" /></button>
           ))}
         </div>
       </div>
@@ -76,7 +76,7 @@ export function EventExplorer({ events, initial }: { events: FestEvent[]; initia
 
       <p className="mb-5 mt-6 text-sm text-mute" aria-live="polite">
         {shown.length} event{shown.length === 1 ? "" : "s"}{date ? ` on ${formatLongDay(date)}` : ""}
-        {active && <button onClick={clear} className="ml-3 font-semibold text-brand underline underline-offset-4">Clear filters</button>}
+        {active && <button onClick={clear} className="ml-3 font-semibold text-chip-ink underline underline-offset-4">Clear filters</button>}
       </p>
 
       {shown.length === 0 ? (

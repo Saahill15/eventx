@@ -48,7 +48,7 @@ export default async function EventPage({ params }: Props) {
             {event.location && <InfoChip icon={<MapPin className="h-4 w-4" />}>{event.location}</InfoChip>}
           </FadeUp>
           <FadeUp delay={0.08}><h1 className="mt-7 font-display text-5xl font-semibold leading-[1.02] tracking-[-0.03em] sm:text-7xl">{event.title}</h1></FadeUp>
-          {event.fest_slug && <FadeUp delay={0.14}><p className="mt-5 text-lg text-mute">Part of <Link href={`/fest/${event.fest_slug}`} className="font-semibold text-brand hover:underline">{event.fest_name}</Link>{event.college_name ? ` · ${event.college_name}` : ""}</p></FadeUp>}
+          {event.fest_slug && <FadeUp delay={0.14}><p className="mt-5 text-lg text-mute">Part of <Link href={`/fest/${event.fest_slug}`} className="font-semibold text-chip-ink hover:underline">{event.fest_name}</Link>{event.college_name ? ` · ${event.college_name}` : ""}</p></FadeUp>}
           <FadeUp delay={0.2} className="mt-8 flex justify-center"><ShareButtons title={event.title} calendar={{ title: event.title, date: event.date, time: event.time, location: event.location, description: event.description }} /></FadeUp>
         </div>
       </section>
@@ -65,7 +65,7 @@ export default async function EventPage({ params }: Props) {
                   {facts.map(({ icon: Icon, label, value }) => (
                     <div key={label} className="flex items-start gap-3 rounded-2xl bg-wash p-4">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-chip text-chip-ink"><Icon className="h-4 w-4" /></span>
-                      <div className="min-w-0"><dt className="text-xs font-medium text-mute">{label}</dt><dd className="font-semibold leading-snug">{value}{label === "Venue" && event.location && <a href={mapsLink(event.location, event.college_name)} target="_blank" rel="noopener noreferrer" className="ml-2 text-sm font-medium text-brand underline underline-offset-2">Map</a>}</dd></div>
+                      <div className="min-w-0"><dt className="text-xs font-medium text-mute">{label}</dt><dd className="font-semibold leading-snug">{value}{label === "Venue" && event.location && <a href={mapsLink(event.location, event.college_name)} target="_blank" rel="noopener noreferrer" className="ml-2 text-sm font-medium text-chip-ink underline underline-offset-2">Map</a>}</dd></div>
                     </div>
                   ))}
                 </dl>

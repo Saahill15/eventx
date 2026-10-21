@@ -5,9 +5,9 @@ type Variant = "amber" | "ink" | "soft" | "outline" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
-  amber: "bg-brand text-white hover:bg-brand-deep shadow-[var(--shadow-glow)]",
+  amber: "bg-brand text-on-brand hover:bg-brand-deep shadow-[var(--shadow-glow)]",
   ink: "bg-ink text-white hover:bg-neutral-700",
-  soft: "bg-chip text-chip-ink hover:bg-blue-100",
+  soft: "bg-chip text-chip-ink hover:bg-amber-100",
   outline: "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-wash",
   ghost: "text-mute hover:bg-black/5 hover:text-ink",
 };

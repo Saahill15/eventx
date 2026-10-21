@@ -7,11 +7,11 @@ import type { FestEvent } from "@/lib/types";
 import { formatDayNumber, formatMonthShort, formatTime, priceLabel } from "@/lib/format";
 
 const TINTS = [
-  { bg: "linear-gradient(160deg,#dfe3ff,#aab6ff)", ink: "#1b1a6e" },
-  { bg: "linear-gradient(160deg,#d3e4ff,#8fb4ff)", ink: "#0f2a66" },
-  { bg: "linear-gradient(160deg,#e8e4ff,#bdb3ff)", ink: "#2a1a7a" },
-  { bg: "linear-gradient(160deg,#d4f0ff,#8fd3ff)", ink: "#0b3a63" },
-  { bg: "linear-gradient(160deg,#e2e6ff,#a3afff)", ink: "#1a2380" },
+  { bg: "linear-gradient(160deg,#ffeab5,#ffc94d)", ink: "#5c3a00" },
+  { bg: "linear-gradient(160deg,#ffe2c7,#ffb27d)", ink: "#6b2d0a" },
+  { bg: "linear-gradient(160deg,#fff1cc,#ffd96e)", ink: "#5a4300" },
+  { bg: "linear-gradient(160deg,#ffe6d8,#ffab8c)", ink: "#6b2410" },
+  { bg: "linear-gradient(160deg,#fdeeca,#f4c05a)", ink: "#5a3b00" },
 ];
 
 export const tintFor = (id: number) => TINTS[id % TINTS.length];

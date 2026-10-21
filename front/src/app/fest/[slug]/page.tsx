@@ -48,7 +48,7 @@ export default async function FestPage({ params }: Props) {
           <FadeUp delay={0.08}><h1 className="mt-7 font-display text-5xl font-semibold leading-[1.02] tracking-[-0.03em] sm:text-7xl lg:text-8xl">{fest.name}</h1></FadeUp>
           {fest.tagline && <FadeUp delay={0.14}><p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-mute">{fest.tagline}</p></FadeUp>}
           <FadeUp delay={0.2} className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            {fest.status === "live" && <a href="#pass" className="inline-flex h-14 items-center gap-3 rounded-full bg-brand px-8 text-base font-semibold text-white shadow-[var(--shadow-glow)] transition hover:bg-brand-deep active:scale-[0.97]">Get your pass <Ticket className="h-5 w-5" /></a>}
+            {fest.status === "live" && <a href="#pass" className="inline-flex h-14 items-center gap-3 rounded-full bg-brand px-8 text-base font-semibold text-on-brand shadow-[var(--shadow-glow)] transition hover:bg-brand-deep active:scale-[0.97]">Get your pass <Ticket className="h-5 w-5" /></a>}
             <ShareButtons title={fest.name} />
           </FadeUp>
         </div>
@@ -71,7 +71,7 @@ export default async function FestPage({ params }: Props) {
               {venues.length === 0 ? <p className="mt-3 text-mute">Venues will be announced with the programme.</p> : (
                 <ul className="mt-5 space-y-3">{venues.map((v) => <li key={v} className="flex items-center gap-3 rounded-2xl bg-wash px-4 py-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-chip text-chip-ink"><MapPin className="h-4 w-4" /></span><span className="font-medium">{v}</span></li>)}</ul>
               )}
-              <p className="mt-6 text-sm text-mute">Part of the <Link href="/fests" className="font-semibold text-brand">HiveOut</Link> fest network.</p>
+              <p className="mt-6 text-sm text-mute">Part of the <Link href="/fests" className="font-semibold text-chip-ink">HiveOut</Link> fest network.</p>
             </div>
           </Reveal>
         </div>

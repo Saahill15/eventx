@@ -25,7 +25,7 @@ export function TicketRow({ event }: { event: FestEvent }) {
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${free ? "bg-mint text-emerald-800" : "bg-chip text-chip-ink"}`}>{priceLabel(event)}</span>
           </div>
         </div>
-        <ArrowUpRight className="hidden h-5 w-5 shrink-0 text-neutral-300 transition group-hover:text-brand sm:block" />
+        <ArrowUpRight className="hidden h-5 w-5 shrink-0 text-neutral-300 transition group-hover:text-chip-ink sm:block" />
       </Link>
     </motion.div>
   );

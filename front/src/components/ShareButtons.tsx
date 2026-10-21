@@ -41,8 +41,8 @@ export function ShareButtons({ title, calendar }: { title: string; calendar?: Ca
   const btn = "inline-flex h-12 items-center gap-2 rounded-full bg-white px-5 text-sm font-semibold shadow-[var(--shadow-card)] transition hover:bg-wash active:scale-[0.97]";
   return (
     <div className="flex flex-wrap gap-2">
-      <button onClick={share} className={btn}>{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4 text-brand" />} {copied ? "Link copied" : "Share"}</button>
-      {calendar && <button onClick={() => downloadIcs(calendar)} className={btn}><CalendarPlus className="h-4 w-4 text-brand" /> Add to calendar</button>}
+      <button onClick={share} className={btn}>{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4 text-chip-ink" />} {copied ? "Link copied" : "Share"}</button>
+      {calendar && <button onClick={() => downloadIcs(calendar)} className={btn}><CalendarPlus className="h-4 w-4 text-chip-ink" /> Add to calendar</button>}
     </div>
   );
 }

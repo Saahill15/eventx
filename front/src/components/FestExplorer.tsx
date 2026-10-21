@@ -22,7 +22,7 @@ export function FestExplorer({ fests, colleges, initialCollege }: { fests: Fest[
   return (
     <div>
       <div className="card mb-6 space-y-4 p-4 sm:p-6"><label className="flex h-14 items-center gap-3 rounded-full bg-wash px-5 focus-within:ring-4 focus-within:ring-brand/25">
-        <Search className="h-5 w-5 text-brand" />
+        <Search className="h-5 w-5 text-chip-ink" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search fests or colleges" aria-label="Search fests" className="h-full flex-1 bg-transparent text-base outline-none placeholder:text-neutral-400" />
       </label>
       <div className="no-scrollbar flex gap-2 overflow-x-auto" role="group" aria-label="Filter by college">
