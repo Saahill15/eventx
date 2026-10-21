@@ -17,7 +17,12 @@ eventx/
 │   ├── tests/            pytest suite (in-memory SQLite)
 │   ├── .env.example      every setting the API reads
 │   └── requirements*.txt
-├── front/                React + Vite + Tailwind app
+├── web/                  New HiveOut site: Next.js + Tailwind (student side)
+│   └── src/
+│       ├── app/          pages (home, fests, events, fest and event detail, sign in, My passes, profile)
+│       ├── components/   glass UI pieces, cards, registration and pass panels
+│       └── lib/          API client, auth, formatting, share-card images
+├── front/                Old React + Vite app (still serves the committee dashboard until it moves to web/)
 │   └── src/
 │       ├── pages/        route-level screens (Fests/ holds the fest screens)
 │       ├── components/   shared UI
@@ -39,13 +44,16 @@ cp .env.example .env      # then set SECRET_KEY (see the comment in the file)
 ./venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-Frontend (Node 18+):
+Website (Node 20+):
 
 ```bash
-cd front
+cd web
 npm install
-npm run dev               # http://localhost:5173
+cp .env.example .env.local
+npm run dev               # http://localhost:3000
 ```
+
+Committee dashboard (old app, until it is rebuilt in `web/`): `cd front && npm install && npm run dev` (http://localhost:5173).
 
 Tests: `cd back && ./venv/bin/python -m pytest`
 

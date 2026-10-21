@@ -11,7 +11,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="EventX API")
 
 # Comma-separated list of frontend origins allowed to call the API (set ALLOWED_ORIGINS in production).
-DEFAULT_DEV_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+DEFAULT_DEV_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", DEFAULT_DEV_ORIGINS).split(",") if o.strip()]
 
 app.add_middleware(
