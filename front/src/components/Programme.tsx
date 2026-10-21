@@ -28,8 +28,8 @@ export function Programme({ events, title = "Programme" }: { events: FestEvent[]
           const on = day === d;
           return (
             <button key={d} role="tab" aria-selected={on} onClick={() => setDay(d)} className="relative shrink-0 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors">
-              {on ? <motion.span layoutId={`prog-${title}`} className="absolute inset-0 rounded-2xl bg-brand shadow-[var(--shadow-glow)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} /> : <span className="absolute inset-0 rounded-2xl bg-chip" />}
-              <span className={`relative ${on ? "text-on-brand" : "text-chip-ink"}`}>Day {i + 1} <span className="font-normal opacity-80">· {dayLabel(d)}</span></span>
+              {on ? <motion.span layoutId={`prog-${title}`} className="absolute inset-0 rounded-2xl bg-tint ring-1 ring-brand/50" transition={{ type: "spring", stiffness: 420, damping: 34 }} /> : <span className="absolute inset-0 rounded-2xl bg-chip" />}
+              <span className={`relative ${on ? "text-tint-ink" : "text-chip-ink"}`}>Day {i + 1} <span className="font-normal opacity-80">· {dayLabel(d)}</span></span>
             </button>
           );
         })}

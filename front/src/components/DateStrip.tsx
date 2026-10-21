@@ -16,13 +16,13 @@ export function DateStrip({ value, onSelect, days = 14 }: { value?: string | nul
         const on = value === k;
         const inner = (
           <>
-            {on && <motion.span layoutId="date-pill" className="absolute inset-0 rounded-2xl bg-brand shadow-[var(--shadow-glow)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-            <span className={`relative text-[11px] font-bold uppercase tracking-wider ${on ? "text-on-brand/70" : "text-chip-ink/70"}`}>{i === 0 ? "Today" : d.toLocaleDateString("en-IN", { weekday: "short" })}</span>
-            <span className={`relative font-display text-2xl font-bold leading-none ${on ? "text-on-brand" : "text-chip-ink"}`}>{d.getDate()}</span>
-            <span className={`relative text-[11px] font-medium ${on ? "text-on-brand/70" : "text-chip-ink/70"}`}>{d.toLocaleDateString("en-IN", { month: "short" })}</span>
+            {on && <motion.span layoutId="date-pill" className="absolute inset-0 rounded-2xl bg-tint ring-1 ring-brand/50" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+            <span className={`relative text-[11px] font-bold uppercase tracking-wider ${on ? "text-tint-ink/80" : "text-mute"}`}>{i === 0 ? "Today" : d.toLocaleDateString("en-IN", { weekday: "short" })}</span>
+            <span className={`relative font-display text-2xl font-bold leading-none ${on ? "text-tint-ink" : ""}`}>{d.getDate()}</span>
+            <span className={`relative text-[11px] font-medium ${on ? "text-tint-ink/80" : "text-mute"}`}>{d.toLocaleDateString("en-IN", { month: "short" })}</span>
           </>
         );
-        const cls = "relative flex h-[5.25rem] w-[4.25rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-chip transition hover:bg-amber-100";
+        const cls = "relative flex h-[5.25rem] w-[4.25rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-wash transition hover:bg-chip";
         return onSelect ? (
           <button key={k} onClick={() => onSelect(on ? null : k)} aria-pressed={on} className={cls}>{inner}</button>
         ) : (

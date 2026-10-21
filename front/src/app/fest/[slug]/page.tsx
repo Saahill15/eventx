@@ -48,7 +48,7 @@ export default async function FestPage({ params }: Props) {
           <FadeUp delay={0.08}><h1 className="mt-7 font-display text-5xl font-semibold leading-[1.02] tracking-[-0.03em] sm:text-7xl lg:text-8xl">{fest.name}</h1></FadeUp>
           {fest.tagline && <FadeUp delay={0.14}><p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-mute">{fest.tagline}</p></FadeUp>}
           <FadeUp delay={0.2} className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            {fest.status === "live" && <a href="#pass" className="inline-flex h-14 items-center gap-3 rounded-full bg-brand px-8 text-base font-semibold text-on-brand shadow-[var(--shadow-glow)] transition hover:bg-brand-deep active:scale-[0.97]">Get your pass <Ticket className="h-5 w-5" /></a>}
+            {fest.status === "live" && <a href="#pass" className="inline-flex h-14 items-center gap-3 rounded-full bg-ink px-8 text-base font-semibold text-white transition hover:bg-neutral-700 active:scale-[0.97]">Get your pass <Ticket className="h-5 w-5 text-brand" /></a>}
             <ShareButtons title={fest.name} />
           </FadeUp>
         </div>

@@ -52,8 +52,8 @@ export function TopBar() {
 
           <nav aria-label="Main" className="relative hidden rounded-full bg-white/80 p-1 shadow-[var(--shadow-card)] backdrop-blur-xl md:flex">
             {NAV.map((l) => (
-              <Link key={l.href} href={l.href} className={`relative rounded-full px-5 py-2 text-sm font-medium transition-colors ${active(l.href) ? "text-chip-ink" : "text-mute hover:text-ink"}`}>
-                {active(l.href) && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-full bg-chip" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+              <Link key={l.href} href={l.href} className={`relative rounded-full px-5 py-2 text-sm font-medium transition-colors ${active(l.href) ? "text-tint-ink" : "text-mute hover:text-ink"}`}>
+                {active(l.href) && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-full bg-tint" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
                 <span className="relative">{l.label}</span>
               </Link>
             ))}
@@ -63,7 +63,7 @@ export function TopBar() {
             <button onClick={() => setSearch(true)} aria-label="Search" className={round}><Search className="h-[18px] w-[18px]" /></button>
             {loading ? <div className="h-11 w-11" /> : user ? (
               <div className="relative hidden md:block" ref={menuRef}>
-                <button onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} aria-label="Account menu" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-sm font-semibold text-on-brand shadow-[var(--shadow-glow)] transition active:scale-95">{user.name.trim().charAt(0).toUpperCase()}</button>
+                <button onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} aria-label="Account menu" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-ink text-sm font-semibold text-white transition active:scale-95">{user.name.trim().charAt(0).toUpperCase()}</button>
                 <AnimatePresence>
                   {menu && (
                     <motion.div role="menu" initial={{ opacity: 0, y: -6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.96 }} transition={{ duration: 0.15 }} style={{ transformOrigin: "top right" }} className="glass absolute right-0 mt-2 w-60 rounded-2xl p-1.5 shadow-[var(--shadow-pop)]">
@@ -90,7 +90,7 @@ export function TopBar() {
         <AnimatePresence>
           {sheet && (
             <motion.div initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }} transition={{ duration: 0.2 }} className="glass mx-auto mt-3 max-w-7xl rounded-3xl p-3 shadow-[var(--shadow-pop)] md:hidden">
-              {NAV.map((l) => <Link key={l.href} href={l.href} className={`block rounded-2xl px-4 py-3.5 text-lg font-medium ${active(l.href) ? "bg-chip text-chip-ink" : ""}`}>{l.label}</Link>)}
+              {NAV.map((l) => <Link key={l.href} href={l.href} className={`block rounded-2xl px-4 py-3.5 text-lg font-medium ${active(l.href) ? "bg-tint text-tint-ink" : ""}`}>{l.label}</Link>)}
               <div className="my-2 border-t border-black/5" />
               {user ? (
                 <>

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 const tones = {
   neutral: "bg-wash text-neutral-700",
-  amber: "bg-chip text-chip-ink",
+  amber: "bg-tint text-tint-ink",
   green: "bg-mint text-emerald-800",
   red: "bg-red-100 text-red-700",
   lilac: "bg-lilac text-violet-800",

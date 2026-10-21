@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Check } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { getAllEvents, getColleges, getLiveFests } from "@/lib/api";
 import { dayKey, formatDay, isUpcoming } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -9,8 +9,11 @@ import { PosterArt } from "@/components/Poster";
 import { Programme } from "@/components/Programme";
 import { FestPoster } from "@/components/FestPoster";
 import { Faq } from "@/components/Faq";
-import { Marquee } from "@/components/Marquee";
 import { SearchLauncher } from "@/components/SearchLauncher";
+import { CategoryTabs } from "@/components/home/CategoryTabs";
+import { CollegeCircles } from "@/components/home/CollegeCircles";
+import { PosterCard } from "@/components/Poster";
+import { Rail, RailItem } from "@/components/Rail";
 
 export const revalidate = 30;
 
@@ -43,7 +46,7 @@ export default async function Home() {
       <HeroShowcase photo={photo} />
 
       <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
-        <Reveal><div className="mx-auto max-w-2xl"><SearchLauncher /></div></Reveal>
+        <Reveal><div className="mx-auto max-w-2xl space-y-5"><SearchLauncher /><CategoryTabs /></div></Reveal>
 
         {/* Intro card with images */}
         <Reveal>
@@ -88,13 +91,23 @@ export default async function Home() {
           </Reveal>
         )}
 
+        {/* This week, photo-led */}
+        {upcoming.length > 0 && (
+          <Reveal>
+            <section className="card p-6 sm:p-10">
+              <div className="mb-6 flex items-end justify-between gap-4"><h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Happening soon</h2><Link href="/events" className="hidden items-center gap-1 font-semibold sm:flex">All events <ArrowRight className="h-4 w-4" /></Link></div>
+              <Rail label="Happening soon">{upcoming.slice(0, 10).map((e) => <RailItem key={e.id}><PosterCard event={e} /></RailItem>)}</Rail>
+            </section>
+          </Reveal>
+        )}
+
         {/* Vibes */}
         <Reveal>
           <section className="card p-6 sm:p-10">
             <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Pick your kind of fest</h2>
             <p className="mt-3 max-w-xl text-mute">Cultural nights, hackathons, gigs and sports. Jump straight to what you like.</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              {VIBES.map((v) => <Link key={v} href={`/events?category=${v}`} className="rounded-full bg-chip px-5 py-2.5 text-base font-medium text-chip-ink transition hover:bg-brand hover:text-white active:scale-95">{v}</Link>)}
+              {VIBES.map((v) => <Link key={v} href={`/events?category=${v}`} className="rounded-full bg-chip px-5 py-2.5 text-base font-medium text-chip-ink transition hover:bg-ink hover:text-white active:scale-95">{v}</Link>)}
             </div>
           </section>
         </Reveal>
@@ -113,15 +126,7 @@ export default async function Home() {
         {upcoming.length > 0 && <Reveal><Programme events={upcoming.slice(0, 12)} title="What is on" /></Reveal>}
 
         {/* Colleges */}
-        {colleges && colleges.length > 0 && (
-          <Reveal>
-            <section className="card overflow-hidden p-6 sm:p-10">
-              <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Colleges on HiveOut</h2>
-              <div className="mt-6"><Marquee items={colleges.map((c) => c.name)} /></div>
-              <div className="mt-6 flex flex-wrap gap-2.5">{colleges.map((c) => <Link key={c.id} href={`/fests?college=${c.id}`} className="inline-flex items-center gap-2 rounded-full bg-wash px-4 py-2 text-sm font-medium transition hover:bg-chip hover:text-chip-ink"><Building2 className="h-4 w-4 text-chip-ink" />{c.name}</Link>)}</div>
-            </section>
-          </Reveal>
-        )}
+        {colleges && colleges.length > 0 && <Reveal><CollegeCircles colleges={colleges} /></Reveal>}
 
         {/* Plans */}
         <Reveal>
@@ -135,11 +140,11 @@ export default async function Home() {
                 { name: "City events", price: "Soon", points: ["Concerts and gigs", "Same HiveOut account", "Coming after fests"], cta: "Stay tuned", href: "/events", main: false },
               ].map((p) => (
                 <StaggerItem key={p.name}>
-                  <div className={`flex h-full flex-col rounded-3xl p-7 ${p.main ? "bg-brand text-on-brand shadow-[var(--shadow-glow)]" : "bg-wash"}`}>
-                    <p className={`text-sm font-semibold ${p.main ? "text-on-brand/80" : "text-chip-ink"}`}>{p.name}</p>
+                  <div className={`flex h-full flex-col rounded-3xl p-7 ${p.main ? "bg-ink text-white" : "bg-wash"}`}>
+                    <p className={`text-sm font-semibold ${p.main ? "text-brand" : "text-mute"}`}>{p.name}</p>
                     <p className="mt-1 font-display text-5xl font-semibold tracking-tight">{p.price}</p>
-                    <ul className="mt-6 flex-1 space-y-3">{p.points.map((pt) => <li key={pt} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${p.main ? "text-on-brand" : "text-chip-ink"}`} />{pt}</li>)}</ul>
-                    <Link href={p.href} className={`mt-8 inline-flex h-12 items-center justify-center rounded-full text-[0.9375rem] font-semibold transition active:scale-[0.97] ${p.main ? "bg-white text-chip-ink hover:bg-chip" : "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-chip"}`}>{p.cta}</Link>
+                    <ul className="mt-6 flex-1 space-y-3">{p.points.map((pt) => <li key={pt} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${p.main ? "text-brand" : "text-ink"}`} />{pt}</li>)}</ul>
+                    <Link href={p.href} className={`mt-8 inline-flex h-12 items-center justify-center rounded-full text-[0.9375rem] font-semibold transition active:scale-[0.97] ${p.main ? "bg-white text-ink hover:bg-chip" : "bg-white text-ink shadow-[var(--shadow-card)] hover:bg-chip"}`}>{p.cta}</Link>
                   </div>
                 </StaggerItem>
               ))}
@@ -157,14 +162,14 @@ export default async function Home() {
 
         {/* Final CTA */}
         <Reveal>
-          <section className="dots relative overflow-hidden rounded-[1.5rem] bg-brand px-6 py-16 text-center text-on-brand shadow-[var(--shadow-glow)]">
-            <div className="absolute inset-0 bg-brand/95" aria-hidden />
+          <section className="dots relative overflow-hidden rounded-[1.5rem] bg-ink px-6 py-16 text-center text-white">
+            <div className="absolute inset-0 bg-ink/95" aria-hidden />
             <div className="relative">
               <h2 className="mx-auto max-w-2xl font-display text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">Join us this fest season</h2>
-              <p className="mx-auto mt-4 max-w-md text-lg text-on-brand/80">Get your free pass and never miss an event.</p>
+              <p className="mx-auto mt-4 max-w-md text-lg text-white/70">Get your free pass and never miss an event.</p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                <Link href="/signup" className="inline-flex h-14 items-center rounded-full bg-white px-8 font-semibold text-chip-ink transition hover:bg-chip active:scale-[0.97]">Join free</Link>
-                <Link href="/fests" className="inline-flex h-14 items-center rounded-full bg-black/10 px-8 font-semibold text-on-brand ring-1 ring-black/20 transition hover:bg-black/15 active:scale-[0.97]">Explore fests</Link>
+                <Link href="/signup" className="inline-flex h-14 items-center rounded-full bg-brand px-8 font-semibold text-on-brand transition hover:bg-brand-deep active:scale-[0.97]">Join free</Link>
+                <Link href="/fests" className="inline-flex h-14 items-center rounded-full bg-white/10 px-8 font-semibold text-white ring-1 ring-white/30 transition hover:bg-white/20 active:scale-[0.97]">Explore fests</Link>
               </div>
             </div>
           </section>

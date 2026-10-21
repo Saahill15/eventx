@@ -27,7 +27,7 @@ export function ProfileView() {
   return (
     <div className="space-y-5">
       <div className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] flex items-center gap-5 rounded-[2rem] p-7">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand font-display text-2xl font-bold text-ink">{user.name.charAt(0).toUpperCase()}</div>
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-ink font-display text-2xl font-bold text-white">{user.name.charAt(0).toUpperCase()}</div>
         <div className="min-w-0">
           <p className="truncate font-display text-2xl font-bold tracking-tight">{user.name}</p>
           <p className="truncate text-neutral-500">{user.email}</p>

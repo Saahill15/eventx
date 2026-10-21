@@ -4,23 +4,25 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-outfit), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink: #26210f;
-  --color-mute: #756b4a;
-  --color-fog: #fbf5e6;
-  --color-wash: #f8f1de;
+  --color-ink: #111111;
+  --color-mute: #6b6b70;
+  --color-fog: #ffffff;
+  --color-wash: #f5f5f6;
   --color-brand: #f5a300;
   --color-brand-deep: #dc9000;
   --color-on-brand: #2a1e00;
-  --color-chip: #ffebb8;
-  --color-chip-ink: #7a4e00;
+  --color-chip: #f1f1f3;
+  --color-chip-ink: #111111;
+  --color-tint: #fff1cc;
+  --color-tint-ink: #8a5a00;
   --color-mint: #dcf5e7;
-  --color-lilac: #ffebb8;
+  --color-lilac: #f1f1f3;
 
   --radius-card: 1.5rem;
-  --shadow-card: 0 1px 2px rgba(38, 33, 15, 0.04), 0 10px 30px rgba(38, 33, 15, 0.07);
-  --shadow-soft: 0 1px 2px rgba(38, 33, 15, 0.05), 0 6px 18px rgba(38, 33, 15, 0.08);
-  --shadow-pop: 0 24px 60px rgba(38, 33, 15, 0.2);
-  --shadow-glow: 0 10px 30px rgba(245, 163, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.06);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.07);
+  --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.18);
+  --shadow-glow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 html { scroll-behavior: smooth; }
@@ -28,8 +30,8 @@ body { background: var(--color-fog); color: var(--color-ink); font-family: var(-
 ::selection { background: var(--color-chip); }
 
 @layer components {
-  .card { background: #fff; border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
-  .dots { background-image: radial-gradient(rgba(38, 33, 15, 0.14) 1.2px, transparent 1.2px); background-size: 22px 22px; }
+  .card { background: #fff; border-radius: var(--radius-card); box-shadow: var(--shadow-card); border: 1px solid rgba(0, 0, 0, 0.06); }
+  .dots { background-image: radial-gradient(rgba(0, 0, 0, 0.13) 1.2px, transparent 1.2px); background-size: 22px 22px; }
   .glass { background: rgba(255, 255, 255, 0.62); -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%); border: 1px solid rgba(255, 255, 255, 0.7); }
   .glass-bar { background: rgba(255, 255, 255, 0.72); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
   /* Frosted panel that sits on top of photos and posters */
@@ -38,7 +40,7 @@ body { background: var(--color-fog); color: var(--color-ink); font-family: var(-
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .field { width: 100%; border-radius: 0.9rem; border: 1px solid rgba(0, 0, 0, 0.12); background: #fff; padding: 0.8rem 1rem; font-size: 0.95rem; outline: none; transition: box-shadow 0.15s, border-color 0.15s; }
-  .field:focus { border-color: var(--color-brand); box-shadow: 0 0 0 4px rgba(245, 163, 0, 0.3); }
+  .field:focus { border-color: var(--color-brand); box-shadow: 0 0 0 4px rgba(245, 163, 0, 0.35); }
   .field::placeholder { color: #9a9aa0; }
 }
 
