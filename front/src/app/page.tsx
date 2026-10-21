@@ -24,7 +24,7 @@ const FAQ = [
   { q: "How do I register for an event?", a: "Create a free account, open a fest and get your fest pass, then register for the events you want. Events that need approval show as waiting until the organisers confirm." },
   { q: "What is the QR pass?", a: "Each fest gives you one pass with a QR code. You will find it in My passes. Show it at the gate." },
   { q: "Can I pay for tickets here?", a: "Online payment is not live yet. For paid events the organisers will tell you how to pay." },
-  { q: "I run a fest. How do I list it?", a: "Create an account, request organiser access from your profile, and then create your fest in the committee dashboard. Add your team, publish events and make the fest live when you are ready." },
+  { q: "I run a fest. How do I list it?", a: "Get in touch with HiveOut and we will switch on committee tools for your account. Then create your fest in the committee dashboard, add your team, publish events and make the fest live when you are ready." },
   { q: "Will you list city events too?", a: "Yes, later. We are starting with college fests, and the same account will work for everything else." },
 ];
 

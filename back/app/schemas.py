@@ -302,14 +302,19 @@ class FestEventManageOut(EventOut):
     registration_count: int = 0   # approved + pending
     pending_count: int = 0        # waiting for committee approval
 
-# Organizer request
-class OrganizerRequestOut(BaseModel):
+# Admin: user management
+class AdminUserOut(BaseModel):
     id: int
-    user_id: int
-    status: str
-    requested_at: datetime
+    name: str
+    email: Optional[str]
+    role: str
+    is_active: bool
+    created_at: datetime
     class Config:
         from_attributes = True
+
+class RoleChange(BaseModel):
+    role: Literal["user", "organizer"]
 
 # Committee
 class CommitteeCreate(BaseModel):

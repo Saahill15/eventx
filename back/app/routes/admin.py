@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.database import get_db
@@ -7,49 +9,52 @@ from app.auth.dependencies import require_admin
 
 router = APIRouter()
 
-@router.get("/organizer-requests")
-def get_organizer_requests(db: Session = Depends(get_db), _=Depends(require_admin)):
-    requests = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.status == "pending").all()
-    return [
-        {
-            "id": r.id,
-            "user_id": r.user_id,
-            "user_name": r.user.name if r.user else None,
-            "user_email": r.user.email if r.user else None,
-            "status": r.status,
-            "requested_at": r.requested_at,
-        }
-        for r in requests
-    ]
+@router.get("/users", response_model=List[schemas.AdminUserOut])
+def search_users(
+    q: str = Query(default="", max_length=100),
+    role: Optional[str] = Query(default=None, pattern="^(user|organizer|admin)$"),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Find accounts by name or email so an admin can promote them. Shows at most 50."""
+    query = db.query(models.User)
+    term = q.strip().lower()
+    if term:
+        like = f"%{term}%"
+        query = query.filter(or_(func.lower(models.User.email).like(like), func.lower(models.User.name).like(like)))
+    if role:
+        query = query.filter(models.User.role == role)
+    return query.order_by(models.User.created_at.desc()).limit(50).all()
 
-@router.post("/organizer-requests/{request_id}/approve")
-def approve_organizer(request_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
-    req = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.id == request_id).first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    if req.status != models.StatusEnum.pending:
-        raise HTTPException(status_code=400, detail="Request was already reviewed")
-    req.status = models.StatusEnum.approved
-    req.reviewed_at = datetime.utcnow()
-    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+
+@router.post("/users/{user_id}/role", response_model=schemas.AdminUserOut)
+def set_user_role(
+    user_id: int,
+    data: schemas.RoleChange,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    """Make an account an organiser, or return it to a normal user. Admins are not managed here."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if user.role == models.RoleEnum.user:  # never downgrade an admin
-        user.role = models.RoleEnum.organizer
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot change your own role")
+    if user.role == models.RoleEnum.admin:
+        raise HTTPException(status_code=400, detail="Admin accounts cannot be changed here")
+    new_role = models.RoleEnum(data.role)
+    if new_role == models.RoleEnum.user:
+        owns_fest = (
+            db.query(models.FestMember)
+            .filter(models.FestMember.user_id == user.id, models.FestMember.role == models.FestMemberRoleEnum.owner)
+            .first()
+        )
+        if owns_fest:
+            raise HTTPException(status_code=400, detail="This person owns a fest. Transfer the fest to someone else before removing organiser access.")
+    user.role = new_role
     db.commit()
-    return {"message": "Organizer approved"}
-
-@router.post("/organizer-requests/{request_id}/reject")
-def reject_organizer(request_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
-    req = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.id == request_id).first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    if req.status != models.StatusEnum.pending:
-        raise HTTPException(status_code=400, detail="Request was already reviewed")
-    req.status = models.StatusEnum.rejected
-    req.reviewed_at = datetime.utcnow()
-    db.commit()
-    return {"message": "Request rejected"}
+    db.refresh(user)
+    return user
 
 @router.get("/events/pending")
 def get_pending_events(db: Session = Depends(get_db), _=Depends(require_admin)):

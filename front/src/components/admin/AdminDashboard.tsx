@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { College, FestEvent, OrganizerRequestRow } from "@/lib/types";
+import type { AdminUser, College, FestEvent } from "@/lib/types";
 import { formatDay } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
-import { EmptyState, ErrorNote, Skeleton } from "@/components/ui/bits";
+import { EmptyState, ErrorNote, Pill, Skeleton } from "@/components/ui/bits";
 
 function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
@@ -19,7 +19,8 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 
 export function AdminDashboard() {
   const { user } = useAuth();
-  const [requests, setRequests] = useState<OrganizerRequestRow[] | null>(null);
+  const [people, setPeople] = useState<AdminUser[] | null>(null);
+  const [query, setQuery] = useState("");
   const [events, setEvents] = useState<FestEvent[]>([]);
   const [colleges, setColleges] = useState<College[]>([]);
   const [error, setError] = useState("");
@@ -29,14 +30,18 @@ export function AdminDashboard() {
   const load = useCallback(async () => {
     try {
       const [r, e, c] = await Promise.all([
-        api<OrganizerRequestRow[]>("/api/admin/organizer-requests"),
+        api<AdminUser[]>(`/api/admin/users?q=${encodeURIComponent(query.trim())}`),
         api<FestEvent[]>("/api/admin/events/pending"),
         api<College[]>("/api/colleges/"),
       ]);
-      setRequests(r); setEvents(e); setColleges(c);
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not load."); setRequests([]); }
-  }, []);
-  useEffect(() => { if (user?.role === "admin") load(); }, [user, load]);
+      setPeople(r); setEvents(e); setColleges(c);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not load."); setPeople([]); }
+  }, [query]);
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    const t = setTimeout(load, query ? 250 : 0);
+    return () => clearTimeout(t);
+  }, [user, load, query]);
 
   const act = async (path: string, method = "POST", body?: unknown) => {
     setError("");
@@ -54,20 +59,23 @@ export function AdminDashboard() {
       <h1 className="mb-8 mt-1 font-display text-4xl font-bold tracking-tight sm:text-5xl">Admin dashboard</h1>
       <div className="mb-6"><ErrorNote>{error}</ErrorNote></div>
 
-      {requests === null ? <Skeleton className="h-40" /> : (
+      {people === null ? <Skeleton className="h-40" /> : (
         <>
-          <Section title="Organiser requests" count={requests.length}>
-            {requests.length === 0 ? <EmptyState title="No pending requests" /> : (
+          <Section title="People">
+            <p className="mb-4 text-mute">Find an account to make it an organiser. Organisers can create fests and manage them. Accounts start as normal members.</p>
+            <input className="field mb-4" placeholder="Search by name or email" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search people" />
+            {people.length === 0 ? <EmptyState title="No one found" body="Try a different name or email." /> : (
               <div className="space-y-3">
-                {requests.map((r) => (
-                  <div key={r.id} className="bg-white ring-1 ring-black/5 shadow-[var(--shadow-card)] flex flex-wrap items-center justify-between gap-3 rounded-3xl p-5">
+                {people.map((p) => (
+                  <div key={p.id} className="card flex flex-wrap items-center justify-between gap-3 p-5">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold">{r.user_name ?? `User #${r.user_id}`}</p>
-                      <p className="truncate text-sm text-neutral-500">{r.user_email} · asked {new Date(r.requested_at).toLocaleDateString("en-IN")}</p>
+                      <p className="truncate font-semibold">{p.name}</p>
+                      <p className="truncate text-sm text-mute">{p.email}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => act(`/api/admin/organizer-requests/${r.id}/approve`)}>Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => act(`/api/admin/organizer-requests/${r.id}/reject`)}>Reject</Button>
+                    <div className="flex items-center gap-3">
+                      <Pill tone={p.role === "user" ? "neutral" : "amber"}>{p.role === "organizer" ? "Organiser" : p.role === "admin" ? "Admin" : "Member"}</Pill>
+                      {p.role === "user" && <Button size="sm" onClick={() => act(`/api/admin/users/${p.id}/role`, "POST", { role: "organizer" })}>Make organiser</Button>}
+                      {p.role === "organizer" && p.id !== user?.id && <Button size="sm" variant="outline" onClick={() => act(`/api/admin/users/${p.id}/role`, "POST", { role: "user" })}>Remove organiser</Button>}
                     </div>
                   </div>
                 ))}

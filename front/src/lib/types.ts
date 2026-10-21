@@ -115,11 +115,11 @@ export interface Member {
   user_email: string | null;
 }
 
-export interface OrganizerRequestRow {
+export interface AdminUser {
   id: number;
-  user_id: number;
-  user_name: string | null;
-  user_email: string | null;
-  status: string;
-  requested_at: string;
+  name: string;
+  email: string | null;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
 }

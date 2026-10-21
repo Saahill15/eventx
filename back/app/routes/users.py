@@ -63,13 +63,3 @@ def my_fest_passes(db: Session = Depends(get_db), current_user=Depends(get_curre
         .order_by(models.FestPass.created_at.desc())
         .all()
     )
-
-@router.post("/request-organizer")
-def request_organizer(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    existing = db.query(models.OrganizerRequest).filter(models.OrganizerRequest.user_id == current_user.id).first()
-    if existing:
-        return {"message": "Request already submitted", "status": existing.status}
-    req = models.OrganizerRequest(user_id=current_user.id)
-    db.add(req)
-    db.commit()
-    return {"message": "Request submitted successfully"}

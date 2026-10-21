@@ -12,7 +12,7 @@ export function Footer() {
           </div>
           <FooterCol title="Explore" links={[["Home", "/"], ["College fests", "/fests"], ["All events", "/events"]]} />
           <FooterCol title="Account" links={[["My passes", "/my-passes"], ["Sign in", "/login"], ["Join free", "/signup"]]} />
-          <FooterCol title="Committees" links={[["Dashboard", "/committee"], ["Request access", "/profile"]]} />
+          <FooterCol title="Committees" links={[["Dashboard", "/committee"]]} />
         </div>
         <div className="mt-10 flex flex-col justify-between gap-2 border-t border-black/5 pt-6 text-sm text-mute sm:flex-row">
           <p>© {new Date().getFullYear()} HiveOut. Free for students and colleges.</p>

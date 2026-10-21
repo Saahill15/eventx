@@ -67,7 +67,6 @@ class User(Base):
     interests         = relationship("UserInterest", back_populates="user")
     events            = relationship("Event", back_populates="organizer")
     passes            = relationship("Pass", back_populates="user")
-    organizer_request = relationship("OrganizerRequest", back_populates="user", uselist=False)
     fest_memberships  = relationship("FestMember", back_populates="user")
     fest_passes       = relationship("FestPass", back_populates="user", foreign_keys="FestPass.user_id")
 
@@ -159,16 +158,6 @@ class Pass(Base):
 
     user  = relationship("User", back_populates="passes")
     event = relationship("Event", back_populates="passes")
-
-class OrganizerRequest(Base):
-    __tablename__ = "organizer_requests"
-    id           = Column(Integer, primary_key=True, index=True)
-    user_id      = Column(Integer, ForeignKey("users.id"), unique=True)
-    status       = Column(Enum(StatusEnum), default=StatusEnum.pending)
-    requested_at = Column(DateTime(timezone=True), server_default=func.now())
-    reviewed_at  = Column(DateTime(timezone=True), nullable=True)
-
-    user = relationship("User", back_populates="organizer_request")
 
 class Committee(Base):
     __tablename__ = "committees"

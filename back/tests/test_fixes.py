@@ -261,19 +261,45 @@ class TestCommitteeOwnership:
         assert r.status_code == 404
 
 
-class TestOrganizerRequests:
+class TestAdminRoles:
     def setup_method(self):
         self.admin = user_token("Admin", "admin@test.com", "admin")
-        self.user = user_token("User", "user@test.com")
-        client.post("/api/users/request-organizer", headers=auth(self.user))
+        self.user = user_token("Asha Rao", "asha@test.com")
+        self.other = user_token("Other", "other@test.com")
 
-    def test_list_shows_who_asked(self):
-        r = client.get("/api/admin/organizer-requests", headers=auth(self.admin))
-        assert r.json()[0]["user_email"] == "user@test.com"
-        assert r.json()[0]["user_name"] == "User"
+    def test_requesting_organiser_access_no_longer_exists(self):
+        assert client.post("/api/users/request-organizer", headers=auth(self.user)).status_code in (404, 405)
+        assert client.get("/api/admin/organizer-requests", headers=auth(self.admin)).status_code in (404, 405)
 
-    def test_request_can_only_be_decided_once(self):
-        request_id = client.get("/api/admin/organizer-requests", headers=auth(self.admin)).json()[0]["id"]
-        assert client.post(f"/api/admin/organizer-requests/{request_id}/approve", headers=auth(self.admin)).status_code == 200
-        assert client.post(f"/api/admin/organizer-requests/{request_id}/reject", headers=auth(self.admin)).status_code == 400
-        assert client.post(f"/api/admin/organizer-requests/{request_id}/approve", headers=auth(self.admin)).status_code == 400
+    def test_admin_can_search_users_by_name_or_email(self):
+        by_name = client.get("/api/admin/users", params={"q": "asha"}, headers=auth(self.admin)).json()
+        assert [u["email"] for u in by_name] == ["asha@test.com"]
+        by_email = client.get("/api/admin/users", params={"q": "OTHER@test"}, headers=auth(self.admin)).json()
+        assert [u["name"] for u in by_email] == ["Other"]
+        assert "hashed_password" not in by_name[0]
+
+    def test_only_admins_can_use_it(self):
+        assert client.get("/api/admin/users", headers=auth(self.user)).status_code == 403
+        assert client.post(f"/api/admin/users/{user_id('other@test.com')}/role", json={"role": "organizer"}, headers=auth(self.user)).status_code == 403
+
+    def test_promote_and_demote(self):
+        uid = user_id("asha@test.com")
+        r = client.post(f"/api/admin/users/{uid}/role", json={"role": "organizer"}, headers=auth(self.admin))
+        assert r.status_code == 200 and r.json()["role"] == "organizer"
+        # the new organiser can create a fest straight away
+        assert client.post("/api/fests/", json={"slug": "asha-fest", "name": "Asha Fest"}, headers=auth(self.user)).status_code == 201
+        # but cannot be demoted while they own a fest
+        r = client.post(f"/api/admin/users/{uid}/role", json={"role": "user"}, headers=auth(self.admin))
+        assert r.status_code == 400 and "owns a fest" in r.json()["detail"]
+
+    def test_demote_organiser_with_no_fest(self):
+        uid = user_id("other@test.com")
+        client.post(f"/api/admin/users/{uid}/role", json={"role": "organizer"}, headers=auth(self.admin))
+        r = client.post(f"/api/admin/users/{uid}/role", json={"role": "user"}, headers=auth(self.admin))
+        assert r.status_code == 200 and r.json()["role"] == "user"
+
+    def test_guards(self):
+        admin_id = user_id("admin@test.com")
+        assert client.post(f"/api/admin/users/{admin_id}/role", json={"role": "user"}, headers=auth(self.admin)).status_code == 400
+        assert client.post("/api/admin/users/9999/role", json={"role": "organizer"}, headers=auth(self.admin)).status_code == 404
+        assert client.post(f"/api/admin/users/{user_id('asha@test.com')}/role", json={"role": "admin"}, headers=auth(self.admin)).status_code == 422

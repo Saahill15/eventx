@@ -94,8 +94,8 @@ export function CommitteeHome() {
       ) : fests.length === 0 ? (
         <EmptyState
           title={canCreate ? "No fests yet" : "You are not on a fest committee"}
-          body={canCreate ? "Create your first fest to start publishing events." : "Request organiser access from your profile, or ask your fest director to add your email to the team."}
-          action={canCreate ? <Button onClick={() => setCreating(true)}>Create a fest</Button> : <Button href="/profile">Go to profile</Button>}
+          body={canCreate ? "Create your first fest to start publishing events." : "Committee tools are switched on by the HiveOut team. Once your account is set up you can create your fest here, or your fest director can add your email to the team."}
+          action={canCreate ? <Button onClick={() => setCreating(true)}>Create a fest</Button> : undefined}
         />
       ) : (
         <div className="grid gap-5 md:grid-cols-2">
