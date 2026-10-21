@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, DateTime, ForeignKey, Text, Enum, CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import LargeBinary, Column, Integer, String, Boolean, Float, DateTime, ForeignKey, Text, Enum, CheckConstraint, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -44,6 +44,15 @@ class RegPaymentStatusEnum(str, enum.Enum):
     unpaid = "unpaid"
     paid   = "paid"
 
+class VerificationMethodEnum(str, enum.Enum):
+    email = "email"
+    proof = "proof"
+
+class VerificationStatusEnum(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
 class AuthProviderEnum(str, enum.Enum):
     google = "google"
     phone = "phone"
@@ -62,6 +71,7 @@ class User(Base):
     interests_set    = Column(Boolean, default=False)
     college_id       = Column(Integer, ForeignKey("colleges.id", name="fk_users_college_id"), nullable=True)
     study_year       = Column(Integer, nullable=True)
+    student_verified_until = Column(DateTime, nullable=True)  # a verification lasts one year
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 
     interests         = relationship("UserInterest", back_populates="user")
@@ -69,6 +79,11 @@ class User(Base):
     passes            = relationship("Pass", back_populates="user")
     fest_memberships  = relationship("FestMember", back_populates="user")
     fest_passes       = relationship("FestPass", back_populates="user", foreign_keys="FestPass.user_id")
+
+    @property
+    def is_student_verified(self):
+        from datetime import datetime
+        return bool(self.student_verified_until and self.student_verified_until > datetime.utcnow())
 
 class Interest(Base):
     __tablename__ = "interests"
@@ -119,6 +134,8 @@ class Event(Base):
     is_paid               = Column(Boolean, default=False)
     registration_limit    = Column(Integer, nullable=True)   # None = unlimited
     approval_mode         = Column(Enum(ApprovalModeEnum), default=ApprovalModeEnum.auto)
+    students_only         = Column(Boolean, default=False, nullable=False, server_default="0")
+    student_price         = Column(Float, nullable=True)     # cheaper price for verified students; None = same price
 
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
     cancelled_at  = Column(DateTime, nullable=True)
@@ -175,6 +192,7 @@ class College(Base):
     area    = Column(String(255), nullable=True)
     emoji   = Column(String(20), nullable=True, default="🏛️")
     website = Column(String(500), nullable=True)
+    email_domains = Column(String(500), nullable=True)  # comma-separated, e.g. "iitb.ac.in"; students with these emails verify automatically
 
     events = relationship("Event", back_populates="college")
     fests  = relationship("Fest", back_populates="college")
@@ -273,6 +291,7 @@ class EventRegistration(Base):
     event_id        = Column(Integer, ForeignKey("events.id"), nullable=False)
     approval_status = Column(Enum(RegApprovalStatusEnum), default=RegApprovalStatusEnum.pending)
     payment_status  = Column(Enum(RegPaymentStatusEnum), default=RegPaymentStatusEnum.unpaid)
+    amount_due      = Column(Float, nullable=True)   # what this student owes, after student pricing
     attended        = Column(Boolean, default=False, nullable=False, server_default="0")
     attended_at     = Column(DateTime, nullable=True)
     attended_by     = Column(Integer, ForeignKey("users.id", name="fk_event_registrations_attended_by"), nullable=True)
@@ -311,3 +330,27 @@ class DepartmentMember(Base):
     role          = Column(String(50), default="member")
 
     department = relationship("Department", back_populates="members")
+
+class StudentVerification(Base):
+    """One attempt to prove someone is a student, by college email code or by an uploaded document."""
+    __tablename__ = "student_verifications"
+    id            = Column(Integer, primary_key=True, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    method        = Column(Enum(VerificationMethodEnum), nullable=False)
+    status        = Column(Enum(VerificationStatusEnum), default=VerificationStatusEnum.pending, nullable=False)
+    college_id    = Column(Integer, ForeignKey("colleges.id"), nullable=True)
+    email         = Column(String(255), nullable=True)            # email method
+    code_hash     = Column(String(128), nullable=True)
+    code_expires_at = Column(DateTime, nullable=True)
+    attempts      = Column(Integer, default=0, nullable=False, server_default="0")
+    document_type = Column(String(30), nullable=True)             # proof method: id_card, fee_receipt, enrollment_form, other
+    document_name = Column(String(255), nullable=True)
+    document_mime = Column(String(100), nullable=True)
+    document_data = Column(LargeBinary, nullable=True)            # deleted as soon as a decision is made
+    reject_reason = Column(String(500), nullable=True)
+    reviewed_by   = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at   = Column(DateTime, nullable=True)
+    created_at    = Column(DateTime, nullable=False)
+
+    user    = relationship("User", foreign_keys=[user_id])
+    college = relationship("College")

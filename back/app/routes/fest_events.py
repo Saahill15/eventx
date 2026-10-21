@@ -56,6 +56,8 @@ def register_for_event(
         raise HTTPException(status_code=404, detail="Event not found")
     if event.cancelled:
         raise HTTPException(status_code=400, detail="This event has been cancelled")
+    if event.students_only and not current_user.is_student_verified:
+        raise HTTPException(status_code=403, detail="This event is for verified students. Verify your student status in your profile first.")
 
     # ── 2. Registration must be enabled ──────────────────────────────────────
     if not event.requires_registration:
@@ -120,11 +122,18 @@ def register_for_event(
         else:
             approval_status = models.RegApprovalStatusEnum.pending
 
+    # What this person owes: students who are verified get the student price when the event has one
+    if event.is_paid:
+        amount_due = event.student_price if (current_user.is_student_verified and event.student_price is not None) else event.price
+    else:
+        amount_due = 0.0
+
     registration = models.EventRegistration(
         fest_pass_id    = fest_pass.id,
         event_id        = event_id,
         approval_status = approval_status,
         payment_status  = payment_status,
+        amount_due      = amount_due,
     )
     db.add(registration)
     db.commit()
@@ -278,11 +287,12 @@ def export_event_registrations(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["Name", "Email", "Approval", "Payment", "Checked in at fest", "Attended this event", "Registered at"])
+    writer.writerow(["Name", "Email", "Approval", "Payment", "Amount due (INR)", "Checked in at fest", "Attended this event", "Registered at"])
     for r in _registrations_for(db, event_id):
         writer.writerow([
             _csv_cell(r.user_name), _csv_cell(r.user_email),
             r.approval_status.value, r.payment_status.value,
+            "" if r.amount_due is None else f"{r.amount_due:g}",
             "yes" if r.checked_in else "no",
             "yes" if r.attended else "no",
             r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",

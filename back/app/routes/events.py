@@ -168,13 +168,22 @@ def update_event(
     has_registrations = active_reg_count > 0
 
     updates = data.model_dump(exclude_unset=True)
-    for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode"):
+    for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode", "students_only"):
         if updates.get(non_nullable) is None:
             updates.pop(non_nullable, None)
+
+    # Student price must stay below the normal price
+    new_price = updates.get("price", event.price)
+    if updates.get("student_price") is not None and updates["student_price"] >= (new_price or 0):
+        raise HTTPException(status_code=400, detail="The student price must be lower than the normal price")
 
     # Guard locked fields if registrations exist
     if has_registrations:
         locked = []
+        if updates.get("students_only") is True and not event.students_only:
+            locked.append("students_only (cannot be turned on)")
+        if "student_price" in updates:
+            locked.append("student_price")
         if "requires_registration" in updates:
             locked.append("requires_registration")
         if "is_paid" in updates:

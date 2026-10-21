@@ -15,6 +15,8 @@ def register_pass(event_id: int, db: Session = Depends(get_db), current_user=Dep
         raise HTTPException(status_code=404, detail="Event not found")
     if event.cancelled:
         raise HTTPException(status_code=400, detail="This event has been cancelled")
+    if event.students_only and not current_user.is_student_verified:
+        raise HTTPException(status_code=403, detail="This event is for verified students. Verify your student status in your profile first.")
     if event.event_type != models.EventTypeEnum.city:
         raise HTTPException(
             status_code=400,

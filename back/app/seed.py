@@ -29,10 +29,10 @@ def seed():
 
         if db.query(models.College).count() == 0:
             seed_colleges = [
-                {"name": "IIT Bombay",     "area": "Powai, Mumbai",     "emoji": "🏛️", "website": "https://www.iitb.ac.in"},
+                {"name": "IIT Bombay",     "area": "Powai, Mumbai",     "emoji": "🏛️", "website": "https://www.iitb.ac.in", "email_domains": "iitb.ac.in"},
                 {"name": "St. Xavier's",   "area": "Fort, Mumbai",      "emoji": "⛪"},
                 {"name": "NMIMS",          "area": "Vile Parle, Mumbai", "emoji": "🎓"},
-                {"name": "VJTI",           "area": "Matunga, Mumbai",   "emoji": "⚙️", "website": "https://vjti.ac.in"},
+                {"name": "VJTI",           "area": "Matunga, Mumbai",   "emoji": "⚙️", "website": "https://vjti.ac.in", "email_domains": "vjti.ac.in"},
                 {"name": "ICT Mumbai",     "area": "Matunga, Mumbai",   "emoji": "🔬"},
                 {"name": "SP Jain",        "area": "Matunga, Mumbai",   "emoji": "💼"},
                 {"name": "KJ Somaiya",     "area": "Vidyavihar, Mumbai","emoji": "📚"},

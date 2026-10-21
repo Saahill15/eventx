@@ -13,6 +13,12 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://eventxapp.in,https://www.eventxapp.in
+      - key: APP_ENV
+        value: production
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD

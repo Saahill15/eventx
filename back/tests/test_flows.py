@@ -98,7 +98,7 @@ class TestEventCheckIn(Setup):
         client.post(f"/api/fest-events/{self.event['id']}/check-in", json={"qr_code": self.code}, headers=auth(self.volunteer))
         csv_text = client.get(f"/api/fest-events/{self.event['id']}/registrations.csv", headers=auth(self.owner)).text
         assert "Attended this event" in csv_text.splitlines()[0]
-        assert csv_text.splitlines()[1].split(",")[5] == "yes"
+        assert csv_text.splitlines()[1].split(",")[6] == "yes"
         stats = client.get(f"/api/fests/{self.slug}/manage/stats", headers=auth(self.owner)).json()
         row = next(e for e in stats["events"] if e["id"] == self.event["id"])
         assert row["registered"] == 1 and row["attended"] == 1

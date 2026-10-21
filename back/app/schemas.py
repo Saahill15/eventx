@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator, model_validator
 from typing import Annotated, Optional, List, Literal
 from datetime import datetime
@@ -50,6 +51,8 @@ class UserOut(BaseModel):
     interests_set: bool
     college_id: Optional[int] = None
     study_year: Optional[int] = None
+    student_verified_until: Optional[datetime] = None
+    is_student_verified: bool = False
     created_at: datetime
     class Config:
         from_attributes = True
@@ -91,8 +94,17 @@ class EventCreate(BaseModel):
     registration_limit:    Optional[int]  = None
     approval_mode:         Optional[Literal["auto", "manual"]] = "auto"
 
+    # Student verification
+    students_only:         bool = False
+    student_price:         Optional[float] = Field(default=None, ge=0)  # cheaper price for verified students
+
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
+        if self.student_price is not None:
+            if self.is_free:
+                self.student_price = None
+            elif self.student_price >= self.price:
+                raise ValueError("student_price must be lower than price")
         if self.is_free:
             self.price = 0.0
         elif self.price <= 0:
@@ -135,6 +147,8 @@ class EventOut(BaseModel):
     is_paid: bool = False
     registration_limit: Optional[int] = None
     approval_mode: str = "auto"
+    students_only: bool = False
+    student_price: Optional[float] = None
     cancelled: bool = False
     cancel_reason: Optional[str] = None
     created_at: datetime
@@ -157,6 +171,8 @@ class EventUpdate(BaseModel):
     price:                 Optional[float] = Field(default=None, ge=0)
     registration_limit:    Optional[int]   = Field(default=None, gt=0)
     approval_mode:         Optional[Literal["auto", "manual"]] = None
+    students_only:         Optional[bool] = None
+    student_price:         Optional[float] = Field(default=None, ge=0)
 
 # Fest
 RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass"}
@@ -242,6 +258,20 @@ class CollegeCreate(BaseModel):
     area: Optional[str] = None
     emoji: Optional[str] = "🏛️"
     website: Optional[str] = None
+    email_domains: Optional[str] = None  # comma-separated email domains students of this college use
+
+    @field_validator("email_domains")
+    @classmethod
+    def clean_domains(cls, v):
+        if v is None or not v.strip():
+            return None
+        domains = []
+        for raw in v.split(","):
+            d = raw.strip().lower().lstrip("@")
+            if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+", d):
+                raise ValueError(f"'{raw.strip()}' is not a valid email domain")
+            domains.append(d)
+        return ",".join(dict.fromkeys(domains))
 
 class CollegeOut(BaseModel):
     id: int
@@ -249,6 +279,7 @@ class CollegeOut(BaseModel):
     area: Optional[str]
     emoji: Optional[str]
     website: Optional[str]
+    email_domains: Optional[str] = None
     event_count: int = 0
     class Config:
         from_attributes = True
@@ -289,6 +320,7 @@ class EventRegistrationOut(BaseModel):
     event_id: int
     approval_status: str
     payment_status: str
+    amount_due: Optional[float] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -386,3 +418,49 @@ class FestStats(BaseModel):
     passes_issued: int
     passes_checked_in: int
     events: List[EventStat]
+
+
+# Student verification
+class StudentEmailRequest(BaseModel):
+    email: EmailStr
+    college_id: Optional[int] = None  # needed only when the email domain is not one we know
+
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v):
+        return v.lower()
+
+class StudentCodeConfirm(BaseModel):
+    code: str = Field(pattern=r"^[0-9]{6}$")
+
+class PendingVerification(BaseModel):
+    id: int
+    method: str
+    created_at: datetime
+    email: Optional[str] = None
+    document_type: Optional[str] = None
+
+class StudentStatus(BaseModel):
+    verified: bool
+    verified_until: Optional[datetime] = None
+    college_id: Optional[int] = None
+    can_verify: bool                      # false while a long verification is still running
+    pending: Optional[PendingVerification] = None
+    last_rejection: Optional[str] = None
+
+class VerificationReview(BaseModel):
+    id: int
+    user_id: int
+    user_name: Optional[str]
+    user_email: Optional[str]
+    method: str
+    status: str
+    college_id: Optional[int]
+    college_name: Optional[str]
+    document_type: Optional[str]
+    document_name: Optional[str]
+    has_file: bool
+    created_at: datetime
+
+class RejectVerification(BaseModel):
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]

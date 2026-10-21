@@ -50,3 +50,13 @@ City events, recommendations by interest, native apps.
 ## Open items
 - No pilot college or fest date yet. Finding one is the first real task and sets the deadline for the list above.
 - Student data needs a privacy policy and a short agreement with each college before launch.
+
+## Accounts, roles and student verification
+
+- A new account is a normal member. There are two roles above that, and neither can be requested: **organiser** and **admin**. An admin makes someone an organiser from the admin panel (People).
+- **Student** is not a role. It is a verification a member can add, valid for one year. After a year they verify again (allowed in the last 30 days before it ends).
+- Two ways to verify:
+  1. **College email code.** The student enters a college email. If its domain matches a college's list (set by an admin) or ends in `.ac.in`, `.edu.in` or `.edu`, a 6-digit code is emailed (15 minutes, 5 tries). One college email can verify one account.
+  2. **Upload a document** (ID card, fee receipt, enrollment form or other; JPEG, PNG or PDF up to 5 MB). An admin reviews it and approves or rejects with a reason. The file is deleted as soon as a decision is made.
+- Verification matters in two places: events a committee marks **students only**, and **student pricing** (a lower price for verified students, recorded as the amount due on each registration). Everything else stays open to every member.
+- Backend is done (`/api/users/me/student/*`, `/api/admin/student-verifications/*`, `/api/admin/users`). Screens are not built yet. Email sending needs `BREVO_API_KEY` and `MAIL_FROM_EMAIL`; without them the email option reports that it is not set up and students use the document upload.
