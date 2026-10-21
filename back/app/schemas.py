@@ -195,13 +195,32 @@ class FestMemberOut(BaseModel):
     fest_id: int
     user_id: int
     role: str
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True
 
 class AddFestMember(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None
+    email: Optional[EmailStr] = None   # invite by email instead of by id
     role: Optional[str] = "volunteer"  # owner | core | volunteer
+
+    @model_validator(mode="after")
+    def need_user_or_email(self):
+        if self.user_id is None and self.email is None:
+            raise ValueError("user_id or email is required")
+        return self
+
+class FestMineOut(FestOut):
+    my_role: str  # owner | core | volunteer | admin
+
+class FestUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]] = None
+    tagline: Optional[str] = None
+    banner_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    college_id: Optional[int] = None
 
 # College
 class CollegeCreate(BaseModel):
@@ -259,6 +278,15 @@ class EventRegistrationOut(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+class EventRegistrationDetailOut(EventRegistrationOut):
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+    checked_in: bool = False
+
+class FestEventManageOut(EventOut):
+    registration_count: int = 0   # approved + pending
+    pending_count: int = 0        # waiting for committee approval
 
 # Organizer request
 class OrganizerRequestOut(BaseModel):

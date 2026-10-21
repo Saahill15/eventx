@@ -96,7 +96,9 @@ def create_event(data: schemas.EventCreate, db: Session = Depends(get_db), curre
         event_data["organizer_id"] = current_user.id
     # fest events: organizer_id intentionally NULL; committee managed via FestMember
 
-    event = models.Event(**event_data, status=models.StatusEnum.pending)
+    # Fest staff publish their own fest's events directly; city events wait for an admin
+    initial_status = models.StatusEnum.approved if data.event_type == "fest" else models.StatusEnum.pending
+    event = models.Event(**event_data, status=initial_status)
     db.add(event)
     db.commit()
     db.refresh(event)

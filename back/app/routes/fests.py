@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -73,6 +74,29 @@ def list_all_fests(
     return db.query(models.Fest).order_by(models.Fest.created_at.desc()).all()
 
 
+# ─── GET /fests/mine ─────────────────────────────────────────────────────────
+@router.get("/mine", response_model=List[schemas.FestMineOut])
+def list_my_fests(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Fests the current user belongs to (all fests for admins), with their role in each."""
+    if current_user.role == models.RoleEnum.admin:
+        rows = [(f, "admin") for f in db.query(models.Fest).order_by(models.Fest.created_at.desc()).all()]
+    else:
+        rows = [
+            (m.fest, m.role.value)
+            for m in db.query(models.FestMember)
+            .filter(models.FestMember.user_id == current_user.id)
+            .order_by(models.FestMember.created_at.desc())
+            .all()
+        ]
+    return [
+        {**schemas.FestOut.model_validate(fest).model_dump(), "my_role": role}
+        for fest, role in rows
+    ]
+
+
 # ─── GET /fests/:slug ────────────────────────────────────────────────────────
 @router.get("/{slug}", response_model=schemas.FestOut)
 def get_fest(slug: str, db: Session = Depends(get_db), current_user=Depends(get_optional_user)):
@@ -97,6 +121,64 @@ def get_fest_events(slug: str, db: Session = Depends(get_db), current_user=Depen
         .order_by(models.Event.date)
         .all()
     )
+
+
+# ─── GET /fests/:slug/manage/events ──────────────────────────────────────────
+@router.get("/{slug}/manage/events", response_model=List[schemas.FestEventManageOut])
+def manage_fest_events(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Every event of the fest, whatever its status, with registration counts (owner / core / admin)."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+
+    events = db.query(models.Event).filter(models.Event.fest_id == fest.id).order_by(models.Event.date).all()
+    counts = {}
+    for event_id, approval in (
+        db.query(models.EventRegistration.event_id, models.EventRegistration.approval_status)
+        .filter(models.EventRegistration.event_id.in_([e.id for e in events] or [0]))
+        .all()
+    ):
+        total, pending = counts.get(event_id, (0, 0))
+        if approval == models.RegApprovalStatusEnum.pending:
+            counts[event_id] = (total + 1, pending + 1)
+        elif approval == models.RegApprovalStatusEnum.approved:
+            counts[event_id] = (total + 1, pending)
+    out = []
+    for e in events:
+        total, pending = counts.get(e.id, (0, 0))
+        out.append({**schemas.EventOut.model_validate(e).model_dump(), "registration_count": total, "pending_count": pending})
+    return out
+
+
+# ─── PATCH /fests/:slug ──────────────────────────────────────────────────────
+@router.patch("/{slug}", response_model=schemas.FestOut)
+def update_fest(
+    slug: str,
+    payload: schemas.FestUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Edit a fest's public details (owner / core / admin)."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+
+    updates = payload.model_dump(exclude_unset=True)
+    if updates.get("name") is None:
+        updates.pop("name", None)
+    if updates.get("college_id") is not None and not db.query(models.College).filter(models.College.id == updates["college_id"]).first():
+        raise HTTPException(status_code=400, detail="College not found")
+    for field, value in updates.items():
+        setattr(fest, field, value)
+    db.commit()
+    db.refresh(fest)
+    return fest
 
 
 # ─── GET /fests/:slug/members ────────────────────────────────────────────────
@@ -175,14 +257,21 @@ def add_fest_member(
 
     actor_role = _actor_fest_role(fest, current_user, db)
 
-    target = db.query(models.User).filter(models.User.id == payload.user_id).first()
+    if payload.user_id is not None:
+        target = db.query(models.User).filter(models.User.id == payload.user_id).first()
+    else:
+        target = db.query(models.User).filter(func.lower(models.User.email) == payload.email.lower()).first()
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(
+            status_code=404,
+            detail="No EventX account with that email. Ask them to sign up first, then add them.",
+        )
+    target_id = target.id
 
     # Upsert: if already a member, update their role
     existing = (
         db.query(models.FestMember)
-        .filter(models.FestMember.fest_id == fest.id, models.FestMember.user_id == payload.user_id)
+        .filter(models.FestMember.fest_id == fest.id, models.FestMember.user_id == target_id)
         .first()
     )
     # Owners can only be changed by admins; core members may only manage volunteers
@@ -200,7 +289,7 @@ def add_fest_member(
         db.refresh(existing)
         return existing
 
-    member = models.FestMember(fest_id=fest.id, user_id=payload.user_id, role=role)
+    member = models.FestMember(fest_id=fest.id, user_id=target_id, role=role)
     db.add(member)
     db.commit()
     db.refresh(member)

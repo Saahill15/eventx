@@ -19,7 +19,7 @@ export default function Footer() {
         ...(isOrganizer
           ? [
               { label: 'Create Event',        to: '/events/create' },
-              { label: 'Organiser Dashboard', to: '/organizer' },
+              { label: 'Committee dashboard', to: '/organizer' },
             ]
           : [{ label: 'Request Organiser Role', to: '/profile' }]),
       ],

@@ -16,6 +16,7 @@ import OrganizerDashboard from './pages/OrganizerDashboard'
 import AdminDashboard    from './pages/AdminDashboard'
 import Profile           from './pages/Profile'
 import FestPage          from './pages/Fests/FestPage'
+import FestManage        from './pages/FestManage/FestManage'
 
 export default function App() {
   return (
@@ -51,8 +52,12 @@ export default function App() {
           <Route path="/events/create" element={
             <ProtectedRoute requiredRole="organizer"><CreateEvent /></ProtectedRoute>
           } />
+          {/* Committee dashboard: any logged-in user (it shows only the fests they belong to) */}
           <Route path="/organizer" element={
-            <ProtectedRoute requiredRole="organizer"><OrganizerDashboard /></ProtectedRoute>
+            <ProtectedRoute><OrganizerDashboard /></ProtectedRoute>
+          } />
+          <Route path="/organizer/fest/:slug" element={
+            <ProtectedRoute><FestManage /></ProtectedRoute>
           } />
 
           {/* Admin only */}

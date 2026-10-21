@@ -70,6 +70,15 @@ export const getMyFestPasses      = ()        => api.get('/api/users/me/fest-pas
 export const registerForFestEvent = (eventId) => api.post(`/api/fest-events/${eventId}/register`)
 export const getMyRegistrations   = ()        => api.get('/api/fest-events/my-registrations')
 
+// ─── Committee dashboard ─────────────────────────────────────────────────────
+export const getMyFests            = ()             => api.get('/api/fests/mine')
+export const getManagedFestEvents  = (slug)         => api.get(`/api/fests/${slug}/manage/events`)
+export const updateFest            = (slug, data)   => api.patch(`/api/fests/${slug}`, data)
+export const updateEvent           = (id, data)     => api.patch(`/api/events/${id}`, data)
+export const getEventRegistrations = (eventId)      => api.get(`/api/fest-events/${eventId}/registrations`)
+export const decideRegistration    = (id, approve)  => api.post(`/api/fest-events/registrations/${id}/${approve ? 'approve' : 'reject'}`)
+export const downloadRegistrations = (eventId)      => api.get(`/api/fest-events/${eventId}/registrations.csv`, { responseType: 'blob' })
+
 // ─── Admin ───────────────────────────────────────────────────────────────────
 export const getOrganizerRequests = () =>
   api.get('/api/admin/organizer-requests')

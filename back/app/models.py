@@ -223,6 +223,14 @@ class FestMember(Base):
     fest = relationship("Fest", back_populates="members")
     user = relationship("User", back_populates="fest_memberships")
 
+    @property
+    def user_name(self):
+        return self.user.name if self.user else None
+
+    @property
+    def user_email(self):
+        return self.user.email if self.user else None
+
 
 class FestPass(Base):
     """Entry pass granting a user access to a Fest."""
@@ -268,6 +276,18 @@ class EventRegistration(Base):
 
     fest_pass = relationship("FestPass", back_populates="registrations")
     event     = relationship("Event", back_populates="registrations")
+
+    @property
+    def user_name(self):
+        return self.fest_pass.user.name if self.fest_pass and self.fest_pass.user else None
+
+    @property
+    def user_email(self):
+        return self.fest_pass.user.email if self.fest_pass and self.fest_pass.user else None
+
+    @property
+    def checked_in(self):
+        return bool(self.fest_pass and self.fest_pass.checked_in)
 
 
 class Department(Base):

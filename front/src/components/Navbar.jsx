@@ -26,7 +26,8 @@ export default function Navbar() {
     { label: 'College Fests', to: '/fests' },
     { label: 'City Events',   to: '/events' },
     ...(isLoggedIn ? [{ label: 'My Passes', to: '/my-passes' }] : []),
-    ...(isOrganizer ? [{ label: 'Dashboard', to: isAdmin ? '/admin' : '/organizer' }] : []),
+    ...(isLoggedIn ? [{ label: 'Committee', to: '/organizer' }] : []),
+    ...(isAdmin ? [{ label: 'Admin', to: '/admin' }] : []),
   ]
 
   return (

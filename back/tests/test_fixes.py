@@ -223,6 +223,7 @@ class TestLegacyPassesAndFestRegistration:
         assert r.status_code == 400
 
     def test_unapproved_fest_event_cannot_be_registered_for(self):
+        client.post(f"/api/admin/events/{self.fest_event['id']}/reject", headers=auth(self.admin))
         get_entry_pass(self.user, self.fest["slug"])
         r = client.post(f"/api/fest-events/{self.fest_event['id']}/register", headers=auth(self.user))
         assert r.status_code == 404
