@@ -7,27 +7,24 @@ import { useAuth } from "@/lib/auth";
 import type { AuthSession } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { ErrorNote, Field, Notice, Pill } from "./ui/bits";
-import type { College } from "@/lib/types";
 
 const when = (iso: string) => new Date(iso + "Z").toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const device = (ua: string | null) => (ua ? (/iPhone|Android|Mobile/i.test(ua) ? "Phone" : /Mac|Windows|Linux/i.test(ua) ? "Computer" : "Browser") + (/Chrome\//.test(ua) && !/Edg/.test(ua) ? " · Chrome" : /Safari\//.test(ua) && !/Chrome/.test(ua) ? " · Safari" : /Firefox\//.test(ua) ? " · Firefox" : "") : "Unknown device");
 
-/** Name, mobile number and college. The email is the sign-in and cannot be changed here. */
+/** Name and mobile number. The email is the sign-in and cannot be changed here. */
 function Details() {
   const { user, refresh } = useAuth();
-  const [colleges, setColleges] = useState<College[]>([]);
-  const [f, setF] = useState({ first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", phone: user?.phone ?? "", college_id: user?.college_id ? String(user.college_id) : "", study_year: user?.study_year ? String(user.study_year) : "" });
+  const [f, setF] = useState({ first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", phone: user?.phone ?? "" });
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => { api<College[]>("/api/colleges/").then(setColleges).catch(() => {}); }, []);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { setSaved(false); setF((x) => ({ ...x, [k]: e.target.value })); };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      await api("/api/users/me", { method: "PATCH", body: { first_name: f.first_name, last_name: f.last_name, phone: f.phone || null, college_id: f.college_id ? Number(f.college_id) : null, study_year: f.college_id && f.study_year ? Number(f.study_year) : null } });
+      await api("/api/users/me", { method: "PATCH", body: { first_name: f.first_name, last_name: f.last_name, phone: f.phone || null } });
       await refresh(); setSaved(true);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save."); }
     setBusy(false);
@@ -42,8 +39,6 @@ function Details() {
         <Field label="Last name"><input className="field" required value={f.last_name} onChange={set("last_name")} /></Field>
         <Field label="Mobile number"><input className="field" type="tel" value={f.phone} onChange={set("phone")} /></Field>
         <Field label="Email" hint="Your sign-in. It cannot be changed."><input className="field" value={user?.email ?? ""} disabled /></Field>
-        <Field label="College"><select className="field" value={f.college_id} onChange={set("college_id")}><option value="">Not a student</option>{colleges.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-        <Field label="Year of study"><select className="field" value={f.study_year} onChange={set("study_year")} disabled={!f.college_id}><option value="">–</option>{[1, 2, 3, 4, 5].map((y) => <option key={y} value={y}>Year {y}</option>)}</select></Field>
       </div>
       <div className="flex items-center gap-3"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>{saved && <span className="text-sm font-medium text-emerald-700">Saved</span>}</div>
     </form>

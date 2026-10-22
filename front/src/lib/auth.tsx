@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { API_URL, api } from "./api";
+import { InterestsPrompt } from "@/components/InterestsPrompt";
 import { OrganizerWelcome } from "@/components/OrganizerWelcome";
 import type { AuthResult, SignupInput, User } from "./types";
 
@@ -119,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={value}>
       {children}
       <OrganizerWelcome />
+      <InterestsPrompt />
       {warning !== null && (
         <div role="alertdialog" aria-live="assertive" className="fixed inset-x-4 bottom-6 z-[100] mx-auto flex max-w-md items-center justify-between gap-4 rounded-2xl bg-ink px-5 py-4 text-white shadow-[var(--shadow-pop)]">
           <p className="text-sm">Still there? You will be signed out in <strong>{warning}s</strong> because of inactivity.</p>

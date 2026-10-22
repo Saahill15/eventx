@@ -7,6 +7,7 @@ export interface User {
   last_name: string | null;
   email: string | null;
   phone: string | null;
+  date_of_birth: string | null;
   role: Role;
   interests_set: boolean;
   college_id: number | null;
@@ -18,9 +19,11 @@ export interface User {
 }
 
 export interface SignupInput {
-  first_name: string; last_name: string; email: string; phone: string; password: string;
-  college_id: number | null; study_year: number | null; accept_terms: boolean;
+  first_name: string; last_name: string; email: string; date_of_birth: string; password: string;
+  accept_terms: boolean;
 }
+
+export interface Interest { id: number; name: string }
 
 export interface College {
   id: number;

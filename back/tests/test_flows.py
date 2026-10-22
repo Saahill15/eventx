@@ -176,15 +176,14 @@ class TestStats(Setup):
 
 class TestProfile(Setup):
     def test_update_profile_fields(self):
-        r = client.patch("/api/users/me", json={"first_name": "  New ", "last_name": " Name ", "college_id": self.college_id, "study_year": 2, "phone": "+91 98765 43210"}, headers=auth(self.student))
+        r = client.patch("/api/users/me", json={"first_name": "  New ", "last_name": " Name ", "phone": "+91 98765 43210"}, headers=auth(self.student))
         assert r.status_code == 200
         body = r.json()
-        assert body["name"] == "New Name" and body["college_id"] == self.college_id and body["study_year"] == 2
-        assert client.get("/api/users/me", headers=auth(self.student)).json()["study_year"] == 2
+        assert body["name"] == "New Name" and body["phone"] == "+91 98765 43210"
+        # The college is set by student verification, not by the person typing it in
+        assert client.patch("/api/users/me", json={"college_id": self.college_id}, headers=auth(self.student)).json()["college_id"] is None
 
     def test_validation(self):
-        assert client.patch("/api/users/me", json={"college_id": 9999}, headers=auth(self.student)).status_code == 400
-        assert client.patch("/api/users/me", json={"study_year": 12}, headers=auth(self.student)).status_code == 422
         assert client.patch("/api/users/me", json={"phone": "abc"}, headers=auth(self.student)).status_code == 422
 
     def test_phone_must_be_unique(self):

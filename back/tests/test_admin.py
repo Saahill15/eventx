@@ -45,24 +45,35 @@ class TestAdminDashboard:
 class TestSignupFields:
     def test_signup_stores_the_new_fields(self):
         admin = user_token("Admin", "admin@test.com", "admin")
-        cid = create_college(admin)
-        r = client.post("/api/auth/signup", json=signup_payload("Asha Rao", "asha@test.com", college_id=cid, study_year=2))
+        r = client.post("/api/auth/signup", json=signup_payload("Asha Rao", "asha@test.com"))
         assert r.status_code == 200, r.text
         me = client.get("/api/users/me", headers=auth(r.json()["access_token"])).json()
-        assert (me["first_name"], me["last_name"], me["name"], me["college_id"], me["study_year"]) == ("Asha", "Rao", "Asha Rao", cid, 2)
+        assert (me["first_name"], me["last_name"], me["name"], me["college_id"]) == ("Asha", "Rao", "Asha Rao", None)
 
     def test_required_fields_and_terms(self):
         base = signup_payload("Asha Rao", "asha@test.com")
-        for missing in ("first_name", "last_name", "phone", "email", "password"):
+        for missing in ("first_name", "last_name", "date_of_birth", "email", "password"):
             assert client.post("/api/auth/signup", json={k: v for k, v in base.items() if k != missing}).status_code == 422, missing
         assert client.post("/api/auth/signup", json={**base, "accept_terms": False}).status_code == 422
-        assert client.post("/api/auth/signup", json={**base, "phone": "abc"}).status_code == 422
 
-    def test_phone_and_college_checks(self):
-        ok = signup_payload("Asha Rao", "asha@test.com")
-        assert client.post("/api/auth/signup", json=ok).status_code == 200
-        assert client.post("/api/auth/signup", json=signup_payload("Other One", "o@test.com", phone=ok["phone"])).status_code == 400
-        assert client.post("/api/auth/signup", json=signup_payload("Third One", "t@test.com", college_id=999)).status_code == 400
+    def test_date_of_birth_is_checked(self):
+        from datetime import date
+        today = date.today()
+        too_young = today.replace(year=today.year - 12).isoformat()
+        old_enough = today.replace(year=today.year - 13).isoformat()
+        assert client.post("/api/auth/signup", json=signup_payload("Kid One", "kid@test.com", date_of_birth=too_young)).status_code == 422
+        assert client.post("/api/auth/signup", json=signup_payload("Kid Two", "kid2@test.com", date_of_birth=today.isoformat())).status_code == 422
+        assert client.post("/api/auth/signup", json=signup_payload("Old One", "old@test.com", date_of_birth="1850-01-01")).status_code == 422
+        ok = client.post("/api/auth/signup", json=signup_payload("Teen One", "teen@test.com", date_of_birth=old_enough))
+        assert ok.status_code == 200
+        me = client.get("/api/users/me", headers=auth(ok.json()["access_token"])).json()
+        assert me["date_of_birth"] == old_enough
+
+    def test_sign_up_does_not_ask_for_a_phone_number(self):
+        assert "phone" not in signup_payload("Asha Rao", "asha@test.com")
+        r = client.post("/api/auth/signup", json=signup_payload("Asha Rao", "asha@test.com"))
+        assert r.status_code == 200
+        assert client.get("/api/users/me", headers=auth(r.json()["access_token"])).json()["phone"] is None
 
     def test_changing_names_updates_the_display_name(self):
         t = user_token("Asha Rao", "asha@test.com")

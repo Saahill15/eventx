@@ -64,18 +64,12 @@ def _find_user_by_email(db: Session, email: str):
 def signup(data: schemas.SignupEmail, request: Request, db: Session = Depends(get_db)):
     if _find_user_by_email(db, data.email):
         raise HTTPException(status_code=400, detail="Email already registered")
-    if data.college_id is not None and not db.query(models.College).filter(models.College.id == data.college_id).first():
-        raise HTTPException(status_code=400, detail="College not found")
-    if db.query(models.User).filter(models.User.phone == data.phone).first():
-        raise HTTPException(status_code=400, detail="That phone number is already registered")
     user = models.User(
         name=f"{data.first_name} {data.last_name}",
         first_name=data.first_name,
         last_name=data.last_name,
         email=data.email,
-        phone=data.phone,
-        college_id=data.college_id,
-        study_year=data.study_year if data.college_id is not None else None,
+        date_of_birth=data.date_of_birth,
         hashed_password=pwd.hash(data.password),
         auth_provider=models.AuthProviderEnum.email,
     )

@@ -62,6 +62,7 @@ class User(Base):
     __tablename__ = "users"
     id               = Column(Integer, primary_key=True, index=True)
     name             = Column(String(255), nullable=False)   # first and last name together, shown everywhere
+    date_of_birth    = Column(Date, nullable=True)
     first_name       = Column(String(120), nullable=True)
     last_name        = Column(String(120), nullable=True)
     email            = Column(String(255), unique=True, nullable=True)

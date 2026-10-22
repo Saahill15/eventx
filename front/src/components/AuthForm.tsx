@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { QrCode, Ticket, Users } from "lucide-react";
-import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { College } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { ErrorNote, Field, Notice } from "./ui/bits";
 
@@ -26,8 +24,7 @@ const HOME: Record<string, string> = { admin: "/admin", organizer: "/dashboard" 
 export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; next?: string; expired?: boolean }) {
   const { user, loading, login, signup } = useAuth();
   const router = useRouter();
-  const [f, setF] = useState({ first_name: "", last_name: "", email: "", phone: "", password: "", confirm: "", college_id: "", study_year: "", accept_terms: false });
-  const [colleges, setColleges] = useState<College[]>([]);
+  const [f, setF] = useState({ first_name: "", last_name: "", email: "", date_of_birth: "", password: "", confirm: "", accept_terms: false });
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +34,6 @@ export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; ne
 
   // Someone who is already signed in has no use for this page
   useEffect(() => { if (!loading && user && !busy) router.replace(next ? safeNext(next) : (HOME[user.role] ?? "/")); }, [loading, user, busy, router, next]);
-  useEffect(() => { if (isSignup) api<College[]>("/api/colleges/").then(setColleges).catch(() => {}); }, [isSignup]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +42,7 @@ export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; ne
     setBusy(true);
     try {
       const result = isSignup
-        ? await signup({ first_name: f.first_name.trim(), last_name: f.last_name.trim(), email: f.email.trim(), phone: f.phone.trim(), password: f.password, college_id: f.college_id ? Number(f.college_id) : null, study_year: f.college_id && f.study_year ? Number(f.study_year) : null, accept_terms: f.accept_terms })
+        ? await signup({ first_name: f.first_name.trim(), last_name: f.last_name.trim(), email: f.email.trim(), date_of_birth: f.date_of_birth, password: f.password, accept_terms: f.accept_terms })
         : await login(f.email.trim(), f.password);
       router.push(next ? safeNext(next) : (HOME[result.role] ?? "/"));
     } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong."); setBusy(false); }
@@ -78,16 +74,8 @@ export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; ne
                 <Field label="Last name"><input className="field" required autoComplete="family-name" value={f.last_name} onChange={set("last_name")} /></Field>
               </div>
             )}
-            <Field label="Email"><input className="field" type="email" required autoComplete="email" value={f.email} onChange={set("email")} placeholder="you@college.edu" /></Field>
-            {isSignup && <Field label="Mobile number" hint="Organisers may call you about an event you registered for."><input className="field" type="tel" required autoComplete="tel" pattern="^\+?[0-9 ()\-]{7,20}$" title="Digits only, with an optional + at the start" value={f.phone} onChange={set("phone")} placeholder="+91 98765 43210" /></Field>}
-            {isSignup && (
-              <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
-                <Field label="College" hint="Optional. Needed later to get student prices.">
-                  <select className="field" value={f.college_id} onChange={set("college_id")}><option value="">I am not a student</option>{colleges.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                </Field>
-                <Field label="Year"><select className="field" value={f.study_year} onChange={set("study_year")} disabled={!f.college_id}><option value="">–</option>{[1, 2, 3, 4, 5].map((y) => <option key={y} value={y}>Year {y}</option>)}</select></Field>
-              </div>
-            )}
+            <Field label="Email"><input className="field" type="email" required autoComplete="email" value={f.email} onChange={set("email")} placeholder="you@example.com" /></Field>
+            {isSignup && <Field label="Date of birth" hint="You need to be at least 13."><input className="field" type="date" required autoComplete="bday" max={new Date(new Date().setFullYear(new Date().getFullYear() - 13)).toISOString().slice(0, 10)} min="1920-01-01" value={f.date_of_birth} onChange={set("date_of_birth")} /></Field>}
             <Field label="Password">
               <div className="relative">
                 <input className="field pr-16" type={showPassword ? "text" : "password"} required minLength={isSignup ? 8 : undefined} autoComplete={isSignup ? "new-password" : "current-password"} value={f.password} onChange={set("password")} placeholder={isSignup ? "At least 8 characters" : "Your password"} />

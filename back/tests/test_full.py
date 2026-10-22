@@ -54,12 +54,10 @@ client = TestClient(app, raise_server_exceptions=True)
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-_phones = iter(range(9000000000, 9999999999))
-
 def signup_payload(name, email, password="password123", **extra):
     first, _, last = name.strip().partition(" ")
     return {"first_name": first or "X", "last_name": last.strip() or "User", "email": email, "password": password,
-            "phone": str(next(_phones)), "accept_terms": True, **extra}
+            "date_of_birth": "2000-01-01", "accept_terms": True, **extra}
 
 def signup(name, email, password="password123"):
     r = client.post("/api/auth/signup", json=signup_payload(name, email, password))

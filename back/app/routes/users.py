@@ -23,8 +23,6 @@ def update_profile(data: schemas.ProfileUpdate, db: Session = Depends(get_db), c
         first = updates.get("first_name", current_user.first_name or "")
         last = updates.get("last_name", current_user.last_name or "")
         updates["name"] = f"{first} {last}".strip()
-    if updates.get("college_id") is not None and not db.query(models.College).filter(models.College.id == updates["college_id"]).first():
-        raise HTTPException(status_code=400, detail="College not found")
     if updates.get("phone"):
         taken = db.query(models.User).filter(models.User.phone == updates["phone"], models.User.id != current_user.id).first()
         if taken:

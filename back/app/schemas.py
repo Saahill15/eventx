@@ -4,6 +4,7 @@ from typing import Annotated, Optional, List, Literal
 from datetime import date, datetime
 
 MIN_PASSWORD_LENGTH = 8
+MIN_AGE = 13
 
 PHONE_PATTERN = r"^\+?[0-9 ()-]{7,20}$"
 TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
@@ -40,11 +41,20 @@ class SignupEmail(BaseModel):
     first_name: NamePart
     last_name: NamePart
     email: EmailStr
-    phone: Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]
+    date_of_birth: date
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
-    college_id: Optional[int] = None      # students: the college they study at (used for student verification later)
-    study_year: Optional[int] = Field(default=None, ge=1, le=8)
     accept_terms: bool
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def sensible_age(cls, v):
+        today = date.today()
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < MIN_AGE:
+            raise ValueError(f"you must be at least {MIN_AGE} years old to create an account")
+        if age > 110:
+            raise ValueError("please check the date of birth")
+        return v
 
     @field_validator("accept_terms")
     @classmethod
@@ -71,8 +81,6 @@ class ProfileUpdate(BaseModel):
     first_name: Optional[NamePart] = None
     last_name: Optional[NamePart] = None
     phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[0-9 ()-]{7,20}$")]] = None
-    college_id: Optional[int] = None
-    study_year: Optional[int] = Field(default=None, ge=1, le=8)
 
 class PasswordChange(BaseModel):
     current_password: str
@@ -114,6 +122,7 @@ class UserOut(BaseModel):
     last_name: Optional[str] = None
     email: Optional[str]
     phone: Optional[str]
+    date_of_birth: Optional[date] = None
     role: str
     interests_set: bool
     college_id: Optional[int] = None
