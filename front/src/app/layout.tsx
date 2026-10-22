@@ -4,7 +4,7 @@ import { AuthProvider } from "@/lib/auth";
 import { SITE_URL } from "@/lib/api";
 import { MotionProvider } from "@/components/motion";
 import { TopBar } from "@/components/shell/TopBar";
-import { Footer } from "@/components/shell/Footer";
+import { SiteFooter } from "@/components/shell/SiteFooter";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <TopBar />
             <main className="pt-24">{children}</main>
-            <Footer />
+            <SiteFooter />
           </AuthProvider>
         </MotionProvider>
       </body>

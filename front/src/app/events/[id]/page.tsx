@@ -33,7 +33,7 @@ export default async function EventPage({ params }: Props) {
   const hasEnded = new Date(event.date) < startOfToday();
   const facts = [
     { icon: CalendarDays, label: "Date", value: formatLongDay(event.date) },
-    ...(event.time ? [{ icon: Clock, label: "Time", value: formatTime(event.time) }] : []),
+    ...(event.time ? [{ icon: Clock, label: "Time", value: formatTime(event.time) + (event.end_time ? `–${formatTime(event.end_time)}` : "") }] : []),
     ...(event.location ? [{ icon: MapPin, label: "Venue", value: event.location }] : []),
     { icon: Tag, label: "Price", value: priceLabel(event) },
   ];
@@ -53,7 +53,7 @@ export default async function EventPage({ params }: Props) {
         </div>
       </section>
 
-      <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
+      <div className="mx-auto max-w-[1760px] space-y-5 px-4 sm:px-6">
         <div className="grid gap-5 lg:grid-cols-[1fr_420px]">
           <div className="space-y-5">
             <Reveal><div className="card overflow-hidden p-3 sm:p-4"><div className="aspect-[16/10] overflow-hidden rounded-[1.25rem]"><PosterArt id={event.id} title={event.title} image={event.image_url} kicker={event.fest_name ?? event.category} /></div></div></Reveal>
@@ -61,6 +61,12 @@ export default async function EventPage({ params }: Props) {
               <div className="card p-6 sm:p-10">
                 <h2 className="font-display text-3xl font-semibold tracking-tight">About this event</h2>
                 {event.description ? <p className="mt-4 max-w-2xl whitespace-pre-line text-lg leading-relaxed text-mute">{event.description}</p> : <p className="mt-4 text-mute">The organisers have not added a description yet.</p>}
+                {event.cancelled && <p role="status" className="mt-6 rounded-2xl bg-red-50 px-5 py-4 font-semibold text-red-700">This event has been cancelled.{event.cancel_reason ? ` ${event.cancel_reason}` : ""}</p>}
+                {event.extra_sections && event.extra_sections.length > 0 && (
+                  <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                    {event.extra_sections.map((s) => <div key={s.title} className="rounded-2xl bg-wash p-5"><h3 className="font-display text-lg font-semibold">{s.title}</h3><p className="mt-2 whitespace-pre-line text-mute">{s.body}</p></div>)}
+                  </div>
+                )}
                 <dl className="mt-8 grid gap-3 sm:grid-cols-2">
                   {facts.map(({ icon: Icon, label, value }) => (
                     <div key={label} className="flex items-start gap-3 rounded-2xl bg-wash p-4">

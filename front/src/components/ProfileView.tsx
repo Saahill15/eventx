@@ -1,9 +1,112 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import type { AuthSession } from "@/lib/types";
 import { Button } from "./ui/Button";
-import { Pill } from "./ui/bits";
+import { ErrorNote, Field, Notice, Pill } from "./ui/bits";
+import type { College } from "@/lib/types";
+
+const when = (iso: string) => new Date(iso + "Z").toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const device = (ua: string | null) => (ua ? (/iPhone|Android|Mobile/i.test(ua) ? "Phone" : /Mac|Windows|Linux/i.test(ua) ? "Computer" : "Browser") + (/Chrome\//.test(ua) && !/Edg/.test(ua) ? " · Chrome" : /Safari\//.test(ua) && !/Chrome/.test(ua) ? " · Safari" : /Firefox\//.test(ua) ? " · Firefox" : "") : "Unknown device");
+
+/** Name, mobile number and college. The email is the sign-in and cannot be changed here. */
+function Details() {
+  const { user, refresh } = useAuth();
+  const [colleges, setColleges] = useState<College[]>([]);
+  const [f, setF] = useState({ first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", phone: user?.phone ?? "", college_id: user?.college_id ? String(user.college_id) : "", study_year: user?.study_year ? String(user.study_year) : "" });
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { api<College[]>("/api/colleges/").then(setColleges).catch(() => {}); }, []);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { setSaved(false); setF((x) => ({ ...x, [k]: e.target.value })); };
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError("");
+    try {
+      await api("/api/users/me", { method: "PATCH", body: { first_name: f.first_name, last_name: f.last_name, phone: f.phone || null, college_id: f.college_id ? Number(f.college_id) : null, study_year: f.college_id && f.study_year ? Number(f.study_year) : null } });
+      await refresh(); setSaved(true);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not save."); }
+    setBusy(false);
+  };
+
+  return (
+    <form onSubmit={save} className="card space-y-4 p-7">
+      <h2 className="font-display text-xl font-semibold tracking-tight">Your details</h2>
+      <ErrorNote>{error}</ErrorNote>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="First name"><input className="field" required value={f.first_name} onChange={set("first_name")} /></Field>
+        <Field label="Last name"><input className="field" required value={f.last_name} onChange={set("last_name")} /></Field>
+        <Field label="Mobile number"><input className="field" type="tel" value={f.phone} onChange={set("phone")} /></Field>
+        <Field label="Email" hint="Your sign-in. It cannot be changed."><input className="field" value={user?.email ?? ""} disabled /></Field>
+        <Field label="College"><select className="field" value={f.college_id} onChange={set("college_id")}><option value="">Not a student</option>{colleges.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Year of study"><select className="field" value={f.study_year} onChange={set("study_year")} disabled={!f.college_id}><option value="">–</option>{[1, 2, 3, 4, 5].map((y) => <option key={y} value={y}>Year {y}</option>)}</select></Field>
+      </div>
+      <div className="flex items-center gap-3"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>{saved && <span className="text-sm font-medium text-emerald-700">Saved</span>}</div>
+    </form>
+  );
+}
+
+function Security() {
+  const router = useRouter();
+  const { logout } = useAuth();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const [sessions, setSessions] = useState<AuthSession[] | null>(null);
+
+  const load = useCallback(() => { api<AuthSession[]>("/api/auth/sessions").then(setSessions).catch(() => setSessions([])); }, []);
+  useEffect(load, [load]);
+
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError(""); setNote("");
+    try {
+      await api("/api/users/me/password", { method: "POST", body: { current_password: current, new_password: next } });
+      setCurrent(""); setNext(""); setNote("Password changed. Your other devices were signed out."); load();
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not change the password."); }
+    setBusy(false);
+  };
+  const end = async (id: string) => { await api(`/api/auth/sessions/${id}`, { method: "DELETE" }).catch(() => {}); load(); };
+
+  return (
+    <>
+      <form onSubmit={changePassword} className="card space-y-4 p-7">
+        <h2 className="font-display text-xl font-semibold tracking-tight">Change password</h2>
+        <ErrorNote>{error}</ErrorNote>
+        {note && <Notice tone="ok">{note}</Notice>}
+        <Field label="Current password"><input className="field" type="password" required autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
+        <Field label="New password" hint="At least 8 characters."><input className="field" type="password" required minLength={8} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></Field>
+        <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Change password"}</Button>
+      </form>
+
+      <div className="card space-y-4 p-7">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-xl font-semibold tracking-tight">Where you are signed in</h2>
+          <Button size="sm" variant="outline" onClick={async () => { await api("/api/auth/logout-all", { method: "POST" }).catch(() => {}); logout(); router.push("/login"); }}>Sign out everywhere</Button>
+        </div>
+        {sessions === null ? <p className="text-sm text-mute">Loading…</p> : (
+          <ul className="divide-y divide-black/5">
+            {sessions.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="font-semibold">{device(s.user_agent)} {s.current && <Pill tone="green">This device</Pill>}</p>
+                  <p className="text-xs text-mute">Signed in {when(s.created_at)} · last active {when(s.last_seen_at)}{s.ip ? ` · ${s.ip}` : ""}</p>
+                </div>
+                {!s.current && <button onClick={() => end(s.id)} className="text-sm font-semibold text-red-600 hover:underline">End</button>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+}
 
 export function ProfileView() {
   const { user, logout } = useAuth();
@@ -20,6 +123,9 @@ export function ProfileView() {
           <div className="mt-2"><Pill tone="amber">{user.role === "organizer" ? "Organiser" : user.role === "admin" ? "Admin" : "Member"}</Pill></div>
         </div>
       </div>
+      {user.role === "admin" && <Notice tone="info">Admin sessions end after 15 minutes without activity and after 8 hours at most.</Notice>}
+      <Details />
+      <Security />
       <Button variant="outline" onClick={() => { logout(); router.push("/"); }}>Sign out</Button>
     </div>
   );

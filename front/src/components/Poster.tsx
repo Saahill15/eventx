@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "motion/react";
 import { MapPin } from "lucide-react";
+import { mediaSrc } from "@/lib/api";
 import type { FestEvent } from "@/lib/types";
 import { formatDayNumber, formatMonthShort, formatTime, priceLabel } from "@/lib/format";
 
@@ -20,7 +21,7 @@ export const tintFor = (id: number) => TINTS[id % TINTS.length];
 export function PosterArt({ id, title, image, kicker, className = "", showTitle = true }: { id: number; title: string; image?: string | null; kicker?: string | null; className?: string; showTitle?: boolean }) {
   if (image) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={image} alt={title} loading="lazy" referrerPolicy="no-referrer" className={`h-full w-full object-cover ${className}`} />;
+    return <img src={mediaSrc(image) ?? image} alt={title} loading="lazy" referrerPolicy="no-referrer" className={`h-full w-full object-cover ${className}`} />;
   }
   const t = tintFor(id);
   return (

@@ -6,7 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { LayoutDashboard, LogOut, Menu, Search, ShieldCheck, Ticket, User as UserIcon, X } from "lucide-react";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import type { Fest, User } from "@/lib/types";
 import { Button } from "../ui/Button";
 import { SearchPalette } from "./SearchPalette";
 
@@ -16,8 +18,18 @@ const NAV = [
   { href: "/events", label: "Events" },
 ];
 
+/** What each kind of account sees in its menu. Admins run the platform, so they get no passes or organiser entries. */
+function menuLinks(user: User, onCommittee: boolean) {
+  if (user.role === "admin") return [{ href: "/admin", label: "Admin dashboard", icon: <ShieldCheck className="h-4 w-4" /> }, { href: "/profile", label: "Profile", icon: <UserIcon className="h-4 w-4" /> }];
+  const links = [{ href: "/my-passes", label: "My passes", icon: <Ticket className="h-4 w-4" /> }];
+  if (user.role === "organizer" || onCommittee) links.push({ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> });
+  links.push({ href: "/profile", label: "Profile", icon: <UserIcon className="h-4 w-4" /> });
+  return links;
+}
+
 export function TopBar() {
   const { user, loading, logout } = useAuth();
+  const [onCommittee, setOnCommittee] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const [search, setSearch] = useState(false);
@@ -26,6 +38,12 @@ export function TopBar() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMenu(false); setSheet(false); }, [pathname]);
+  // A plain member only sees "Committee" once they have been added to a fest team
+  useEffect(() => {
+    setOnCommittee(false);
+    if (user?.role !== "user") return;
+    api<Fest[]>("/api/fests/mine").then((f) => setOnCommittee(f.length > 0)).catch(() => {});
+  }, [user]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName);
@@ -45,7 +63,7 @@ export function TopBar() {
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-[1760px] items-center justify-between gap-3">
           <Link href="/" aria-label="HiveOut home" className="flex h-11 items-center rounded-2xl bg-white/90 px-4 shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:bg-white">
             <Image src="/logo.png" alt="HiveOut" width={116} height={28} priority className="h-5 w-auto max-w-none" />
           </Link>
@@ -67,11 +85,8 @@ export function TopBar() {
                 <AnimatePresence>
                   {menu && (
                     <motion.div role="menu" initial={{ opacity: 0, y: -6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.96 }} transition={{ duration: 0.15 }} style={{ transformOrigin: "top right" }} className="glass absolute right-0 mt-2 w-60 rounded-2xl p-1.5 shadow-[var(--shadow-pop)]">
-                      <div className="px-3 py-2"><p className="truncate font-semibold">{user.name}</p><p className="truncate text-xs text-mute">{user.email}</p></div>
-                      <Item href="/my-passes" icon={<Ticket className="h-4 w-4" />}>My passes</Item>
-                      <Item href="/committee" icon={<LayoutDashboard className="h-4 w-4" />}>Committee</Item>
-                      {user.role === "admin" && <Item href="/admin" icon={<ShieldCheck className="h-4 w-4" />}>Admin</Item>}
-                      <Item href="/profile" icon={<UserIcon className="h-4 w-4" />}>Profile</Item>
+                      <div className="px-3 py-2"><p className="truncate font-semibold">{user.name}</p><p className="truncate text-xs text-mute">{user.email}</p><p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-tint-ink">{user.role === "admin" ? "Admin" : user.role === "organizer" ? "Organiser" : ""}</p></div>
+                      {menuLinks(user, onCommittee).map((l) => <Item key={l.href} href={l.href} icon={l.icon}>{l.label}</Item>)}
                       <button role="menuitem" onClick={() => { logout(); router.push("/"); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-700 hover:bg-black/5"><LogOut className="h-4 w-4" /> Sign out</button>
                     </motion.div>
                   )}
@@ -89,15 +104,12 @@ export function TopBar() {
 
         <AnimatePresence>
           {sheet && (
-            <motion.div initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }} transition={{ duration: 0.2 }} className="glass mx-auto mt-3 max-w-7xl rounded-3xl p-3 shadow-[var(--shadow-pop)] md:hidden">
+            <motion.div initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }} transition={{ duration: 0.2 }} className="glass mx-auto mt-3 max-w-[1760px] rounded-3xl p-3 shadow-[var(--shadow-pop)] md:hidden">
               {NAV.map((l) => <Link key={l.href} href={l.href} className={`block rounded-2xl px-4 py-3.5 text-lg font-medium ${active(l.href) ? "bg-tint text-tint-ink" : ""}`}>{l.label}</Link>)}
               <div className="my-2 border-t border-black/5" />
               {user ? (
                 <>
-                  <Link href="/my-passes" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">My passes</Link>
-                  <Link href="/committee" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">Committee</Link>
-                  {user.role === "admin" && <Link href="/admin" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">Admin</Link>}
-                  <Link href="/profile" className="block rounded-2xl px-4 py-3.5 text-lg font-medium">Profile</Link>
+                  {menuLinks(user, onCommittee).map((l) => <Link key={l.href} href={l.href} className="block rounded-2xl px-4 py-3.5 text-lg font-medium">{l.label}</Link>)}
                   <button onClick={() => { logout(); router.push("/"); }} className="block w-full rounded-2xl px-4 py-3.5 text-left text-lg font-medium text-mute">Sign out</button>
                 </>
               ) : (

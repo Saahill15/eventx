@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="mx-auto mt-24 max-w-7xl px-4 pb-6 sm:px-6">
+    <footer className="mx-auto mt-24 max-w-[1760px] px-4 pb-6 sm:px-6">
       <div className="card px-8 py-12 sm:px-12">
         <div className="grid gap-10 sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
           <div>
@@ -12,7 +12,7 @@ export function Footer() {
           </div>
           <FooterCol title="Explore" links={[["Home", "/"], ["College fests", "/fests"], ["All events", "/events"]]} />
           <FooterCol title="Account" links={[["My passes", "/my-passes"], ["Sign in", "/login"], ["Join free", "/signup"]]} />
-          <FooterCol title="Committees" links={[["Dashboard", "/committee"]]} />
+          <FooterCol title="Organisers" links={[["Dashboard", "/dashboard"]]} />
         </div>
         <div className="mt-10 flex flex-col justify-between gap-2 border-t border-black/5 pt-6 text-sm text-mute sm:flex-row">
           <p>© {new Date().getFullYear()} HiveOut. Free for students and colleges.</p>

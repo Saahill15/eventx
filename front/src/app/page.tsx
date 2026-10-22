@@ -45,7 +45,7 @@ export default async function Home() {
     <>
       <HeroShowcase photo={photo} />
 
-      <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6">
+      <div className="mx-auto max-w-[1760px] space-y-5 px-4 sm:px-6">
         <Reveal><div className="mx-auto max-w-2xl space-y-5"><SearchLauncher /><CategoryTabs /></div></Reveal>
 
         {/* Intro card with images */}
@@ -136,7 +136,7 @@ export default async function Home() {
             <Stagger className="mt-8 grid gap-4 md:grid-cols-3">
               {[
                 { name: "Students", price: "Free", points: ["Browse every fest", "One-tap registration", "QR pass in your pocket"], cta: "Create an account", href: "/signup", main: true },
-                { name: "Committees", price: "Free", points: ["Publish events", "Approve registrations", "Manage your team"], cta: "Open the dashboard", href: "/committee", main: false },
+                { name: "Committees", price: "Free", points: ["Publish events", "Approve registrations", "Manage your team"], cta: "Open the dashboard", href: "/dashboard", main: false },
                 { name: "City events", price: "Soon", points: ["Concerts and gigs", "Same HiveOut account", "Coming after fests"], cta: "Stay tuned", href: "/events", main: false },
               ].map((p) => (
                 <StaggerItem key={p.name}>

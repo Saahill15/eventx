@@ -15,6 +15,11 @@ export class ApiError extends Error {
 function messageFrom(status: number, body: unknown): string {
   const detail = (body as { detail?: unknown } | null)?.detail;
   if (typeof detail === "string" && detail) return detail;
+  // Some errors carry a headline and a list, e.g. what a fest is still missing
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    const d = detail as { message?: string; missing?: string[] };
+    if (d.message) return d.missing?.length ? `${d.message}: ${d.missing.join("; ")}` : d.message;
+  }
   if (Array.isArray(detail) && detail.length) {
     return detail
       .map((d: { loc?: unknown[]; msg?: string }) => {
@@ -89,4 +94,39 @@ export async function downloadFile(path: string, filename: string): Promise<void
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Open a protected file (such as an uploaded document) in a new tab. */
+export async function openFile(path: string): Promise<void> {
+  const token = window.localStorage.getItem("token");
+  const win = window.open("", "_blank");
+  try {
+    const res = await fetch(`${API_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new ApiError("Could not open the file.", res.status);
+    const url = URL.createObjectURL(await res.blob());
+    if (win) win.location.href = url; else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    win?.close();
+    throw err;
+  }
+}
+
+/** Uploaded images come back as /api/media/<id>, which lives on the API server, not on this site. */
+export const mediaSrc = (url: string | null | undefined): string | null => (url ? (url.startsWith("/api/media/") ? `${API_URL}${url}` : url) : null);
+
+/** Upload a JPEG, PNG or WebP (up to 3 MB) and get back the address to store on a fest or event. */
+export async function uploadImage(file: File): Promise<string> {
+  const token = window.localStorage.getItem("token");
+  const form = new FormData();
+  form.append("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/media`, { method: "POST", body: form, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError("Cannot reach the server. Check your connection and try again.", 0);
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(messageFrom(res.status, body), res.status);
+  return (body as { url: string }).url;
 }
