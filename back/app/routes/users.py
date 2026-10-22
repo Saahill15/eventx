@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user
+from app.auth.sessions import revoke_user_sessions
 from passlib.context import CryptContext
 
 router = APIRouter()
@@ -15,8 +16,13 @@ def get_me(current_user=Depends(get_current_user)):
 @router.patch("/me", response_model=schemas.UserOut)
 def update_profile(data: schemas.ProfileUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     updates = data.model_dump(exclude_unset=True)
-    if updates.get("name") is None:
-        updates.pop("name", None)
+    for part in ("first_name", "last_name"):
+        if updates.get(part) is None:
+            updates.pop(part, None)
+    if "first_name" in updates or "last_name" in updates:
+        first = updates.get("first_name", current_user.first_name or "")
+        last = updates.get("last_name", current_user.last_name or "")
+        updates["name"] = f"{first} {last}".strip()
     if updates.get("college_id") is not None and not db.query(models.College).filter(models.College.id == updates["college_id"]).first():
         raise HTTPException(status_code=400, detail="College not found")
     if updates.get("phone"):
@@ -35,8 +41,17 @@ def change_password(data: schemas.PasswordChange, db: Session = Depends(get_db),
     if not current_user.hashed_password or not pwd.verify(data.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     current_user.hashed_password = pwd.hash(data.new_password)
+    revoke_user_sessions(db, current_user.id, except_sid=current_user.current_sid)  # other devices must sign in again
     db.commit()
     return {"message": "Password changed"}
+
+
+@router.post("/me/organizer-welcome/seen")
+def organizer_welcome_seen(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """The person has seen the 'you are now an organiser' screen, so it is not shown again."""
+    current_user.organizer_welcome_pending = False
+    db.commit()
+    return {"message": "OK"}
 
 
 @router.post("/interests")

@@ -28,7 +28,7 @@ class TestGateByQr(Setup):
     def test_volunteer_can_look_up_and_check_in(self):
         r = client.get(f"/api/fests/{self.slug}/gate/lookup", params={"code": self.code}, headers=auth(self.volunteer))
         assert r.status_code == 200
-        assert r.json()["user_name"] == "Student" and r.json()["checked_in"] is False
+        assert r.json()["user_name"] == "Student User" and r.json()["checked_in"] is False
         r = client.post(f"/api/fests/{self.slug}/gate/check-in", json={"qr_code": self.code}, headers=auth(self.volunteer))
         assert r.status_code == 200 and r.json()["checked_in"] is True and r.json()["checked_in_at"]
 
@@ -176,7 +176,7 @@ class TestStats(Setup):
 
 class TestProfile(Setup):
     def test_update_profile_fields(self):
-        r = client.patch("/api/users/me", json={"name": "  New Name ", "college_id": self.college_id, "study_year": 2, "phone": "+91 98765 43210"}, headers=auth(self.student))
+        r = client.patch("/api/users/me", json={"first_name": "  New ", "last_name": " Name ", "college_id": self.college_id, "study_year": 2, "phone": "+91 98765 43210"}, headers=auth(self.student))
         assert r.status_code == 200
         body = r.json()
         assert body["name"] == "New Name" and body["college_id"] == self.college_id and body["study_year"] == 2
@@ -192,8 +192,8 @@ class TestProfile(Setup):
         assert client.patch("/api/users/me", json={"phone": "9876543210"}, headers=auth(self.other)).status_code == 400
 
     def test_blank_name_is_ignored_not_saved(self):
-        r = client.patch("/api/users/me", json={"name": None}, headers=auth(self.student))
-        assert r.json()["name"] == "Student"
+        r = client.patch("/api/users/me", json={"first_name": None}, headers=auth(self.student))
+        assert r.json()["name"] == "Student User"
 
     def test_change_password(self):
         assert client.post("/api/users/me/password", json={"current_password": "wrong-password", "new_password": "a-new-password-1"}, headers=auth(self.student)).status_code == 400

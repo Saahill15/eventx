@@ -54,13 +54,22 @@ client = TestClient(app, raise_server_exceptions=True)
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+_phones = iter(range(9000000000, 9999999999))
+
+def signup_payload(name, email, password="password123", **extra):
+    first, _, last = name.strip().partition(" ")
+    return {"first_name": first or "X", "last_name": last.strip() or "User", "email": email, "password": password,
+            "phone": str(next(_phones)), "accept_terms": True, **extra}
+
 def signup(name, email, password="password123"):
-    r = client.post("/api/auth/signup", json={"name": name, "email": email, "password": password})
+    r = client.post("/api/auth/signup", json=signup_payload(name, email, password))
     assert r.status_code == 200, r.text
     return r.json()
 
 def login(email, password="password123"):
     r = client.post("/api/auth/login", json={"email": email, "password": password})
+    if r.status_code == 403 and "admin" in r.json()["detail"]:   # admins have their own sign-in
+        r = client.post("/api/auth/admin/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 
@@ -153,7 +162,7 @@ class TestAuth:
 
     def test_duplicate_email_rejected(self):
         signup("Alice", "alice@test.com")
-        r = client.post("/api/auth/signup", json={"name": "Alice2", "email": "alice@test.com", "password": "password123"})
+        r = client.post("/api/auth/signup", json=signup_payload("Alice2", "alice@test.com"))
         assert r.status_code == 400
 
     def test_wrong_password_rejected(self):

@@ -20,10 +20,10 @@ SECRET_KEY = _load_secret_key()
 ALGORITHM  = "HS256"
 EXPIRE_MIN = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 10080))
 
-def create_token(data: dict):
+def create_token(data: dict, expires_in: timedelta = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=EXPIRE_MIN)
-    to_encode.update({"exp": expire})
+    now = datetime.utcnow()
+    to_encode.update({"iat": now, "exp": now + (expires_in or timedelta(minutes=EXPIRE_MIN))})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str):

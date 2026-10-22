@@ -6,10 +6,55 @@ from datetime import datetime
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import require_admin
+from app.auth.sessions import revoke_user_sessions
 from app.routes.student import verify_user
 from app.fest_review import fest_missing
 
 router = APIRouter()
+
+@router.get("/overview", response_model=schemas.AdminOverview)
+def overview(db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Headline numbers for the admin dashboard."""
+    def count(model, *conds):
+        return db.query(func.count(model.id)).filter(*conds).scalar() or 0
+    U, F, C, E = models.User, models.Fest, models.College, models.Event
+    return schemas.AdminOverview(
+        members=count(U, U.role == models.RoleEnum.user),
+        organizers=count(U, U.role == models.RoleEnum.organizer),
+        admins=count(U, U.role == models.RoleEnum.admin),
+        suspended=count(U, U.is_active == False),  # noqa: E712
+        partner_colleges=count(C, C.partner_status == "partner"),
+        prospect_colleges=count(C, C.partner_status != "partner"),
+        fests_live=count(F, F.status == models.FestStatusEnum.live),
+        fests_in_review=count(F, F.review_status == "in_review"),
+        fests_changes_requested=count(F, F.review_status == "changes_requested"),
+        fests_draft=count(F, F.review_status == "draft"),
+        events_total=count(E),
+        city_events_pending=count(E, E.event_type == models.EventTypeEnum.city, E.status == models.StatusEnum.pending),
+        registrations=count(models.EventRegistration),
+        fest_passes=count(models.FestPass),
+        verifications_pending=count(
+            models.StudentVerification,
+            models.StudentVerification.method == models.VerificationMethodEnum.proof,
+            models.StudentVerification.status == models.VerificationStatusEnum.pending,
+        ),
+        verified_students=count(U, U.student_verified_until > datetime.utcnow()),
+    )
+
+
+@router.get("/security-log", response_model=List[schemas.AuthEventOut])
+def security_log(
+    limit: int = Query(default=100, ge=1, le=500),
+    failed_only: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Recent sign-in attempts (newest first): who tried, from where, and what happened."""
+    q = db.query(models.AuthEvent)
+    if failed_only:
+        q = q.filter(models.AuthEvent.success == False)  # noqa: E712
+    return q.order_by(models.AuthEvent.at.desc(), models.AuthEvent.id.desc()).limit(limit).all()
+
 
 @router.get("/users", response_model=List[schemas.AdminUserOut])
 def search_users(
@@ -27,6 +72,29 @@ def search_users(
     if role:
         query = query.filter(models.User.role == role)
     return query.order_by(models.User.created_at.desc()).limit(50).all()
+
+
+@router.post("/users/{user_id}/active", response_model=schemas.AdminUserOut)
+def set_user_active(
+    user_id: int,
+    data: schemas.ActiveChange,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    """Suspend an account (it can no longer sign in or use the API) or switch it back on."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot suspend your own account")
+    if user.role == models.RoleEnum.admin:
+        raise HTTPException(status_code=400, detail="Admin accounts cannot be suspended here")
+    user.is_active = data.is_active
+    if not data.is_active:
+        revoke_user_sessions(db, user.id)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def _valid_partner_colleges(db: Session, ids: List[int]) -> List[models.College]:
@@ -73,10 +141,27 @@ def set_user_role(
         db.flush()
         for c in colleges:
             user.organizer_colleges.append(models.OrganizerCollege(college_id=c.id))
+    if new_role == models.RoleEnum.organizer and user.role != models.RoleEnum.organizer:
+        user.organizer_welcome_pending = True  # shown once, the next time they open the site
     user.role = new_role
+    if new_role == models.RoleEnum.user:
+        revoke_user_sessions(db, user.id)  # losing access takes effect at once. Gaining it needs no new sign-in: the role is read on every request
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.post("/users/{user_id}/sign-out")
+def sign_out_user(user_id: int, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """End every session of an account (for example after a lost phone)."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role == models.RoleEnum.admin and user.id != admin.id:
+        raise HTTPException(status_code=400, detail="Admin accounts cannot be managed here")
+    ended = revoke_user_sessions(db, user.id)
+    db.commit()
+    return {"message": "Signed out", "sessions_ended": ended}
 
 
 @router.put("/users/{user_id}/colleges", response_model=schemas.AdminUserOut)
@@ -183,6 +268,24 @@ def reject_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_d
     return _review_view(db, fest)
 
 
+@router.post("/fests/{slug}/unpublish", response_model=schemas.FestReviewOut)
+def unpublish_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Take an approved fest offline and send it back to its organiser with a note. They can fix it and submit again."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    if fest.review_status != "approved":
+        raise HTTPException(status_code=400, detail="Only an approved fest can be taken offline")
+    fest.status = models.FestStatusEnum.draft
+    fest.review_status = "changes_requested"
+    fest.review_note = data.note
+    fest.reviewed_by = admin.id
+    fest.reviewed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(fest)
+    return _review_view(db, fest)
+
+
 @router.get("/events/pending")
 def get_pending_events(db: Session = Depends(get_db), _=Depends(require_admin)):
     return db.query(models.Event).filter(models.Event.status == "pending").all()
@@ -193,15 +296,17 @@ def approve_event(event_id: int, db: Session = Depends(get_db), _=Depends(requir
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     event.status = models.StatusEnum.approved
+    event.reject_reason = None
     db.commit()
     return {"message": "Event approved"}
 
 @router.post("/events/{event_id}/reject")
-def reject_event(event_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+def reject_event(event_id: int, data: Optional[schemas.EventRejection] = None, db: Session = Depends(get_db), _=Depends(require_admin)):
     event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     event.status = models.StatusEnum.rejected
+    event.reject_reason = data.reason if data else None
     db.commit()
     return {"message": "Event rejected"}
 

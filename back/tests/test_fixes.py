@@ -3,7 +3,7 @@
 import pytest
 
 from test_full import (  # shared app, in-memory DB and helpers
-    client, auth, signup, login, make_admin, make_organizer, TestingSessionLocal,
+    client, auth, signup, signup_payload, login, make_admin, make_organizer, TestingSessionLocal,
     create_college, create_fest, create_fest_event, approve_event, get_entry_pass, reset_db,  # noqa: F401
 )
 from app import models
@@ -39,17 +39,17 @@ def user_id(email):
 
 class TestAccounts:
     def test_short_password_rejected(self):
-        r = client.post("/api/auth/signup", json={"name": "A", "email": "a@test.com", "password": "short"})
+        r = client.post("/api/auth/signup", json=signup_payload("A B", "a@test.com", "short"))
         assert r.status_code == 422
 
     def test_email_is_case_insensitive(self):
         signup("Alice", "Alice@Test.com")
         assert login("alice@test.com")
-        r = client.post("/api/auth/signup", json={"name": "Alice2", "email": "ALICE@test.com", "password": "password123"})
+        r = client.post("/api/auth/signup", json=signup_payload("Alice2", "ALICE@test.com"))
         assert r.status_code == 400
 
     def test_blank_name_rejected(self):
-        r = client.post("/api/auth/signup", json={"name": "   ", "email": "a@test.com", "password": "password123"})
+        r = client.post("/api/auth/signup", json={**signup_payload("A B", "a@test.com"), "first_name": "   "})
         assert r.status_code == 422
 
     def test_disabled_account_cannot_log_in_or_use_token(self):
@@ -277,7 +277,7 @@ class TestAdminRoles:
         by_name = client.get("/api/admin/users", params={"q": "asha"}, headers=auth(self.admin)).json()
         assert [u["email"] for u in by_name] == ["asha@test.com"]
         by_email = client.get("/api/admin/users", params={"q": "OTHER@test"}, headers=auth(self.admin)).json()
-        assert [u["name"] for u in by_email] == ["Other"]
+        assert [u["name"] for u in by_email] == ["Other User"]
         assert "hashed_password" not in by_name[0]
 
     def test_only_admins_can_use_it(self):

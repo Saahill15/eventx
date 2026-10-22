@@ -24,3 +24,6 @@ dist/
 .env.local
 *.db
 venv/
+
+# Local Node runtime
+.tools/

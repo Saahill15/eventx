@@ -61,7 +61,9 @@ class AuthProviderEnum(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     id               = Column(Integer, primary_key=True, index=True)
-    name             = Column(String(255), nullable=False)
+    name             = Column(String(255), nullable=False)   # first and last name together, shown everywhere
+    first_name       = Column(String(120), nullable=True)
+    last_name        = Column(String(120), nullable=True)
     email            = Column(String(255), unique=True, nullable=True)
     phone            = Column(String(20), unique=True, nullable=True)
     hashed_password  = Column(String(255), nullable=True)
@@ -72,6 +74,8 @@ class User(Base):
     college_id       = Column(Integer, ForeignKey("colleges.id", name="fk_users_college_id"), nullable=True)
     study_year       = Column(Integer, nullable=True)
     student_verified_until = Column(DateTime, nullable=True)  # a verification lasts one year
+    # Set when an admin makes the account an organiser; cleared once the person has seen the welcome screen
+    organizer_welcome_pending = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 
     interests         = relationship("UserInterest", back_populates="user")
@@ -148,6 +152,8 @@ class Event(Base):
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
     cancelled_at  = Column(DateTime, nullable=True)
     cancel_reason = Column(String(500), nullable=True)
+    # Why an admin turned down a city event, shown to its organiser
+    reject_reason = Column(String(500), nullable=True)
 
     organizer  = relationship("User", back_populates="events")
     college    = relationship("College", back_populates="events")
@@ -172,6 +178,30 @@ class Event(Base):
     @property
     def fest_name(self):
         return self.fest.name if self.fest else None
+
+class AuthSession(Base):
+    """One sign-in. The JWT carries this row's id, so a session can be ended on the server and can time out."""
+    __tablename__ = "auth_sessions"
+    id           = Column(String(36), primary_key=True)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at   = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime, nullable=False)
+    expires_at   = Column(DateTime, nullable=False)
+    revoked_at   = Column(DateTime, nullable=True)
+    ip           = Column(String(64), nullable=True)
+    user_agent   = Column(String(200), nullable=True)
+
+class AuthEvent(Base):
+    """One sign-in attempt, successful or not. Admins can review these in the security log."""
+    __tablename__ = "auth_events"
+    id      = Column(Integer, primary_key=True, index=True)
+    at      = Column(DateTime, nullable=False, index=True)
+    portal  = Column(String(10), nullable=False)   # public | admin
+    email   = Column(String(255), nullable=True)
+    user_id = Column(Integer, nullable=True)
+    ip      = Column(String(64), nullable=True)
+    success = Column(Boolean, nullable=False)
+    reason  = Column(String(60), nullable=False)   # ok, bad_credentials, not_admin, locked, disabled, admin_on_public_page
 
 class Pass(Base):
     __tablename__ = "passes"

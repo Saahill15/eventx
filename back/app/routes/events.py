@@ -212,6 +212,11 @@ def update_event(
     for field, value in updates.items():
         setattr(event, field, value)
 
+    # A city event an organiser changes is reviewed again, so an approved listing cannot be swapped for something else
+    if event.event_type == models.EventTypeEnum.city and updates and current_user.role != models.RoleEnum.admin:
+        event.status = models.StatusEnum.pending
+        event.reject_reason = None
+
     if event.event_type == models.EventTypeEnum.fest:
         gaps = [label for label, value in (("venue", event.location), ("start time", event.time), ("end time", event.end_time), ("description", event.description)) if not (value or "").strip()]
         if gaps:

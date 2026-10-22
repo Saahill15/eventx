@@ -34,10 +34,24 @@ def check_sections(v):
     return v
 
 # Auth
+NamePart = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
 class SignupEmail(BaseModel):
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+    first_name: NamePart
+    last_name: NamePart
     email: EmailStr
+    phone: Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+    college_id: Optional[int] = None      # students: the college they study at (used for student verification later)
+    study_year: Optional[int] = Field(default=None, ge=1, le=8)
+    accept_terms: bool
+
+    @field_validator("accept_terms")
+    @classmethod
+    def must_accept(cls, v):
+        if v is not True:
+            raise ValueError("you need to accept the terms to create an account")
+        return v
 
     @field_validator("email")
     @classmethod
@@ -54,7 +68,8 @@ class LoginEmail(BaseModel):
         return v.lower()
 
 class ProfileUpdate(BaseModel):
-    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]] = None
+    first_name: Optional[NamePart] = None
+    last_name: Optional[NamePart] = None
     phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[0-9 ()-]{7,20}$")]] = None
     college_id: Optional[int] = None
     study_year: Optional[int] = Field(default=None, ge=1, le=8)
@@ -68,11 +83,35 @@ class Token(BaseModel):
     token_type: str
     role: str
     interests_set: bool
+    expires_in: Optional[int] = None            # seconds until the token expires outright
+    idle_timeout_seconds: Optional[int] = None  # seconds of inactivity before the session ends
+
+class AuthEventOut(BaseModel):
+    id: int
+    at: datetime
+    portal: str
+    email: Optional[str] = None
+    user_id: Optional[int] = None
+    ip: Optional[str] = None
+    success: bool
+    reason: str
+    class Config:
+        from_attributes = True
+
+class SessionOut(BaseModel):
+    id: str
+    created_at: datetime
+    last_seen_at: datetime
+    ip: Optional[str] = None
+    user_agent: Optional[str] = None
+    current: bool = False
 
 # User
 class UserOut(BaseModel):
     id: int
     name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     email: Optional[str]
     phone: Optional[str]
     role: str
@@ -82,6 +121,7 @@ class UserOut(BaseModel):
     student_verified_until: Optional[datetime] = None
     is_student_verified: bool = False
     college_ids: List[int] = []   # for organisers: the colleges they may list fests for
+    organizer_welcome_pending: bool = False
     created_at: datetime
     class Config:
         from_attributes = True
@@ -200,6 +240,7 @@ class EventOut(BaseModel):
     student_price: Optional[float] = None
     cancelled: bool = False
     cancel_reason: Optional[str] = None
+    reject_reason: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -229,7 +270,7 @@ class EventUpdate(BaseModel):
     _clean_image = field_validator("image_url")(clean_url)
 
 # Fest
-RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass", "mine"}
+RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass", "mine", "fests", "city-events"}
 
 class FestCreate(BaseModel):
     """Starting a fest needs only a name, a web address and the college. Everything else is filled in before review."""
@@ -466,6 +507,27 @@ class RoleChange(BaseModel):
     role: Literal["user", "organizer"]
     college_ids: List[int] = []   # required (at least one) when making someone an organiser
 
+class ActiveChange(BaseModel):
+    is_active: bool
+
+class AdminOverview(BaseModel):
+    members: int
+    organizers: int
+    admins: int
+    suspended: int
+    partner_colleges: int
+    prospect_colleges: int
+    fests_live: int
+    fests_in_review: int
+    fests_changes_requested: int
+    fests_draft: int
+    events_total: int
+    city_events_pending: int
+    registrations: int
+    fest_passes: int
+    verifications_pending: int
+    verified_students: int
+
 class CollegeAssignment(BaseModel):
     college_ids: List[int] = Field(min_length=1)
 
@@ -693,6 +755,12 @@ class FestReviewOut(BaseModel):
     events: List[ReviewEvent] = []
     missing: List[str] = []           # anything still incomplete
     owners: List[str] = []            # names and emails of the fest's directors
+
+class EventRejection(BaseModel):
+    reason: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]] = None
+
+class ChecklistOut(BaseModel):
+    missing: List[str] = []
 
 class SubmitOut(BaseModel):
     fest: FestManageOut

@@ -6,7 +6,15 @@ from app.migrate import run_migrations
 from app.seed import seed
 from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements
 
-app = FastAPI(title="EventX API")
+IS_PRODUCTION = os.getenv("APP_ENV", "development") == "production"
+
+# The interactive docs list every endpoint, so they are switched off in production
+app = FastAPI(
+    title="EventX API",
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
+)
 
 # Comma-separated list of frontend origins allowed to call the API (set ALLOWED_ORIGINS in production).
 DEFAULT_DEV_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
@@ -16,9 +24,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,  # using Bearer tokens (no cookies), so credentials not needed
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600,
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if request.url.path.startswith(("/api/admin", "/api/auth", "/api/users")):
+        response.headers["Cache-Control"] = "no-store"  # account and admin data is never kept by a cache
+    return response
 
 app.include_router(auth.router,          prefix="/api/auth",        tags=["Auth"])
 app.include_router(users.router,         prefix="/api/users",       tags=["Users"])

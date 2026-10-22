@@ -66,7 +66,7 @@ class TestRegistrations(Setup):
 
     def test_list_shows_who_registered(self):
         rows = client.get(f"/api/fest-events/{self.event['id']}/registrations", headers=auth(self.owner)).json()
-        assert rows[0]["user_name"] == "Student" and rows[0]["user_email"] == "student@test.com"
+        assert rows[0]["user_name"] == "Student User" and rows[0]["user_email"] == "student@test.com"
         assert rows[0]["approval_status"] == "pending"
 
     def test_students_cannot_see_the_list_or_decide(self):
@@ -108,7 +108,7 @@ class TestTeam(Setup):
 
     def test_invite_by_email_is_case_insensitive(self):
         r = client.post(f"/api/fests/{self.slug}/members", json={"email": "STUDENT@test.com", "role": "volunteer"}, headers=auth(self.core))
-        assert r.status_code == 201 and r.json()["user_name"] == "Student"
+        assert r.status_code == 201 and r.json()["user_name"] == "Student User"
 
     def test_unknown_email_explains_what_to_do(self):
         r = client.post(f"/api/fests/{self.slug}/members", json={"email": "nobody@test.com"}, headers=auth(self.owner))

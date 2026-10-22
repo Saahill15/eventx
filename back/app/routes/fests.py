@@ -209,6 +209,22 @@ def manage_fest(
     return fest
 
 
+# ─── GET /fests/:slug/manage/checklist ───────────────────────────────────────
+@router.get("/{slug}/manage/checklist", response_model=schemas.ChecklistOut)
+def fest_checklist(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """What is still missing before the fest can be sent for review (empty = ready)."""
+    fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
+    if not fest:
+        raise HTTPException(status_code=404, detail="Fest not found")
+    _require_fest_privileged(fest, current_user, db)
+    events = db.query(models.Event).filter(models.Event.fest_id == fest.id).all()
+    return schemas.ChecklistOut(missing=fest_missing(fest, events))
+
+
 # ─── PATCH /fests/:slug ──────────────────────────────────────────────────────
 @router.patch("/{slug}", response_model=schemas.FestManageOut)
 def update_fest(

@@ -155,7 +155,7 @@ class TestFestListingAndReview(Setup):
         assert item["fest"]["slug"] == "fest-one" and item["fest"]["contact_phone"]
         assert item["college"]["name"] == "IIT Bombay" and item["college"]["partner_status"] == "partner"
         assert item["missing"] == [] and len(item["events"]) == 1
-        assert item["owners"] == ["Owner <owner@test.com>"]
+        assert item["owners"] == ["Owner User <owner@test.com>"]
 
         r = client.post("/api/admin/fests/fest-one/request-changes", json={"note": "Please add a clearer banner"}, headers=auth(self.admin))
         assert r.status_code == 200
