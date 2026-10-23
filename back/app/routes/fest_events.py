@@ -9,9 +9,11 @@ Mounted under /api/fest-events by main.py.
 
 import csv
 import io
+import secrets
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -24,6 +26,82 @@ from app.routes.event_questions import validate_answers
 router = APIRouter()
 
 
+# ─── Shared registration rules ───────────────────────────────────────────────
+
+def _open_fest_event(db: Session, event_id: int, user: models.User) -> models.Event:
+    """The event, if this person may register for it right now."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event or event.status != models.StatusEnum.approved:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.event_type != models.EventTypeEnum.fest:
+        raise HTTPException(status_code=400, detail="Registration is only available for fest events")
+    if event.cancelled:
+        raise HTTPException(status_code=400, detail="This event has been cancelled")
+    if not event.requires_registration:
+        raise HTTPException(status_code=400, detail="This event does not require registration")
+    if event.students_only and not user.is_student_verified:
+        raise HTTPException(status_code=403, detail="This event is for verified students. Verify your student status in your profile first.")
+    return event
+
+
+def _approved_pass(db: Session, event: models.Event, user: models.User) -> models.FestPass:
+    fest_pass = (
+        db.query(models.FestPass)
+        .filter(
+            models.FestPass.user_id == user.id,
+            models.FestPass.fest_id == event.fest_id,
+            models.FestPass.status == models.FestPassStatusEnum.approved,
+        )
+        .first()
+    )
+    if not fest_pass:
+        raise HTTPException(status_code=400, detail="You must hold an approved entry pass for this fest before registering for events")
+    return fest_pass
+
+
+def _existing_registration(db: Session, fest_pass: models.FestPass, event_id: int):
+    return (
+        db.query(models.EventRegistration)
+        .filter(models.EventRegistration.fest_pass_id == fest_pass.id, models.EventRegistration.event_id == event_id)
+        .first()
+    )
+
+
+def _active(q):
+    return q.filter(models.EventRegistration.approval_status.in_([models.RegApprovalStatusEnum.approved, models.RegApprovalStatusEnum.pending]))
+
+
+def _seats_taken(db: Session, event: models.Event) -> int:
+    """Registrations still in play. For a team event the limit counts teams, so this counts teams."""
+    q = _active(db.query(models.EventRegistration).filter(models.EventRegistration.event_id == event.id))
+    if event.is_team_event:
+        return q.filter(models.EventRegistration.team_id.isnot(None)).with_entities(models.EventRegistration.team_id).distinct().count()
+    return q.count()
+
+
+def _new_registration(event: models.Event, fest_pass: models.FestPass, user: models.User, approval=None, team_id=None) -> models.EventRegistration:
+    """A registration with the right approval and payment state. Payment is simulated and always succeeds for now."""
+    if approval is None:
+        if event.is_paid or event.approval_mode == models.ApprovalModeEnum.auto:
+            approval = models.RegApprovalStatusEnum.approved
+        else:
+            approval = models.RegApprovalStatusEnum.pending
+    if event.is_paid:
+        payment = models.RegPaymentStatusEnum.paid
+        # Verified students get the student price when the event has one
+        amount_due = event.student_price if (user.is_student_verified and event.student_price is not None) else event.price
+    else:
+        payment, amount_due = models.RegPaymentStatusEnum.unpaid, 0.0
+    return models.EventRegistration(
+        fest_pass_id=fest_pass.id, event_id=event.id, approval_status=approval, payment_status=payment, amount_due=amount_due, team_id=team_id,
+    )
+
+
+def _save_answers(db: Session, registration: models.EventRegistration, answers) -> None:
+    for question, value in answers:
+        db.add(models.RegistrationAnswer(registration_id=registration.id, question_id=question.id, answer=value))
+
+
 # ─── POST /fest-events/{event_id}/register ───────────────────────────────────
 
 @router.post("/{event_id}/register", response_model=schemas.EventRegistrationOut, status_code=status.HTTP_201_CREATED)
@@ -34,120 +112,166 @@ def register_for_event(
     current_user: models.User = Depends(get_current_user),
 ):
     """
-    Register the current user for a fest event.
-
-    Flow:
-      1. Validate event_type='fest'
-      2. Validate requires_registration=True
-      3. Validate user has an approved FestPass for this event's fest
-      4. Check capacity (approved + pending < limit)
-      5. If is_paid → simulate payment → payment_status='paid', approval_status='approved'
-         If is_paid=False + approval_mode='auto' → approval_status='approved'
-         If is_paid=False + approval_mode='manual' → approval_status='pending'
+    Register the current user for a fest event. Needs an approved fest pass; answers the event's questions.
+    Paid events are confirmed at once (payment is simulated), free ones by the event's approval mode.
+    Registering again returns the existing registration.
     """
-    # ── 1. Fetch and validate event ──────────────────────────────────────────
-    event = db.query(models.Event).filter(models.Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.event_type != models.EventTypeEnum.fest:
-        raise HTTPException(
-            status_code=400,
-            detail="Registration is only available for fest events",
-        )
-    if event.status != models.StatusEnum.approved:
-        raise HTTPException(status_code=404, detail="Event not found")
-    if event.cancelled:
-        raise HTTPException(status_code=400, detail="This event has been cancelled")
-    if event.students_only and not current_user.is_student_verified:
-        raise HTTPException(status_code=403, detail="This event is for verified students. Verify your student status in your profile first.")
-
-    # ── 2. Registration must be enabled ──────────────────────────────────────
-    if not event.requires_registration:
-        raise HTTPException(
-            status_code=400,
-            detail="This event does not require registration",
-        )
-
-    # ── 3. User must have an approved FestPass ────────────────────────────────
-    fest_pass = (
-        db.query(models.FestPass)
-        .filter(
-            models.FestPass.user_id == current_user.id,
-            models.FestPass.fest_id == event.fest_id,
-            models.FestPass.status == models.FestPassStatusEnum.approved,
-        )
-        .first()
-    )
-    if not fest_pass:
-        raise HTTPException(
-            status_code=400,
-            detail="You must hold an approved entry pass for this fest before registering for events",
-        )
-
-    # Idempotent — return existing registration if already registered
-    existing = (
-        db.query(models.EventRegistration)
-        .filter(
-            models.EventRegistration.fest_pass_id == fest_pass.id,
-            models.EventRegistration.event_id == event_id,
-        )
-        .first()
-    )
+    event = _open_fest_event(db, event_id, current_user)
+    if event.is_team_event:
+        raise HTTPException(status_code=400, detail="This is a team event. Create a team, or join one with its code.")
+    fest_pass = _approved_pass(db, event, current_user)
+    existing = _existing_registration(db, fest_pass, event_id)
     if existing:
         return existing
 
-    # Custom questions the committee added (a body is only needed when the event asks something)
     answers = validate_answers(event, data.answers if data else [])
+    if event.registration_limit is not None and _seats_taken(db, event) >= event.registration_limit:
+        raise HTTPException(status_code=400, detail="Registration full")
 
-    # ── 4. Capacity check ────────────────────────────────────────────────────
-    if event.registration_limit is not None:
-        active_count = (
-            db.query(models.EventRegistration)
-            .filter(
-                models.EventRegistration.event_id == event_id,
-                models.EventRegistration.approval_status.in_([
-                    models.RegApprovalStatusEnum.approved,
-                    models.RegApprovalStatusEnum.pending,
-                ]),
-            )
-            .count()
-        )
-        if active_count >= event.registration_limit:
-            raise HTTPException(status_code=400, detail="Registration full")
-
-    # ── 5. Determine statuses ─────────────────────────────────────────────────
-    if event.is_paid:
-        # Simulate payment success — always succeeds in this implementation
-        approval_status = models.RegApprovalStatusEnum.approved
-        payment_status  = models.RegPaymentStatusEnum.paid
-    else:
-        payment_status = models.RegPaymentStatusEnum.unpaid
-        if event.approval_mode == models.ApprovalModeEnum.auto:
-            approval_status = models.RegApprovalStatusEnum.approved
-        else:
-            approval_status = models.RegApprovalStatusEnum.pending
-
-    # What this person owes: students who are verified get the student price when the event has one
-    if event.is_paid:
-        amount_due = event.student_price if (current_user.is_student_verified and event.student_price is not None) else event.price
-    else:
-        amount_due = 0.0
-
-    registration = models.EventRegistration(
-        fest_pass_id    = fest_pass.id,
-        event_id        = event_id,
-        approval_status = approval_status,
-        payment_status  = payment_status,
-        amount_due      = amount_due,
-    )
+    registration = _new_registration(event, fest_pass, current_user)
     db.add(registration)
     db.flush()
-    for question, value in answers:
-        db.add(models.RegistrationAnswer(registration_id=registration.id, question_id=question.id, answer=value))
+    _save_answers(db, registration, answers)
     db.commit()
     db.refresh(registration)
     return registration
+
+
+# ─── Teams ───────────────────────────────────────────────────────────────────
+
+CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no 0/O or 1/I, so a code read aloud is not misheard
+
+
+def _new_code(db: Session) -> str:
+    while True:
+        code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+        if not db.query(models.Team).filter(models.Team.code == code).first():
+            return code
+
+
+def _team_status(team: models.Team) -> str:
+    """A team's approval status is its leader's (members always follow the leader's)."""
+    lead = next((r for r in team.registrations if r.fest_pass and r.fest_pass.user_id == team.leader_user_id), None)
+    return lead.approval_status.value if lead else "pending"
+
+
+def _team_out(team: models.Team, viewer: models.User, staff: bool) -> schemas.TeamOut:
+    event = team.event
+    members = sorted(team.registrations, key=lambda r: (not r.is_team_leader, r.created_at or datetime.min))
+    size = len([r for r in members if r.approval_status != models.RegApprovalStatusEnum.rejected])
+    return schemas.TeamOut(
+        id=team.id, event_id=team.event_id, name=team.name, code=team.code, size=size,
+        team_min=event.team_min, team_max=event.team_max, complete=size >= (event.team_min or 1), status=_team_status(team),
+        i_am_leader=team.leader_user_id == viewer.id,
+        members=[schemas.TeamMemberOut(
+            registration_id=r.id, name=r.user_name, email=r.user_email if staff else None, is_leader=r.is_team_leader,
+            approval_status=r.approval_status.value, attended=bool(r.attended),
+        ) for r in members],
+    )
+
+
+@router.post("/{event_id}/teams", response_model=schemas.TeamOut, status_code=status.HTTP_201_CREATED)
+def create_team(event_id: int, data: schemas.TeamCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Start a team for a team event. You become its leader, answer the event's questions, and get a code to share."""
+    event = _open_fest_event(db, event_id, current_user)
+    if not event.is_team_event:
+        raise HTTPException(status_code=400, detail="This is not a team event")
+    fest_pass = _approved_pass(db, event, current_user)
+    if _existing_registration(db, fest_pass, event_id):
+        raise HTTPException(status_code=400, detail="You are already registered for this event")
+    if db.query(models.Team).filter(models.Team.event_id == event_id, func.lower(models.Team.name) == data.name.lower()).first():
+        raise HTTPException(status_code=400, detail="A team with that name already exists for this event")
+    answers = validate_answers(event, data.answers)
+    if event.registration_limit is not None and _seats_taken(db, event) >= event.registration_limit:
+        raise HTTPException(status_code=400, detail="Registration full: no more teams can join")
+
+    team = models.Team(event_id=event_id, name=data.name, code=_new_code(db), leader_user_id=current_user.id, created_at=datetime.utcnow())
+    db.add(team)
+    db.flush()
+    registration = _new_registration(event, fest_pass, current_user, team_id=team.id)
+    db.add(registration)
+    db.flush()
+    _save_answers(db, registration, answers)
+    db.commit()
+    db.refresh(team)
+    return _team_out(team, current_user, staff=False)
+
+
+@router.post("/teams/join", response_model=schemas.TeamOut)
+def join_team(data: schemas.TeamJoin, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Join a team with the code its leader shared. You answer the event's questions for yourself."""
+    team = db.query(models.Team).filter(models.Team.code == data.code).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="No team with that code")
+    event = _open_fest_event(db, team.event_id, current_user)
+    fest_pass = _approved_pass(db, event, current_user)
+    if _existing_registration(db, fest_pass, event.id):
+        raise HTTPException(status_code=400, detail="You are already registered for this event")
+    status_now = _team_status(team)
+    if status_now == "rejected":
+        raise HTTPException(status_code=400, detail="This team was not approved, so it cannot take new members")
+    size = len([r for r in team.registrations if r.approval_status != models.RegApprovalStatusEnum.rejected])
+    if event.team_max and size >= event.team_max:
+        raise HTTPException(status_code=400, detail=f"This team is full ({event.team_max} people)")
+    answers = validate_answers(event, data.answers)
+
+    registration = _new_registration(event, fest_pass, current_user, approval=models.RegApprovalStatusEnum(status_now), team_id=team.id)
+    db.add(registration)
+    db.flush()
+    _save_answers(db, registration, answers)
+    db.commit()
+    db.refresh(team)
+    return _team_out(team, current_user, staff=False)
+
+
+@router.get("/{event_id}/my-team", response_model=schemas.TeamOut)
+def my_team(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    registration = (
+        db.query(models.EventRegistration)
+        .join(models.FestPass, models.EventRegistration.fest_pass_id == models.FestPass.id)
+        .filter(models.EventRegistration.event_id == event_id, models.FestPass.user_id == current_user.id, models.EventRegistration.team_id.isnot(None))
+        .first()
+    )
+    if not registration:
+        raise HTTPException(status_code=404, detail="You are not in a team for this event")
+    return _team_out(registration.team, current_user, staff=False)
+
+
+@router.get("/{event_id}/teams", response_model=List[schemas.TeamOut])
+def list_teams(event_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Every team for the event, with its members (committee only)."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _require_event_staff(db, event, current_user)
+    teams = db.query(models.Team).filter(models.Team.event_id == event_id).order_by(models.Team.created_at).all()
+    return [_team_out(t, current_user, staff=True) for t in teams]
+
+
+def _decide_team(team_id: int, approve: bool, db: Session, user: models.User) -> schemas.TeamOut:
+    team = db.query(models.Team).filter(models.Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    event = db.query(models.Event).filter(models.Event.id == team.event_id).first()
+    _require_event_staff(db, event, user)
+    pending = [r for r in team.registrations if r.approval_status == models.RegApprovalStatusEnum.pending]
+    if not pending:
+        raise HTTPException(status_code=400, detail="Only pending teams can be decided")
+    for r in pending:
+        r.approval_status = models.RegApprovalStatusEnum.approved if approve else models.RegApprovalStatusEnum.rejected
+    db.commit()
+    db.refresh(team)
+    return _team_out(team, user, staff=True)
+
+
+@router.post("/teams/{team_id}/approve", response_model=schemas.TeamOut)
+def approve_team(team_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return _decide_team(team_id, True, db, current_user)
+
+
+@router.post("/teams/{team_id}/reject", response_model=schemas.TeamOut)
+def reject_team(team_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return _decide_team(team_id, False, db, current_user)
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -193,7 +317,17 @@ def cancel_my_registration(
         raise HTTPException(status_code=404, detail="You are not registered for this event")
     if registration.attended:
         raise HTTPException(status_code=400, detail="You have already attended this event")
-    db.delete(registration)
+    team = registration.team
+    if team and team.leader_user_id == current_user.id:
+        # A leader leaving breaks up the team: everyone's registration goes, unless someone has already attended
+        if any(r.attended for r in team.registrations):
+            raise HTTPException(status_code=400, detail="Someone in your team has already attended, so the team cannot be broken up")
+        for r in list(team.registrations):
+            db.delete(r)
+        db.flush()
+        db.delete(team)
+    else:
+        db.delete(registration)
     db.commit()
 
 
@@ -297,11 +431,13 @@ def export_event_registrations(
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     questions = list(event.questions)
-    writer.writerow(["Name", "Email", "Approval", "Payment", "Amount due (INR)", "Checked in at fest", "Attended this event", "Registered at"] + [_csv_cell(q.label) for q in questions])
+    team_cols = ["Team", "Team leader"] if event.is_team_event else []
+    writer.writerow(["Name", "Email"] + team_cols + ["Approval", "Payment", "Amount due (INR)", "Checked in at fest", "Attended this event", "Registered at"] + [_csv_cell(q.label) for q in questions])
     for r in _registrations_for(db, event_id):
         by_question = {a.question_id: a.answer for a in r.answers}
+        team_cells = [_csv_cell(r.team_name), "yes" if r.is_team_leader else "no"] if event.is_team_event else []
         writer.writerow([
-            _csv_cell(r.user_name), _csv_cell(r.user_email),
+            _csv_cell(r.user_name), _csv_cell(r.user_email)] + team_cells + [
             r.approval_status.value, r.payment_status.value,
             "" if r.amount_due is None else f"{r.amount_due:g}",
             "yes" if r.checked_in else "no",
@@ -322,6 +458,8 @@ def _decide(registration_id: int, approve: bool, db: Session, user: models.User)
     if not registration:
         raise HTTPException(status_code=404, detail="Registration not found")
     _require_event_staff(db, registration.event, user)
+    if registration.team_id is not None:
+        raise HTTPException(status_code=400, detail="This person is in a team: approve or reject the whole team")
     if registration.approval_status != models.RegApprovalStatusEnum.pending:
         raise HTTPException(status_code=400, detail="Only pending registrations can be decided")
     registration.approval_status = (

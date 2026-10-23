@@ -172,7 +172,7 @@ def update_event(
     has_registrations = active_reg_count > 0
 
     updates = data.model_dump(exclude_unset=True)
-    for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode", "students_only"):
+    for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode", "students_only", "is_team_event"):
         if updates.get(non_nullable) is None:
             updates.pop(non_nullable, None)
 
@@ -188,6 +188,12 @@ def update_event(
             locked.append("students_only (cannot be turned on)")
         if "student_price" in updates:
             locked.append("student_price")
+        if "is_team_event" in updates and updates["is_team_event"] != event.is_team_event:
+            locked.append("is_team_event")
+        if updates.get("team_min") is not None and updates["team_min"] > (event.team_min or 0):
+            locked.append("team_min (cannot be raised)")
+        if updates.get("team_max") is not None and updates["team_max"] < (event.team_max or 0):
+            locked.append("team_max (cannot be lowered)")
         if "requires_registration" in updates:
             locked.append("requires_registration")
         if "is_paid" in updates:
@@ -216,6 +222,15 @@ def update_event(
     if event.event_type == models.EventTypeEnum.city and updates and current_user.role != models.RoleEnum.admin:
         event.status = models.StatusEnum.pending
         event.reject_reason = None
+
+    if event.is_team_event:
+        try:
+            schemas.check_team_settings(True, event.team_min, event.team_max, event.event_type == models.EventTypeEnum.fest, bool(event.requires_registration))
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc).capitalize())
+    else:
+        event.team_min = event.team_max = None
 
     if event.event_type == models.EventTypeEnum.fest:
         gaps = [label for label, value in (("venue", event.location), ("start time", event.time), ("end time", event.end_time), ("description", event.description)) if not (value or "").strip()]

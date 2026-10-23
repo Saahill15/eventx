@@ -77,6 +77,8 @@ class User(Base):
     student_verified_until = Column(DateTime, nullable=True)  # a verification lasts one year
     # Set when an admin makes the account an organiser; cleared once the person has seen the welcome screen
     organizer_welcome_pending = Column(Boolean, nullable=False, default=False, server_default="0")
+    google_sub       = Column(String(255), unique=True, nullable=True)   # the Google account linked to this one, if any
+    terms_accepted_at = Column(DateTime, nullable=True)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 
     interests         = relationship("UserInterest", back_populates="user")
@@ -86,6 +88,18 @@ class User(Base):
     fest_passes       = relationship("FestPass", back_populates="user", foreign_keys="FestPass.user_id")
 
     organizer_colleges = relationship("OrganizerCollege", cascade="all, delete-orphan")
+
+    @property
+    def has_password(self):
+        return bool(self.hashed_password)
+
+    @property
+    def google_linked(self):
+        return bool(self.google_sub)
+
+    @property
+    def profile_complete(self):
+        return self.date_of_birth is not None and self.terms_accepted_at is not None
 
     @property
     def college_ids(self):
@@ -149,6 +163,10 @@ class Event(Base):
     extra_sections        = Column(JSON, nullable=True)   # [{"title": "Rules", "body": "..."}]
     students_only         = Column(Boolean, default=False, nullable=False, server_default="0")
     student_price         = Column(Float, nullable=True)     # cheaper price for verified students; None = same price
+    # Team events: people register as a team. The leader creates it and shares a code; the seat limit then counts teams.
+    is_team_event         = Column(Boolean, default=False, nullable=False, server_default="0")
+    team_min              = Column(Integer, nullable=True)
+    team_max              = Column(Integer, nullable=True)
 
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
     cancelled_at  = Column(DateTime, nullable=True)
@@ -191,6 +209,28 @@ class AuthSession(Base):
     revoked_at   = Column(DateTime, nullable=True)
     ip           = Column(String(64), nullable=True)
     user_agent   = Column(String(200), nullable=True)
+
+class ShortLink(Base):
+    """A custom short address (hiveout.in/name) for one fest or event. One table, so a name can only ever be held by one thing."""
+    __tablename__ = "short_links"
+    __table_args__ = (UniqueConstraint("target_type", "target_id", name="uq_short_link_target"),)
+    id         = Column(Integer, primary_key=True, index=True)
+    name       = Column(String(40), unique=True, nullable=False, index=True)
+    target_type = Column(String(10), nullable=False)   # fest | event
+    target_id  = Column(Integer, nullable=False)
+    created_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+
+class PasswordReset(Base):
+    """A one-time link to choose a new password. Only a hash of the token is kept, so the table cannot be used to reset anyone."""
+    __tablename__ = "password_resets"
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at    = Column(DateTime, nullable=True)
+    ip         = Column(String(64), nullable=True)
 
 class AuthEvent(Base):
     """One sign-in attempt, successful or not. Admins can review these in the security log."""
@@ -362,6 +402,7 @@ class EventRegistration(Base):
     approval_status = Column(Enum(RegApprovalStatusEnum), default=RegApprovalStatusEnum.pending)
     payment_status  = Column(Enum(RegPaymentStatusEnum), default=RegPaymentStatusEnum.unpaid)
     amount_due      = Column(Float, nullable=True)   # what this student owes, after student pricing
+    team_id         = Column(Integer, ForeignKey("teams.id", name="fk_event_registrations_team_id"), nullable=True, index=True)
     attended        = Column(Boolean, default=False, nullable=False, server_default="0")
     attended_at     = Column(DateTime, nullable=True)
     attended_by     = Column(Integer, ForeignKey("users.id", name="fk_event_registrations_attended_by"), nullable=True)
@@ -370,6 +411,15 @@ class EventRegistration(Base):
     fest_pass = relationship("FestPass", back_populates="registrations")
     event     = relationship("Event", back_populates="registrations")
     answers   = relationship("RegistrationAnswer", back_populates="registration", cascade="all, delete-orphan")
+    team      = relationship("Team", back_populates="registrations")
+
+    @property
+    def team_name(self):
+        return self.team.name if self.team else None
+
+    @property
+    def is_team_leader(self):
+        return bool(self.team and self.fest_pass and self.team.leader_user_id == self.fest_pass.user_id)
 
     @property
     def user_name(self):
@@ -382,6 +432,38 @@ class EventRegistration(Base):
     @property
     def checked_in(self):
         return bool(self.fest_pass and self.fest_pass.checked_in)
+
+
+class Team(Base):
+    """A group registering together for a team event. Each member still has their own registration."""
+    __tablename__ = "teams"
+    __table_args__ = (UniqueConstraint("event_id", "name", name="uq_teams_event_name"),)
+    id             = Column(Integer, primary_key=True, index=True)
+    event_id       = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+    name           = Column(String(80), nullable=False)
+    code           = Column(String(12), unique=True, nullable=False, index=True)   # shared by the leader so others can join
+    leader_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at     = Column(DateTime, nullable=False)
+
+    event         = relationship("Event")
+    registrations = relationship("EventRegistration", back_populates="team")
+
+
+class FestTransfer(Base):
+    """A fest's director handing the fest to another organiser. It only happens once the other person accepts."""
+    __tablename__ = "fest_transfers"
+    id                  = Column(Integer, primary_key=True, index=True)
+    fest_id             = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    from_user_id        = Column(Integer, ForeignKey("users.id"), nullable=False)
+    to_user_id          = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    status              = Column(String(12), nullable=False, default="pending")   # pending | accepted | declined | cancelled
+    keep_previous_owner = Column(Boolean, nullable=False, default=True)            # the old director stays on as core team
+    created_at          = Column(DateTime, nullable=False)
+    decided_at          = Column(DateTime, nullable=True)
+
+    fest      = relationship("Fest")
+    from_user = relationship("User", foreign_keys=[from_user_id])
+    to_user   = relationship("User", foreign_keys=[to_user_id])
 
 
 class Department(Base):

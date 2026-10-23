@@ -5,6 +5,21 @@ from datetime import date, datetime
 
 MIN_PASSWORD_LENGTH = 8
 MIN_AGE = 13
+MAX_TEAM_SIZE = 50
+
+
+def check_team_settings(is_team: bool, team_min, team_max, is_fest_event: bool, requires_registration: bool) -> None:
+    """Rules for a team event, shared by creating, editing and importing events."""
+    if not is_team:
+        return
+    if not is_fest_event:
+        raise ValueError("only fest events can be team events")
+    if not requires_registration:
+        raise ValueError("a team event needs registration turned on")
+    if team_min is None or team_max is None:
+        raise ValueError("a team event needs a smallest and a largest team size")
+    if team_min > team_max:
+        raise ValueError("the smallest team size cannot be bigger than the largest")
 
 PHONE_PATTERN = r"^\+?[0-9 ()-]{7,20}$"
 TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
@@ -35,6 +50,15 @@ def check_sections(v):
     return v
 
 # Auth
+def check_date_of_birth(v: date) -> date:
+    today = date.today()
+    age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+    if age < MIN_AGE:
+        raise ValueError(f"you must be at least {MIN_AGE} years old to create an account")
+    if age > 110:
+        raise ValueError("please check the date of birth")
+    return v
+
 NamePart = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 class SignupEmail(BaseModel):
@@ -45,16 +69,7 @@ class SignupEmail(BaseModel):
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
     accept_terms: bool
 
-    @field_validator("date_of_birth")
-    @classmethod
-    def sensible_age(cls, v):
-        today = date.today()
-        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
-        if age < MIN_AGE:
-            raise ValueError(f"you must be at least {MIN_AGE} years old to create an account")
-        if age > 110:
-            raise ValueError("please check the date of birth")
-        return v
+    _check_age = field_validator("date_of_birth")(lambda cls, v: check_date_of_birth(v))
 
     @field_validator("accept_terms")
     @classmethod
@@ -67,6 +82,38 @@ class SignupEmail(BaseModel):
     @classmethod
     def lowercase_email(cls, v):
         return v.lower()
+
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v):
+        return v.lower()
+
+class ForgotPasswordOut(BaseModel):
+    message: str
+    dev_link: Optional[str] = None   # development only, until email is set up: the link that would have been sent
+
+class ResetPassword(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=128)
+
+class GoogleSignIn(BaseModel):
+    credential: str = Field(min_length=20, max_length=4096)   # the ID token Google's button hands the browser
+
+class CompleteProfile(BaseModel):
+    date_of_birth: date
+    accept_terms: bool
+
+    _check_age = field_validator("date_of_birth")(lambda cls, v: check_date_of_birth(v))
+
+    @field_validator("accept_terms")
+    @classmethod
+    def must_accept(cls, v):
+        if v is not True:
+            raise ValueError("you need to accept the terms to continue")
+        return v
 
 class LoginEmail(BaseModel):
     email: EmailStr
@@ -91,6 +138,8 @@ class Token(BaseModel):
     token_type: str
     role: str
     interests_set: bool
+    profile_complete: Optional[bool] = None
+    notice: Optional[str] = None                # something the person should be told after signing in
     expires_in: Optional[int] = None            # seconds until the token expires outright
     idle_timeout_seconds: Optional[int] = None  # seconds of inactivity before the session ends
 
@@ -131,6 +180,9 @@ class UserOut(BaseModel):
     is_student_verified: bool = False
     college_ids: List[int] = []   # for organisers: the colleges they may list fests for
     organizer_welcome_pending: bool = False
+    has_password: bool = True
+    google_linked: bool = False
+    profile_complete: bool = True   # false until a date of birth and the terms are on file (e.g. after signing up with Google)
     created_at: datetime
     class Config:
         from_attributes = True
@@ -188,8 +240,16 @@ class EventCreate(BaseModel):
     students_only:         bool = False
     student_price:         Optional[float] = Field(default=None, ge=0)  # cheaper price for verified students
 
+    # Team events: the seat limit counts teams
+    is_team_event:         bool = False
+    team_min:              Optional[int] = Field(default=None, ge=1, le=MAX_TEAM_SIZE)
+    team_max:              Optional[int] = Field(default=None, ge=2, le=MAX_TEAM_SIZE)
+
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
+        check_team_settings(self.is_team_event, self.team_min, self.team_max, self.event_type == "fest", bool(self.requires_registration))
+        if not self.is_team_event:
+            self.team_min = self.team_max = None
         if self.student_price is not None:
             if self.is_free:
                 self.student_price = None
@@ -247,6 +307,9 @@ class EventOut(BaseModel):
     approval_mode: str = "auto"
     students_only: bool = False
     student_price: Optional[float] = None
+    is_team_event: bool = False
+    team_min: Optional[int] = None
+    team_max: Optional[int] = None
     cancelled: bool = False
     cancel_reason: Optional[str] = None
     reject_reason: Optional[str] = None
@@ -274,12 +337,16 @@ class EventUpdate(BaseModel):
     approval_mode:         Optional[Literal["auto", "manual"]] = None
     students_only:         Optional[bool] = None
     student_price:         Optional[float] = Field(default=None, ge=0)
+    is_team_event:         Optional[bool] = None
+    team_min:              Optional[int] = Field(default=None, ge=1, le=MAX_TEAM_SIZE)
+    team_max:              Optional[int] = Field(default=None, ge=2, le=MAX_TEAM_SIZE)
 
     _check_sections = field_validator("extra_sections")(check_sections)
     _clean_image = field_validator("image_url")(clean_url)
 
 # Fest
-RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass", "mine", "fests", "city-events"}
+# Words the API itself uses after /fests/, so a fest may not take them as its address
+RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass", "mine"}
 
 class FestCreate(BaseModel):
     """Starting a fest needs only a name, a web address and the college. Everything else is filled in before review."""
@@ -483,6 +550,7 @@ class EventRegistrationOut(BaseModel):
     id: int
     fest_pass_id: int
     event_id: int
+    team_id: Optional[int] = None
     approval_status: str
     payment_status: str
     amount_due: Optional[float] = None
@@ -493,6 +561,8 @@ class EventRegistrationOut(BaseModel):
 class EventRegistrationDetailOut(EventRegistrationOut):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
+    team_name: Optional[str] = None
+    is_team_leader: bool = False
     checked_in: bool = False
     answers: List["AnswerOut"] = []
 
@@ -764,6 +834,21 @@ class FestReviewOut(BaseModel):
     events: List[ReviewEvent] = []
     missing: List[str] = []           # anything still incomplete
     owners: List[str] = []            # names and emails of the fest's directors
+    short_link: Optional[str] = None  # the custom short name the fest holds, if any
+
+class ShortLinkIn(BaseModel):
+    name: str
+
+class ShortLinkOut(BaseModel):
+    name: Optional[str] = None        # the short name the fest holds, if any
+    path: Optional[str] = None        # "/the-name"
+    target_path: str                  # where it leads, e.g. "/fests/mood-indigo"
+    enabled: bool = True              # false when the feature is part of a plan this account does not have
+
+class ShortLinkCheck(BaseModel):
+    name: str
+    available: bool
+    reason: Optional[str] = None      # invalid | reserved | taken
 
 class EventRejection(BaseModel):
     reason: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]] = None
@@ -774,3 +859,70 @@ class ChecklistOut(BaseModel):
 class SubmitOut(BaseModel):
     fest: FestManageOut
     missing: List[str] = []
+
+
+# Teams
+class TeamCreate(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    answers: List[AnswerIn] = []
+
+class TeamJoin(BaseModel):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, to_upper=True, min_length=4, max_length=12)]
+    answers: List[AnswerIn] = []
+
+class TeamMemberOut(BaseModel):
+    registration_id: int
+    name: Optional[str] = None
+    email: Optional[str] = None        # only shown to the committee
+    is_leader: bool = False
+    approval_status: str
+    attended: bool = False
+
+class TeamOut(BaseModel):
+    id: int
+    event_id: int
+    name: str
+    code: Optional[str] = None         # only shown to the team and the committee
+    size: int
+    team_min: Optional[int] = None
+    team_max: Optional[int] = None
+    complete: bool                     # has at least the smallest allowed number of members
+    status: str                        # the team's approval status: pending | approved | rejected
+    i_am_leader: bool = False
+    members: List[TeamMemberOut] = []
+
+
+# Fest transfers
+class TransferCreate(BaseModel):
+    email: EmailStr
+    keep_me: bool = True               # stay on as core team after handing over
+
+class AdminOwnerChange(BaseModel):
+    email: EmailStr
+    keep_previous_owner: bool = True
+
+class TransferOut(BaseModel):
+    id: int
+    fest_slug: str
+    fest_name: str
+    from_name: Optional[str] = None
+    from_email: Optional[str] = None
+    to_name: Optional[str] = None
+    to_email: Optional[str] = None
+    status: str
+    keep_previous_owner: bool
+    created_at: datetime
+
+
+# Bulk import
+class ImportRowOut(BaseModel):
+    line: int
+    title: str = ""
+    errors: List[str] = []
+
+class ImportResult(BaseModel):
+    dry_run: bool
+    rows: List[ImportRowOut] = []
+    file_errors: List[str] = []
+    valid: int = 0
+    created: int = 0

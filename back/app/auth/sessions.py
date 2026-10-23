@@ -59,7 +59,7 @@ def start_session(db: Session, user: models.User, request: Optional[Request] = N
     db.commit()
     token = create_token({"sub": str(user.id), "sid": session.id}, expires_in=max_age)
     return {
-        "access_token": token, "token_type": "bearer", "role": user.role, "interests_set": user.interests_set,
+        "access_token": token, "token_type": "bearer", "role": user.role, "interests_set": user.interests_set, "profile_complete": user.profile_complete,
         "expires_in": int(max_age.total_seconds()), "idle_timeout_seconds": int(idle.total_seconds()),
     }
 

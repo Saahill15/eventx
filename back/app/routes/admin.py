@@ -203,6 +203,7 @@ def _review_view(db: Session, fest: models.Fest) -> schemas.FestReviewOut:
         events=[schemas.ReviewEvent.model_validate(e, from_attributes=True) for e in events],
         missing=fest_missing(fest, events),
         owners=[f"{m.user_name} <{m.user_email}>" for m in owners],
+        short_link=(lambda r: r.name if r else None)(db.query(models.ShortLink).filter(models.ShortLink.target_type == "fest", models.ShortLink.target_id == fest.id).first()),
     )
 
 
@@ -284,6 +285,16 @@ def unpublish_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(ge
     db.commit()
     db.refresh(fest)
     return _review_view(db, fest)
+
+
+@router.delete("/short-links/{name}")
+def release_short_link(name: str, db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Take a short name away from whoever holds it, for example one that turns out to be misleading."""
+    n = db.query(models.ShortLink).filter(models.ShortLink.name == name.strip().lower()).delete()
+    if not n:
+        raise HTTPException(status_code=404, detail="No one holds that name")
+    db.commit()
+    return {"message": "Released"}
 
 
 @router.get("/events/pending")

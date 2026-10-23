@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -42,6 +43,19 @@ def change_password(data: schemas.PasswordChange, db: Session = Depends(get_db),
     revoke_user_sessions(db, current_user.id, except_sid=current_user.current_sid)  # other devices must sign in again
     db.commit()
     return {"message": "Password changed"}
+
+
+@router.post("/me/complete-profile", response_model=schemas.UserOut)
+def complete_profile(data: schemas.CompleteProfile, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """For accounts made without the sign-up form (Google, or older accounts): add a date of birth and accept the terms once."""
+    if current_user.date_of_birth is not None and current_user.date_of_birth != data.date_of_birth:
+        raise HTTPException(status_code=400, detail="Your date of birth is already on file")
+    current_user.date_of_birth = data.date_of_birth
+    if current_user.terms_accepted_at is None:
+        current_user.terms_accepted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 
 
 @router.post("/me/organizer-welcome/seen")

@@ -14,11 +14,12 @@ from test_full import client, auth, create_college, reset_db, TestingSessionLoca
 # Endpoints anyone may call without signing in. Anything not listed here must refuse anonymous callers.
 PUBLIC = {
     ("GET", "/"), ("POST", "/api/auth/signup"), ("POST", "/api/auth/login"), ("POST", "/api/auth/admin/login"),
+    ("POST", "/api/auth/password/forgot"), ("GET", "/api/auth/password/reset/check"), ("POST", "/api/auth/password/reset"), ("POST", "/api/auth/google"),
     ("GET", "/api/colleges/"), ("GET", "/api/colleges/{college_id}"), ("GET", "/api/colleges/{college_id}/events"),
     ("GET", "/api/events/"), ("GET", "/api/events/city"), ("GET", "/api/events/{event_id}"),
     ("GET", "/api/fests/"), ("GET", "/api/fests/{slug}"), ("GET", "/api/fests/{slug}/events"),
     ("GET", "/api/fests/{slug}/announcements"), ("GET", "/api/users/interests/all"), ("GET", "/api/events/{event_id}/questions"),
-    ("GET", "/api/media/{media_id}"),
+    ("GET", "/api/media/{media_id}"), ("GET", "/api/short-links/resolve/{name}"),
 }
 
 

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401  (registers the tables with Base.metadata)
 from app.migrate import run_migrations
 from app.seed import seed
-from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements
+from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements, short_links, transfers, event_import
 
 IS_PRODUCTION = os.getenv("APP_ENV", "development") == "production"
 
@@ -54,6 +54,9 @@ app.include_router(media.router,          prefix="/api/media",       tags=["Medi
 app.include_router(event_questions.router, prefix="/api/events",     tags=["Event questions"])
 app.include_router(announcements.router,  prefix="/api/fests",       tags=["Announcements"])
 app.include_router(announcements.notifications_router, prefix="/api/users/me", tags=["Announcements"])
+app.include_router(transfers.router,     prefix="/api",             tags=["Fest transfers"])
+app.include_router(event_import.router,  prefix="/api/fests",       tags=["Event import"])
+app.include_router(short_links.router,   prefix="/api/short-links", tags=["Short links"])
 app.include_router(gate.router,           prefix="/api/fests",       tags=["Gate"])
 app.include_router(fest_events.router,   prefix="/api/fest-events", tags=["FestEventRegistrations"])
 

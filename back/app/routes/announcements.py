@@ -89,7 +89,7 @@ def _send_all(announcement_id: int, subject: str, text: str, addresses: List[str
 
 
 def _email_text(fest: models.Fest, title: str, body: str) -> str:
-    return f"{title}\n\n{body}\n\nFrom {fest.name} on HiveOut: {_site_url()}/fest/{fest.slug}"
+    return f"{title}\n\n{body}\n\nFrom {fest.name} on HiveOut: {_site_url()}/fests/{fest.slug}"
 
 
 def _create(db: Session, fest: models.Fest, event: Optional[models.Event], author: models.User, title: str, body: str, email: bool, background: BackgroundTasks) -> models.Announcement:
