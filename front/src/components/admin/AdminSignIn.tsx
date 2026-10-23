@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
@@ -44,6 +45,7 @@ export function AdminSignIn({ next, expired }: { next?: string; expired?: boolea
         <Field label="Email"><input className="field" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Password"><input className="field" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
         <Button type="submit" size="lg" className="w-full" disabled={busy}>{busy ? "Please wait…" : "Sign in"}</Button>
+        <p className="text-center text-sm"><Link href="/forgot-password?admin=1" className="font-semibold text-mute underline underline-offset-4 hover:text-ink">Forgot password?</Link></p>
       </form>
     </div>
   );

@@ -69,8 +69,16 @@ function Security() {
   };
   const end = async (id: string) => { await api(`/api/auth/sessions/${id}`, { method: "DELETE" }).catch(() => {}); load(); };
 
+  const { user } = useAuth();
   return (
     <>
+      {user && !user.has_password ? (
+        <div className="card space-y-3 p-7">
+          <h2 className="font-display text-xl font-semibold tracking-tight">Password</h2>
+          <p className="text-sm text-mute">You sign in with Google. To also sign in with your email and a password, set one with a reset link.</p>
+          <Button href="/forgot-password" variant="outline">Set a password</Button>
+        </div>
+      ) : (
       <form onSubmit={changePassword} className="card space-y-4 p-7">
         <h2 className="font-display text-xl font-semibold tracking-tight">Change password</h2>
         <ErrorNote>{error}</ErrorNote>
@@ -79,6 +87,8 @@ function Security() {
         <Field label="New password" hint="At least 8 characters."><input className="field" type="password" required minLength={8} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></Field>
         <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Change password"}</Button>
       </form>
+      )}
+      {user?.google_linked && <p className="px-1 text-sm text-mute">Your Google account is linked: you can also sign in with Google.</p>}
 
       <div className="card space-y-4 p-7">
         <div className="flex items-center justify-between gap-3">

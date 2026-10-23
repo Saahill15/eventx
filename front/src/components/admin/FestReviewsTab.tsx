@@ -11,7 +11,7 @@ import { Chips, Detail, useAction, useCounts, when } from "./shared";
 
 const FILTERS = [
   { id: "in_review", label: "In review" }, { id: "changes_requested", label: "Changes requested" },
-  { id: "approved", label: "Approved" }, { id: "rejected", label: "Rejected" }, { id: "draft", label: "Drafts" },
+  { id: "approved", label: "Approved" }, { id: "rejected", label: "Rejected" },
 ] as const;
 type Filter = (typeof FILTERS)[number]["id"];
 const tone = { in_review: "amber", changes_requested: "amber", approved: "green", rejected: "red", draft: "neutral" } as const;
@@ -56,6 +56,7 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
             <Detail label="Committee contact">{[f.contact_name, f.contact_phone, f.contact_email].filter(Boolean).join(" · ")}</Detail>
             <Detail label="Faculty coordinator">{[f.faculty_name, f.faculty_phone, f.faculty_email].filter(Boolean).join(" · ")}</Detail>
             <Detail label="Directors">{r.owners.join(", ")}</Detail>
+            <Detail label="Short link">{r.short_link ? `/${r.short_link}` : ""}</Detail>
             <Detail label="College partnership">{r.college ? `${r.college.partner_status === "partner" ? "Partner" : "Prospect"}${r.college.coordinator_name ? ` · ${r.college.coordinator_name}` : ""}${r.college.coordinator_phone ? ` · ${r.college.coordinator_phone}` : ""}` : "No college linked"}</Detail>
           </dl>
           {f.description && <p className="whitespace-pre-line text-sm text-neutral-700">{f.description}</p>}
@@ -71,8 +72,10 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
 
           <div className="flex flex-wrap gap-2">
             <Link href={`/dashboard/fests/${f.slug}`} className="inline-flex h-9 items-center rounded-full bg-white px-4 text-sm font-semibold shadow-[var(--shadow-card)] hover:bg-wash">Open the fest as its organisers see it</Link>
-            {f.status === "live" && <Link href={`/fest/${f.slug}`} className="inline-flex h-9 items-center rounded-full bg-white px-4 text-sm font-semibold shadow-[var(--shadow-card)] hover:bg-wash">Public page</Link>}
+            {f.status === "live" && <Link href={`/fests/${f.slug}`} className="inline-flex h-9 items-center rounded-full bg-white px-4 text-sm font-semibold shadow-[var(--shadow-card)] hover:bg-wash">Public page</Link>}
           </div>
+
+          <ChangeDirector slug={f.slug} onDone={onDone} />
 
           {f.review_status === "approved" && (
             <div className="space-y-3 border-t border-black/5 pt-5">
@@ -113,9 +116,29 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
   );
 }
 
+/** Admin: make another organiser this fest's director straight away (for example when the director has left). */
+function ChangeDirector({ slug, onDone }: { slug: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [keep, setKeep] = useState(true);
+  const act = useAction(onDone);
+  if (!open) return <button onClick={() => setOpen(true)} className="text-sm font-semibold underline underline-offset-4">Change director</button>;
+  return (
+    <div className="space-y-3 rounded-2xl bg-wash p-4">
+      <ErrorNote>{act.error}</ErrorNote>
+      <input className="field" type="email" placeholder="New director's email (an organiser for this college)" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4 accent-[#111]" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> Keep the current director on as core team</label>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={act.busy || !email.includes("@")} onClick={async () => { if (await act.run(() => api(`/api/admin/fests/${slug}/owner`, { method: "POST", body: { email: email.trim(), keep_previous_owner: keep } }))) { setOpen(false); setEmail(""); } }}>Make director now</Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 export function FestReviewsTab() {
   const o = useCounts();
-  const counts: Partial<Record<Filter, number>> = { in_review: o?.fests_in_review, changes_requested: o?.fests_changes_requested, draft: o?.fests_draft };
+  const counts: Partial<Record<Filter, number>> = { in_review: o?.fests_in_review, changes_requested: o?.fests_changes_requested };
   const [filter, setFilter] = useState<Filter>("in_review");
   const [rows, setRows] = useState<FestReview[] | null>(null);
   const [error, setError] = useState("");

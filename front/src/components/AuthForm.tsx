@@ -8,6 +8,7 @@ import { QrCode, Ticket, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "./ui/Button";
 import { ErrorNote, Field, Notice } from "./ui/bits";
+import { GoogleButton } from "./GoogleButton";
 
 /** Only follow same-site paths after signing in, so a crafted link cannot send people elsewhere. */
 const safeNext = (next: string | undefined) => (next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
@@ -22,18 +23,19 @@ const PERKS = [
 const HOME: Record<string, string> = { admin: "/admin", organizer: "/dashboard" };
 
 export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; next?: string; expired?: boolean }) {
-  const { user, loading, login, signup } = useAuth();
+  const { user, loading, login, signup, googleSignIn } = useAuth();
   const router = useRouter();
   const [f, setF] = useState({ first_name: "", last_name: "", email: "", date_of_birth: "", password: "", confirm: "", accept_terms: false });
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<{ text: string; to: string } | null>(null);
   const isSignup = mode === "signup";
   const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? (e.target as HTMLInputElement).checked : e.target.value }));
 
   // Someone who is already signed in has no use for this page
-  useEffect(() => { if (!loading && user && !busy) router.replace(next ? safeNext(next) : (HOME[user.role] ?? "/")); }, [loading, user, busy, router, next]);
+  useEffect(() => { if (!loading && user && !busy && !notice) router.replace(next ? safeNext(next) : (HOME[user.role] ?? "/")); }, [loading, user, busy, notice, router, next]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +49,25 @@ export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; ne
       router.push(next ? safeNext(next) : (HOME[result.role] ?? "/"));
     } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong."); setBusy(false); }
   };
+
+  const google = async (credential: string) => {
+    setBusy(true); setError("");
+    try {
+      const result = await googleSignIn(credential);
+      const to = next ? safeNext(next) : (HOME[result.role] ?? "/");
+      // Something to read first, such as the old password being switched off when Google is linked
+      if (result.notice) { setNotice({ text: result.notice, to }); setBusy(false); } else router.push(to);
+    } catch (err) { setError(err instanceof Error ? err.message : "Google sign-in failed."); setBusy(false); }
+  };
+
+  if (notice) {
+    return (
+      <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-md flex-col justify-center gap-5 px-5">
+        <Notice tone="info">{notice.text}</Notice>
+        <Button size="lg" onClick={() => router.push(notice.to)}>Continue</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-[1760px] gap-6 px-5 py-6 sm:px-8 lg:grid-cols-2">
@@ -64,6 +85,8 @@ export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; ne
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="w-full max-w-md py-8">
           <h1 className="font-display text-4xl font-semibold tracking-[-0.02em]">{isSignup ? "Create your account" : "Welcome back"}</h1>
           <p className="mb-8 mt-2 text-mute">{isSignup ? "One free account for every fest on HiveOut." : "Sign in to see your passes and register for events."}</p>
+          <GoogleButton onCredential={google} label={isSignup ? "signup_with" : "signin_with"} />
+          <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-mute"><span className="h-px flex-1 bg-black/10" />or with email<span className="h-px flex-1 bg-black/10" /></div>
           <form onSubmit={submit} className="space-y-4">
             <ErrorNote>{error}</ErrorNote>
             {error.toLowerCase().includes("admin sign-in") && <p className="text-sm"><Link href="/admin/login" className="font-semibold underline underline-offset-4">Go to the admin sign-in</Link></p>}
@@ -82,6 +105,7 @@ export function AuthForm({ mode, next, expired }: { mode: "login" | "signup"; ne
                 <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-mute hover:text-ink">{showPassword ? "Hide" : "Show"}</button>
               </div>
             </Field>
+            {!isSignup && <p className="-mt-2 text-right text-sm"><Link href="/forgot-password" className="font-semibold text-mute underline underline-offset-4 hover:text-ink">Forgot password?</Link></p>}
             {isSignup && <Field label="Confirm password"><input className="field" type={showPassword ? "text" : "password"} required autoComplete="new-password" value={f.confirm} onChange={set("confirm")} /></Field>}
             {isSignup && (
               <label className="flex items-start gap-3 text-sm text-neutral-700">

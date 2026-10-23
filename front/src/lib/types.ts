@@ -15,6 +15,9 @@ export interface User {
   is_student_verified: boolean;
   college_ids: number[];
   organizer_welcome_pending: boolean;
+  has_password: boolean;
+  google_linked: boolean;
+  profile_complete: boolean;
   created_at: string;
 }
 
@@ -87,6 +90,9 @@ export interface FestEvent {
   is_paid: boolean;
   registration_limit: number | null;
   approval_mode: "auto" | "manual";
+  is_team_event: boolean;
+  team_min: number | null;
+  team_max: number | null;
   end_time: string | null;
   extra_sections: ExtraSection[] | null;
   students_only: boolean;
@@ -125,6 +131,7 @@ export interface Registration {
   id: number;
   fest_pass_id: number;
   event_id: number;
+  team_id: number | null;
   approval_status: "pending" | "approved" | "rejected";
   payment_status: "unpaid" | "paid";
   created_at: string;
@@ -144,6 +151,8 @@ export interface AuthResult {
   interests_set: boolean;
   expires_in?: number;
   idle_timeout_seconds?: number;
+  profile_complete?: boolean;
+  notice?: string | null;
 }
 
 export type FestRole = "owner" | "core" | "volunteer" | "admin";
@@ -167,11 +176,21 @@ export interface ManagedEvent extends FestEvent {
   pending_count: number;
 }
 
+export interface TeamMember { registration_id: number; name: string | null; email: string | null; is_leader: boolean; approval_status: "pending" | "approved" | "rejected"; attended: boolean }
+export interface Team {
+  id: number; event_id: number; name: string; code: string | null; size: number; team_min: number | null; team_max: number | null;
+  complete: boolean; status: "pending" | "approved" | "rejected"; i_am_leader: boolean; members: TeamMember[];
+}
+export interface FestTransfer { id: number; fest_slug: string; fest_name: string; from_name: string | null; from_email: string | null; to_name: string | null; to_email: string | null; status: string; keep_previous_owner: boolean; created_at: string }
+export interface ImportResult { dry_run: boolean; rows: { line: number; title: string; errors: string[] }[]; file_errors: string[]; valid: number; created: number }
+
 export interface RegistrationDetail extends Registration {
   user_name: string | null;
   user_email: string | null;
   checked_in: boolean;
   answers: { question_id: number; label: string; answer: string }[];
+  team_name: string | null;
+  is_team_leader: boolean;
 }
 
 export interface Member {
@@ -213,6 +232,7 @@ export interface FestReview {
   events: { id: number; title: string; date: string; time: string | null; end_time: string | null; location: string | null; price: number }[];
   missing: string[];
   owners: string[];
+  short_link: string | null;
 }
 
 export interface VerificationReview {

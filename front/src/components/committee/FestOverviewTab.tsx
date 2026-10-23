@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { ErrorNote, Notice, Skeleton } from "@/components/ui/bits";
 import { Stat } from "@/components/admin/shared";
 import { ReviewPill } from "./CommitteeShell";
+import { ShortLinkCard } from "./ShortLinkCard";
 
 const STEPS = [
   { id: "draft", label: "Build your fest" }, { id: "in_review", label: "HiveOut reviews it" }, { id: "approved", label: "Approved" }, { id: "live", label: "Live for students" },
@@ -85,6 +86,8 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
           )}
         </section>
       )}
+
+      {canSubmit && <ShortLinkCard slug={fest.slug} live={fest.status === "live"} />}
 
       {stats ? (
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">

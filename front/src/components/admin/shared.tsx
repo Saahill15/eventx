@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import type { AdminOverview } from "@/lib/types";
 
@@ -29,14 +30,46 @@ export function useAction(reload: () => void) {
 export function Stat({ label, value, hint, tone = "plain", onClick }: { label: string; value: number | string; hint?: string; tone?: "plain" | "alert"; onClick?: () => void }) {
   const body = (
     <>
-      <p className="text-sm font-medium text-mute">{label}</p>
-      <p className={`mt-2 font-display text-4xl font-bold tracking-tight ${tone === "alert" && Number(value) > 0 ? "text-tint-ink" : ""}`}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-mute">{hint}</p>}
+      <p className="text-[13px] text-mute">{label}</p>
+      <p className={`mt-1 text-[28px] font-semibold leading-none tracking-tight ${tone === "alert" && Number(value) > 0 ? "text-[var(--ws-accent)]" : ""}`}>{value}</p>
+      {hint && <p className="mt-1.5 text-[13px] text-mute">{hint}</p>}
     </>
   );
   return onClick
-    ? <button onClick={onClick} className="card p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]">{body}</button>
+    ? <button onClick={onClick} className="card p-5 text-left transition hover:bg-black/[0.015]">{body}</button>
     : <div className="card p-5">{body}</div>;
+}
+
+/** Several numbers in one card, split into cells. */
+export function StatStrip({ items }: { items: { label: string; value: number | string; hint?: string; alert?: boolean; href?: string }[] }) {
+  return (
+    <div className="card grid grid-cols-2 overflow-hidden lg:grid-cols-4">
+      {items.map((s, n) => {
+        const body = (
+          <>
+            <p className="text-[13px] text-mute">{s.label}</p>
+            <p className={`mt-1.5 text-[28px] font-semibold leading-none tracking-tight ${s.alert && Number(s.value) > 0 ? "text-[var(--ws-accent)]" : ""}`}>{s.value}</p>
+            <p className="mt-2 min-h-[1.25rem] text-[13px] text-mute">{s.hint}</p>
+          </>
+        );
+        const cell = `border-[var(--ws-border)] p-5 ${n % 2 === 1 ? "border-l" : ""} ${n >= 2 ? "border-t lg:border-t-0" : ""} ${n > 0 ? "lg:border-l" : ""}`;
+        return s.href ? <Link key={s.label} href={s.href} className={`${cell} block transition hover:bg-black/[0.015]`}>{body}</Link> : <div key={s.label} className={cell}>{body}</div>;
+      })}
+    </div>
+  );
+}
+
+/** A white card with a title row (and an optional link on the right) and a body. */
+export function ListCard({ title, count, href, linkLabel = "View all", children }: { title: string; count?: number; href?: string; linkLabel?: string; children: ReactNode }) {
+  return (
+    <section className="card overflow-hidden">
+      <div className="flex h-12 items-center justify-between border-b border-[var(--ws-border)] px-5">
+        <h2 className="text-[14px] font-semibold">{title}{count !== undefined && <span className="ml-2 font-normal text-mute">{count}</span>}</h2>
+        {href && <Link href={href} className="text-[13px] text-mute hover:text-ink">{linkLabel}</Link>}
+      </div>
+      {children}
+    </section>
+  );
 }
 
 export function Chips<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { id: T; label: string; count?: number }[] }) {

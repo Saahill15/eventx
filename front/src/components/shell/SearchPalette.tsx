@@ -30,7 +30,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
 
   const hits = useMemo<Hit[]>(() => {
     const term = q.trim().toLowerCase();
-    const festHits: Hit[] = fests.filter((f) => !term || `${f.name} ${f.tagline ?? ""}`.toLowerCase().includes(term)).map((f) => ({ key: `f${f.id}`, href: `/fest/${f.slug}`, title: f.name, sub: f.tagline ?? "College fest", kind: "fest" }));
+    const festHits: Hit[] = fests.filter((f) => !term || `${f.name} ${f.tagline ?? ""}`.toLowerCase().includes(term)).map((f) => ({ key: `f${f.id}`, href: `/fests/${f.slug}`, title: f.name, sub: f.tagline ?? "College fest", kind: "fest" }));
     const eventHits: Hit[] = events.filter((e) => !term || `${e.title} ${e.location ?? ""} ${e.fest_name ?? ""} ${e.category ?? ""}`.toLowerCase().includes(term)).map((e) => ({ key: `e${e.id}`, href: `/events/${e.id}`, title: e.title, sub: `${formatDay(e.date)}${e.fest_name ? ` · ${e.fest_name}` : ""}`, kind: "event" }));
     return [...festHits, ...eventHits].slice(0, 8);
   }, [q, fests, events]);

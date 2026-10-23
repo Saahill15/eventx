@@ -62,7 +62,7 @@ export default async function Home() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               {showcase.length > 0 ? showcase.slice(0, 3).map((f, i) => (
-                <Link key={f.id} href={`/fest/${f.slug}`} className={`group relative overflow-hidden rounded-3xl bg-wash transition hover:-translate-y-1 hover:shadow-[var(--shadow-pop)] ${i === 0 ? "col-span-2 aspect-[16/9]" : "aspect-square"}`}>
+                <Link key={f.id} href={`/fests/${f.slug}`} className={`group relative overflow-hidden rounded-3xl bg-wash transition hover:-translate-y-1 hover:shadow-[var(--shadow-pop)] ${i === 0 ? "col-span-2 aspect-[16/9]" : "aspect-square"}`}>
                   <div className="h-full w-full transition duration-700 group-hover:scale-105"><PosterArt id={f.id} title={f.name} image={f.banner_url} kicker="College fest" showTitle={false} /></div>
                   <div className="glass-photo absolute inset-x-2.5 bottom-2.5 rounded-2xl px-4 py-3"><p className="truncate font-display text-lg font-semibold">{f.name}</p></div>
                 </Link>

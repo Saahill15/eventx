@@ -30,6 +30,10 @@ eventx/
 
 ## Run locally
 
+Easiest: from the project folder run `./dev.sh`. It starts the API and the website together with the bundled Node and Python, and Ctrl+C stops both.
+
+Or by hand:
+
 Backend (Python 3.9+):
 
 ```bash

@@ -16,7 +16,7 @@ export function OrganizerWelcome() {
   const { user, refresh } = useAuth();
   const router = useRouter();
   const [colleges, setColleges] = useState<College[]>([]);
-  const show = !!user && user.role === "organizer" && user.organizer_welcome_pending;
+  const show = !!user && user.role === "organizer" && user.organizer_welcome_pending && user.profile_complete;
 
   useEffect(() => { if (show) api<College[]>("/api/colleges/").then(setColleges).catch(() => {}); }, [show]);
   if (!show || !user) return null;

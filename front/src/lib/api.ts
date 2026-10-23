@@ -59,10 +59,14 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   return body as T;
 }
 
-/** Server-side read of public data. Returns null when the API is down so pages can show a friendly state. */
+/**
+ * Server-side read of public data. Returns null when the API is down so pages can show a friendly state.
+ * Pass revalidate = 0 for a single fest or event: when one is taken offline the API answers 404, and a saved copy that only
+ * refreshes on success would keep showing it. Lists are fine to keep for a short while, since they simply get shorter.
+ */
 async function publicGet<T>(path: string, revalidate = 30): Promise<T | null> {
   try {
-    const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
+    const res = await fetch(`${API_URL}${path}`, revalidate === 0 ? { cache: "no-store" } : { next: { revalidate } });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -71,11 +75,11 @@ async function publicGet<T>(path: string, revalidate = 30): Promise<T | null> {
 }
 
 export const getLiveFests = () => publicGet<Fest[]>("/api/fests/");
-export const getFestBySlug = (slug: string) => publicGet<Fest>(`/api/fests/${encodeURIComponent(slug)}`);
-export const getFestEvents = (slug: string) => publicGet<FestEvent[]>(`/api/fests/${encodeURIComponent(slug)}/events`);
+export const getFestBySlug = (slug: string) => publicGet<Fest>(`/api/fests/${encodeURIComponent(slug)}`, 0);
+export const getFestEvents = (slug: string) => publicGet<FestEvent[]>(`/api/fests/${encodeURIComponent(slug)}/events`, 0);
 export const getAllEvents = () => publicGet<FestEvent[]>("/api/events/");
 export const getCityEvents = () => publicGet<FestEvent[]>("/api/events/city");
-export const getEventById = (id: string) => publicGet<FestEvent>(`/api/events/${encodeURIComponent(id)}`);
+export const getEventById = (id: string) => publicGet<FestEvent>(`/api/events/${encodeURIComponent(id)}`, 0);
 export const getColleges = () => publicGet<College[]>("/api/colleges/", 120);
 
 /** Download a file (such as a CSV) from a protected endpoint and hand it to the browser as a save-as. */
@@ -115,6 +119,22 @@ export async function openFile(path: string): Promise<void> {
 /** Uploaded images come back as /api/media/<id>, which lives on the API server, not on this site. */
 export const mediaSrc = (url: string | null | undefined): string | null => (url ? (url.startsWith("/api/media/") ? `${API_URL}${url}` : url) : null);
 
+/** Send a file (multipart) to a protected endpoint and read the JSON answer. */
+export async function postFile<T>(path: string, file: File): Promise<T> {
+  const token = window.localStorage.getItem("token");
+  const form = new FormData();
+  form.append("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { method: "POST", body: form, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError("Cannot reach the server. Check your connection and try again.", 0);
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(messageFrom(res.status, body), res.status);
+  return body as T;
+}
+
 /** Upload a JPEG, PNG or WebP (up to 3 MB) and get back the address to store on a fest or event. */
 export async function uploadImage(file: File): Promise<string> {
   const token = window.localStorage.getItem("token");
@@ -129,4 +149,14 @@ export async function uploadImage(file: File): Promise<string> {
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(messageFrom(res.status, body), res.status);
   return (body as { url: string }).url;
+}
+
+/** Where a custom short name (hiveout.in/name) leads, or null when it is unknown or the fest is not public. */
+export async function resolveShortLink(name: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/short-links/resolve/${encodeURIComponent(name)}`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as { path: string }).path : null;
+  } catch {
+    return null;
+  }
 }

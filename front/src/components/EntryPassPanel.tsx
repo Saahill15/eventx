@@ -42,7 +42,7 @@ export function EntryPassPanel({ slug, name, isLive }: { slug: string; name: str
         ) : user ? (
           <Button onClick={claim} disabled={busy} variant="outline" size="lg" className="w-full !text-chip-ink">{busy ? "Getting pass…" : "Get my free pass"}</Button>
         ) : (
-          <Button href={`/login?next=${encodeURIComponent(`/fest/${slug}`)}`} variant="outline" size="lg" className="w-full !text-chip-ink">Sign in to get it</Button>
+          <Button href={`/login?next=${encodeURIComponent(`/fests/${slug}`)}`} variant="outline" size="lg" className="w-full !text-chip-ink">Sign in to get it</Button>
         )}
       </div>
     </div>

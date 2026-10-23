@@ -2,14 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // The organiser area used to live under /committee: keep old links and bookmarks working
   async redirects() {
-    return [
-      { source: "/committee", destination: "/dashboard", permanent: true },
-      { source: "/committee/fests", destination: "/dashboard/fests", permanent: true },
-      { source: "/committee/city-events", destination: "/dashboard/city-events", permanent: true },
-      { source: "/committee/:slug", destination: "/dashboard/fests/:slug", permanent: true },
-    ];
+    // The people page is /admin/people; /admin/users is kept as an alias that links and bookmarks can use
+    return [{ source: "/admin/users", destination: "/admin/people", permanent: false }];
   },
 };
 

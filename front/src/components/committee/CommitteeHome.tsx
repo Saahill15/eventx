@@ -44,7 +44,7 @@ function CreateFest({ colleges, onCancel }: { colleges: College[]; onCancel: () 
       <Field label="Fest name">
         <input className="field" required value={name} placeholder="e.g. Mood Indigo 2026" onChange={(e) => { setName(e.target.value); if (!slugEdited) setSlug(slugify(e.target.value)); }} />
       </Field>
-      <Field label="Web address" hint={`Your fest page will be at /fest/${slug || "your-fest"}`}>
+      <Field label="Web address" hint={`Your fest page will be at /fests/${slug || "your-fest"}. This cannot be changed later. You can claim a shorter custom link afterwards.`}>
         <input className="field" required value={slug} pattern="[a-z0-9]+(-[a-z0-9]+)*" title="Lowercase letters, numbers and single hyphens" onChange={(e) => { setSlugEdited(true); setSlug(e.target.value.toLowerCase()); }} />
       </Field>
       <Field label="Tagline"><input className="field" value={tagline} placeholder="One line about your fest" onChange={(e) => setTagline(e.target.value)} /></Field>

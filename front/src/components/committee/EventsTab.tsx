@@ -8,9 +8,11 @@ import { formatDay, formatTime, priceLabel } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Notice, Pill } from "@/components/ui/bits";
 import { EventForm } from "./EventForm";
+import { ImportEvents } from "./ImportEvents";
 
 export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; events: ManagedEvent[]; frozen: boolean; reload: () => void }) {
   const [editing, setEditing] = useState<ManagedEvent | "new" | null>(null);
+  const [importing, setImporting] = useState(false);
   const [cancelling, setCancelling] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +24,7 @@ export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; 
     setBusy(false);
   };
 
+  if (importing) return <ImportEvents slug={fest.slug} onDone={reload} onClose={() => setImporting(false)} />;
   if (editing) return <EventForm kind="fest" fest={fest} event={editing === "new" ? null : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />;
 
   return (
@@ -29,7 +32,7 @@ export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; 
       {frozen && <div className="mb-5"><Notice tone="warn">This fest is with HiveOut for review, so events are locked. Withdraw it from the Overview tab to make changes.</Notice></div>}
       <div className="mb-5 flex items-center justify-between">
         <p className="text-sm text-mute">{events.length} event{events.length === 1 ? "" : "s"}</p>
-        {!frozen && <Button size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> New event</Button>}
+        {!frozen && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setImporting(true)}>Import from CSV</Button><Button size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> New event</Button></div>}
       </div>
       <div className="mb-4"><ErrorNote>{error}</ErrorNote></div>
       {events.length === 0 ? (
@@ -42,7 +45,7 @@ export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; 
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 font-semibold">{e.title}{e.cancelled && <Pill tone="red">Cancelled</Pill>}{e.students_only && <Pill tone="neutral">Students only</Pill>}</p>
                   <p className="mt-0.5 text-sm text-mute">{formatDay(e.date)}{e.time ? ` · ${formatTime(e.time)}${e.end_time ? `–${formatTime(e.end_time)}` : ""}` : ""}{e.location ? ` · ${e.location}` : ""} · {priceLabel(e)}</p>
-                  <p className="mt-1 text-sm text-neutral-700">{e.requires_registration ? `${e.registration_count}${e.registration_limit ? ` / ${e.registration_limit}` : ""} registered${e.pending_count ? ` · ${e.pending_count} waiting` : ""}` : "No registration needed"}</p>
+                  <p className="mt-1 text-sm text-neutral-700">{e.requires_registration ? `${e.registration_count} registered${e.is_team_event ? ` · teams of ${e.team_min}–${e.team_max}${e.registration_limit ? `, up to ${e.registration_limit} teams` : ""}` : e.registration_limit ? ` of ${e.registration_limit}` : ""}${e.pending_count ? ` · ${e.pending_count} waiting` : ""}` : "No registration needed"}</p>
                   {e.cancelled && e.cancel_reason && <p className="mt-1 text-sm text-mute">Reason: {e.cancel_reason}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">

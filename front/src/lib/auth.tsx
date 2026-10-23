@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { API_URL, api } from "./api";
+import { CompleteProfile } from "@/components/CompleteProfile";
 import { InterestsPrompt } from "@/components/InterestsPrompt";
 import { OrganizerWelcome } from "@/components/OrganizerWelcome";
 import type { AuthResult, SignupInput, User } from "./types";
@@ -11,6 +12,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string, portal?: "admin") => Promise<AuthResult>;
   signup: (input: SignupInput) => Promise<AuthResult>;
+  googleSignIn: (credential: string) => Promise<AuthResult>;
   refresh: () => Promise<void>;
   logout: () => void;
 }
@@ -115,10 +117,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [finish],
   );
 
-  const value = useMemo(() => ({ user, loading, login, signup, logout, refresh: loadUser }), [user, loading, login, signup, logout, loadUser]);
+  const googleSignIn = useCallback(
+    async (credential: string) => finish(await api<AuthResult>("/api/auth/google", { method: "POST", body: { credential } })),
+    [finish],
+  );
+
+  const value = useMemo(() => ({ user, loading, login, signup, googleSignIn, logout, refresh: loadUser }), [user, loading, login, signup, googleSignIn, logout, loadUser]);
   return (
     <AuthContext.Provider value={value}>
       {children}
+      <CompleteProfile />
       <OrganizerWelcome />
       <InterestsPrompt />
       {warning !== null && (

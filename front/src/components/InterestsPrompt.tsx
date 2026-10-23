@@ -17,7 +17,7 @@ export function InterestsPrompt() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // A newly promoted organiser sees their welcome first
-  const show = !!user && user.role !== "admin" && !user.interests_set && !user.organizer_welcome_pending;
+  const show = !!user && user.role !== "admin" && user.profile_complete && !user.interests_set && !user.organizer_welcome_pending;
 
   useEffect(() => { if (show) api<Interest[]>("/api/users/interests/all").then(setAll).catch(() => {}); }, [show]);
   if (!show) return null;

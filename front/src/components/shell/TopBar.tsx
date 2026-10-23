@@ -57,7 +57,7 @@ export function TopBar() {
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("hiveout:search", onOpen); document.removeEventListener("mousedown", onClick); };
   }, []);
 
-  const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href) || (href === "/fests" && pathname.startsWith("/fest/")));
+  const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const round = "flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-[var(--shadow-card)] transition hover:bg-wash active:scale-95";
 
   return (

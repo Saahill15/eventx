@@ -15,12 +15,14 @@ interface State {
   title: string; description: string; date: string; time: string; end_time: string; location: string; category: string;
   paid: boolean; price: string; students_only: boolean; student_price: string;
   requires_registration: boolean; registration_limit: string; approval_mode: "auto" | "manual";
+  is_team_event: boolean; team_min: string; team_max: string;
 }
-const empty: State = { title: "", description: "", date: "", time: "", end_time: "", location: "", category: "", paid: false, price: "", students_only: false, student_price: "", requires_registration: false, registration_limit: "", approval_mode: "auto" };
+const empty: State = { title: "", description: "", date: "", time: "", end_time: "", location: "", category: "", paid: false, price: "", students_only: false, student_price: "", requires_registration: false, registration_limit: "", approval_mode: "auto", is_team_event: false, team_min: "2", team_max: "4" };
 const toState = (e: FestEvent): State => ({
   title: e.title, description: e.description ?? "", date: e.date.slice(0, 10), time: e.time ?? "", end_time: e.end_time ?? "", location: e.location ?? "", category: e.category ?? "",
   paid: !e.is_free, price: e.is_free ? "" : String(e.price), students_only: e.students_only, student_price: e.student_price == null ? "" : String(e.student_price),
   requires_registration: e.requires_registration, registration_limit: e.registration_limit == null ? "" : String(e.registration_limit), approval_mode: e.approval_mode,
+  is_team_event: e.is_team_event, team_min: String(e.team_min ?? 2), team_max: String(e.team_max ?? 4),
 });
 
 const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fest: boolean) => ({
@@ -30,6 +32,9 @@ const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fes
   requires_registration: fest && f.requires_registration, is_paid: fest && f.requires_registration && f.paid,
   registration_limit: fest && f.requires_registration && f.registration_limit ? parseInt(f.registration_limit, 10) : null, approval_mode: f.approval_mode,
   extra_sections: sections.filter((s) => s.title.trim() && s.body.trim()),
+  is_team_event: fest && f.requires_registration && f.is_team_event,
+  team_min: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_min, 10) || null : null,
+  team_max: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_max, 10) || null : null,
 });
 
 /** One form for both kinds of event: a fest's events (with registration and questions) and standalone city events. */
@@ -102,10 +107,19 @@ export function EventForm({ kind, fest, event, onSaved, onCancel }: { kind: "fes
             <label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" className="h-4 w-4 accent-[#111]" checked={f.requires_registration} disabled={locked} onChange={(e) => set("requires_registration", e.target.checked)} /> Students must register for this event</label>
             {locked && <p className="text-xs text-mute">Registration settings are locked because people have already registered.</p>}
             {f.requires_registration && (
+              <>
+              <label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" className="h-4 w-4 accent-[#111]" checked={f.is_team_event} disabled={locked} onChange={(e) => set("is_team_event", e.target.checked)} /> Team event: people register as a team</label>
+              {f.is_team_event && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Smallest team" hint={locked ? "Can only go down now" : undefined}><input className="field" type="number" min={1} max={50} required value={f.team_min} onChange={(e) => set("team_min", e.target.value)} /></Field>
+                  <Field label="Largest team" hint={locked ? "Can only go up now" : undefined}><input className="field" type="number" min={2} max={50} required value={f.team_max} onChange={(e) => set("team_max", e.target.value)} /></Field>
+                </div>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Seat limit" hint="Leave empty for no limit"><input className="field" type="number" min={1} value={f.registration_limit} onChange={(e) => set("registration_limit", e.target.value)} /></Field>
-                <Field label="Approval"><select className="field" value={f.approval_mode} onChange={(e) => set("approval_mode", e.target.value as "auto" | "manual")}><option value="auto">Automatic: confirmed instantly</option><option value="manual">Manual: committee approves each one</option></select></Field>
+                <Field label={f.is_team_event ? "Most teams" : "Seat limit"} hint="Leave empty for no limit"><input className="field" type="number" min={1} value={f.registration_limit} onChange={(e) => set("registration_limit", e.target.value)} /></Field>
+                <Field label="Approval"><select className="field" value={f.approval_mode} onChange={(e) => set("approval_mode", e.target.value as "auto" | "manual")}><option value="auto">Automatic: confirmed instantly</option><option value="manual">Manual: committee approves {f.is_team_event ? "each team" : "each one"}</option></select></Field>
               </div>
+              </>
             )}
           </>
         )}

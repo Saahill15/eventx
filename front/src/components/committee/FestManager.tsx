@@ -14,6 +14,7 @@ import { FestOverviewTab } from "./FestOverviewTab";
 import { GateTab } from "./GateTab";
 import { RegistrationsTab } from "./RegistrationsTab";
 import { TeamTab } from "./TeamTab";
+import { HandOverCard } from "./HandOverCard";
 
 const TABS = [
   { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true },
@@ -70,7 +71,7 @@ export function FestManager({ slug }: { slug: string }) {
     return (
       <div>
         <Link href="/dashboard/fests" className="text-sm text-mute hover:text-ink">← Your fests</Link>
-        <h1 className="mb-2 mt-3 font-display text-3xl font-bold tracking-tight">Check-in</h1>
+        <h1 className="mb-2 mt-3 text-[26px] leading-tight">Check-in</h1>
         <p className="mb-6 text-mute">You are a volunteer on this fest. You can check people in on the day.</p>
         <GateTab slug={slug} events={publicEvents} canUndo={false} />
       </div>
@@ -87,11 +88,11 @@ export function FestManager({ slug }: { slug: string }) {
       <div className="mb-6 mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{f.name}</h1>
+            <h1 className="text-[26px] leading-tight">{f.name}</h1>
             <Pill tone={f.status === "live" ? "green" : "neutral"}>{f.status === "live" ? "Live" : "Not live"}</Pill>
             <ReviewPill status={f.review_status} />
           </div>
-          {f.status === "live" && <Link href={`/fest/${f.slug}`} className="mt-1 inline-block text-sm font-semibold hover:underline">View public page →</Link>}
+          {f.status === "live" && <Link href={`/fests/${f.slug}`} className="mt-1 inline-block text-sm font-semibold hover:underline">View public page →</Link>}
         </div>
       </div>
 
@@ -111,7 +112,7 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "registrations" && <RegistrationsTab events={events} reload={loadEvents} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
       {tab === "announcements" && <AnnouncementsTab slug={slug} live={f.status === "live"} events={publicEvents} />}
-      {tab === "team" && <TeamTab slug={slug} myRole={role} />}
+      {tab === "team" && <div className="max-w-4xl space-y-8"><TeamTab slug={slug} myRole={role} />{role === "owner" && <HandOverCard slug={slug} />}</div>}
     </div>
   );
 }

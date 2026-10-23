@@ -3,8 +3,7 @@ import { Inter, Outfit } from "next/font/google";
 import { AuthProvider } from "@/lib/auth";
 import { SITE_URL } from "@/lib/api";
 import { MotionProvider } from "@/components/motion";
-import { TopBar } from "@/components/shell/TopBar";
-import { SiteFooter } from "@/components/shell/SiteFooter";
+import { SiteChrome } from "@/components/shell/SiteChrome";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -27,9 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen">
         <MotionProvider>
           <AuthProvider>
-            <TopBar />
-            <main className="pt-24">{children}</main>
-            <SiteFooter />
+            <SiteChrome>{children}</SiteChrome>
           </AuthProvider>
         </MotionProvider>
       </body>

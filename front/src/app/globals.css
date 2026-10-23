@@ -51,3 +51,82 @@ body { background: var(--color-fog); color: var(--color-ink); font-family: var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ── Workspaces (admin and organiser): a light, dense dashboard with a bordered sidebar, white cards on a soft mint-grey page, teal accent ── */
+.workspace {
+  --ws-accent: #0f766e;
+  --ws-accent-deep: #0b5f58;
+  --ws-border: #e3e8e6;
+  --color-brand: #0f766e;
+  --color-on-brand: #ffffff;
+  --color-tint: #dcefec;
+  --color-tint-ink: #0f6a62;
+  --color-wash: #f1f4f3;
+  --color-chip: #eef2f1;
+  --radius-card: 10px;
+  --shadow-card: none;
+  --shadow-lift: none;
+  background: #f6f8f7;
+  color: var(--color-ink);
+  min-height: 100vh;
+  letter-spacing: -0.003em;
+}
+.workspace .card { background: #fff; border: 1px solid var(--ws-border); box-shadow: none; border-radius: 10px; }
+.workspace .field { border-radius: 8px; padding: 0.55rem 0.8rem; font-size: 0.875rem; border-color: #d5dcd9; }
+.workspace .field:focus { border-color: var(--ws-accent); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18); }
+.workspace h1, .workspace h2, .workspace h3 { font-weight: 600; letter-spacing: -0.02em; }
+.workspace .font-display { font-family: var(--font-sans); }
+/* Primary actions are teal; buttons have small corners instead of pills */
+.workspace .bg-ink { background-color: var(--ws-accent); color: #fff; }
+.workspace .bg-ink:hover { background-color: var(--ws-accent-deep); }
+.workspace button.rounded-full, .workspace a.rounded-full { border-radius: 7px; }
+.workspace .shadow-\[var\(--shadow-card\)\] { box-shadow: 0 0 0 1px var(--ws-border); }
+.workspace ::selection { background: rgba(15, 118, 110, 0.22); }
+
+/* ── Profile menu (top right of a workspace) ── */
+.pm { position: relative; }
+.pm-btn { display: flex; align-items: center; gap: 8px; padding: 3px 10px 3px 3px; border: 1px solid rgba(10,35,34,.15); border-radius: 999px; background: transparent; font: inherit; font-size: 13.5px; color: #1B2F2E; cursor: pointer; }
+.pm-btn:hover, .pm-btn[aria-expanded="true"] { background: rgba(10,35,34,.04); }
+.pm-av { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #16a59f, #0b7f7c); color: #fff; font-size: 12.5px; font-weight: 600; }
+.pm-btn b { font-weight: 500; }
+.pm-btn i { font-style: normal; font-size: 10px; color: #4A5E5F; }
+.pm-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; display: grid; min-width: 240px; padding: 6px; border-radius: 12px; background: #fff; border: 1px solid rgba(10,35,34,.15); box-shadow: 0 14px 34px -14px rgba(10,35,34,.28); }
+.pm-who { display: grid; gap: 2px; padding: 9px 10px 11px; margin-bottom: 4px; border-bottom: 1px solid rgba(10,35,34,.08); }
+.pm-who strong { font-weight: 500; color: #071D1C; }
+.pm-who small { font-size: 12.5px; color: #4A5E5F; overflow-wrap: anywhere; }
+.pm-who em { justify-self: start; margin-top: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(11,127,124,.1); font-style: normal; font-size: 11.5px; color: #0a6f6c; }
+.pm-menu a, .pm-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: none; font: inherit; font-size: 14px; text-align: left; color: #12292A; cursor: pointer; text-decoration: none; }
+.pm-menu a:hover, .pm-menu button:hover { background: rgba(10,35,34,.06); }
+
+/* ── Sidebar ── */
+.sb { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 20px; height: 100svh; padding: 16px 12px; background: #f6f8f8; border-right: 1px solid rgba(10,35,34,.08); }
+.sb-brand { padding: 6px 10px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; color: #071D1C; }
+.sb nav { display: grid; gap: 14px; overflow-y: auto; }
+.sb-group { display: grid; gap: 2px; }
+.sb-head { display: flex; align-items: center; justify-content: space-between; }
+.sb-label { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 500; color: #5b6f70; cursor: pointer; text-align: left; }
+.sb-label:hover { color: #12292A; }
+.sb-label svg { transition: transform .2s; }
+.sb-label[aria-expanded="true"] svg { transform: rotate(90deg); }
+.sb-items { display: grid; gap: 2px; }
+.sb-items a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; font-size: 14px; font-weight: 500; color: #2f4546; text-decoration: none; transition: background .2s, color .2s; }
+.sb-items a svg { flex: none; width: 17px; height: 17px; opacity: .8; }
+.sb-items a:hover { background: rgba(10,35,34,.04); color: #071D1C; }
+.sb-items a[aria-current="page"] { background: rgba(10,35,34,.07); color: #071D1C; }
+.sb-badge { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: rgba(11,127,124,.12); color: #0a6f6c; font-size: 12px; font-weight: 500; line-height: 20px; text-align: center; }
+.sb-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-add { display: grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: 5px; font-size: 16px; line-height: 1; color: #5b6f70; text-decoration: none; }
+.sb-add:hover { background: rgba(10,35,34,.07); color: #071D1C; }
+.sb-dot { flex: none; width: 8px; height: 8px; margin: 0 4.5px; border-radius: 50%; background: #c6cfcd; }
+.sb-dot.live { background: #16a34a; }
+.sb-empty { padding: 4px 10px; font-size: 12.5px; color: #5b6f70; }
+.ws-grid { display: grid; grid-template-columns: 15rem minmax(0, 1fr); }
+@media (max-width: 860px) {
+  .ws-grid { display: block; }
+  .sb { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 12px; border-right: 0; border-bottom: 1px solid rgba(10,35,34,.08); }
+  .sb nav { display: flex; overflow-x: auto; width: 100%; }
+  .sb-group { display: flex; gap: 4px; }
+  .sb-label, .sb-head { display: none; }
+  .sb-items { display: flex; }
+  .sb-items a { white-space: nowrap; }
+}
