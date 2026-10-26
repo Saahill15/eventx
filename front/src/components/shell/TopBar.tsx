@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Fest, User } from "@/lib/types";
 import { Button } from "../ui/Button";
+import { NotificationBell } from "./NotificationBell";
 import { SearchPalette } from "./SearchPalette";
 
 const NAV = [
@@ -80,6 +81,8 @@ export function TopBar() {
           <div className="flex items-center gap-2">
             <button onClick={() => setSearch(true)} aria-label="Search" className={round}><Search className="h-[18px] w-[18px]" /></button>
             {loading ? <div className="h-11 w-11" /> : user ? (
+              <>
+              <NotificationBell />
               <div className="relative hidden md:block" ref={menuRef}>
                 <button onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} aria-label="Account menu" className="flex h-11 w-11 items-center justify-center rounded-2xl bg-ink text-sm font-semibold text-white transition active:scale-95">{user.name.trim().charAt(0).toUpperCase()}</button>
                 <AnimatePresence>
@@ -92,6 +95,7 @@ export function TopBar() {
                   )}
                 </AnimatePresence>
               </div>
+              </>
             ) : (
               <div className="hidden items-center gap-2 md:flex">
                 <Link href="/login" className="px-3 text-sm font-medium text-mute hover:text-ink">Sign in</Link>

@@ -6,12 +6,37 @@ from app import models
 FEST_STAFF_ROLES = (models.FestMemberRoleEnum.owner, models.FestMemberRoleEnum.core)
 
 
+def can_host_fests(user) -> bool:
+    """Admins always can. An organiser can only if an admin switched fest hosting on for them."""
+    if user is None:
+        return False
+    if user.role == models.RoleEnum.admin:
+        return True
+    return user.role == models.RoleEnum.organizer and bool(user.can_host_fests)
+
+
+def can_host_city_events(user) -> bool:
+    """Admins always can. An organiser can only if an admin switched city events on for them."""
+    if user is None:
+        return False
+    if user.role == models.RoleEnum.admin:
+        return True
+    return user.role == models.RoleEnum.organizer and bool(user.can_host_city_events)
+
+
+def fest_hosting_switched_off(user) -> bool:
+    """True only for an organiser whose fest hosting an admin has switched off. Other fest team members are not affected."""
+    return user is not None and user.role == models.RoleEnum.organizer and not user.can_host_fests
+
+
 def is_fest_staff(db: Session, fest_id, user) -> bool:
-    """True for admins and for owner/core members of the fest."""
+    """True for admins and for owner/core members of the fest, as long as they may still host fests."""
     if user is None or fest_id is None:
         return False
     if user.role == models.RoleEnum.admin:
         return True
+    if fest_hosting_switched_off(user):
+        return False
     return (
         db.query(models.FestMember)
         .filter(

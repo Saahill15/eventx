@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.auth.dependencies import get_current_user, require_admin
 from app.database import get_db
-from app.permissions import is_fest_staff
+from app.permissions import can_host_fests, is_fest_staff
 
 router = APIRouter()
 
@@ -48,6 +48,8 @@ def _check_new_director(db: Session, fest: models.Fest, user: Optional[models.Us
         raise HTTPException(status_code=404, detail="No HiveOut account with that email")
     if user.role != models.RoleEnum.organizer:
         raise HTTPException(status_code=400, detail="That person is not an organiser yet. An admin has to make them one first.")
+    if not can_host_fests(user):
+        raise HTTPException(status_code=400, detail="That organiser is not switched on for fests yet. An admin has to enable fest hosting on their account first.")
     if fest.college_id and not db.query(models.OrganizerCollege).filter(models.OrganizerCollege.user_id == user.id, models.OrganizerCollege.college_id == fest.college_id).first():
         college = fest.college.name if fest.college else "this fest's college"
         raise HTTPException(status_code=400, detail=f"That organiser is not set up for {college}. An admin has to add the college to their account first.")

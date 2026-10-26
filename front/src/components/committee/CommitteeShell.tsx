@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { CalendarDays, LayoutDashboard, Tent, Ticket } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { canHostCityEvents, canHostFests } from "@/lib/permissions";
 import type { MyFest } from "@/lib/types";
 import { OrganiserProfileMenu } from "@/components/shell/OrganiserProfileMenu";
 import { PageHeader, WorkspaceShell, type Crumb, type NavGroup } from "@/components/shell/WorkspaceShell";
@@ -30,6 +31,8 @@ export function CommitteeShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [fests, setFests] = useState<MyFest[] | null>(null);
   const canCreate = user?.role === "organizer";
+  const hostsFests = canHostFests(user);
+  const hostsCity = canHostCityEvents(user);
 
   const reload = useCallback(() => { api<MyFest[]>("/api/fests/mine").then(setFests).catch(() => setFests([])); }, []);
   useEffect(() => { if (user) reload(); }, [user, reload, pathname]);
@@ -50,13 +53,13 @@ export function CommitteeShell({ children }: { children: React.ReactNode }) {
     { id: "main", items: [{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className={ic} />, exact: true }] },
     {
       id: "fests", label: "Fests", loading: fests === null, empty: "No fests yet.",
-      add: canCreate ? { href: "/dashboard/fests#new", label: "New fest" } : undefined,
+      add: hostsFests ? { href: "/dashboard/fests#new", label: "New fest" } : undefined,
       items: [
         { href: "/dashboard/fests", label: "All fests", icon: <Tent className={ic} />, exact: true },
         ...(fests ?? []).map((f) => ({ href: `/dashboard/fests/${f.slug}`, label: f.name, dot: (f.status === "live" ? "live" : "off") as "live" | "off" })),
       ],
     },
-    ...(canCreate ? [{ id: "events", label: "Events", items: [{ href: "/dashboard/city-events", label: "City events", icon: <CalendarDays className={ic} /> }] }] : []),
+    ...(hostsCity ? [{ id: "events", label: "Events", items: [{ href: "/dashboard/city-events", label: "City events", icon: <CalendarDays className={ic} /> }] }] : []),
     { id: "account", label: "Account", items: [{ href: "/my-passes", label: "My passes", icon: <Ticket className={ic} /> }] },
   ];
   const crumbs: Crumb[] = [{ label: "Dashboard", href: "/dashboard" }, ...(inFest ? [{ label: "Fests", href: "/dashboard/fests" }, { label: currentFest?.name ?? "Fest" }] : page ? [{ label: page.title }] : [])];

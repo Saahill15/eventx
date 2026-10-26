@@ -56,6 +56,91 @@ def security_log(
     return q.order_by(models.AuthEvent.at.desc(), models.AuthEvent.id.desc()).limit(limit).all()
 
 
+@router.get("/users/{user_id}", response_model=schemas.AdminUserDetail)
+def user_detail(user_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Everything an admin needs about one account: profile, sign-ins, sessions, student status, organiser access and fest teams."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    now = datetime.utcnow()
+
+    sessions = (
+        db.query(models.AuthSession)
+        .filter(models.AuthSession.user_id == user.id, models.AuthSession.revoked_at.is_(None), models.AuthSession.expires_at > now)
+        .order_by(models.AuthSession.last_seen_at.desc())
+        .all()
+    )
+    sign_ins = (
+        db.query(models.AuthEvent)
+        .filter(models.AuthEvent.user_id == user.id)
+        .order_by(models.AuthEvent.at.desc(), models.AuthEvent.id.desc())
+        .limit(10)
+        .all()
+    )
+    latest = (
+        db.query(models.StudentVerification)
+        .filter(models.StudentVerification.user_id == user.id)
+        .order_by(models.StudentVerification.created_at.desc())
+        .first()
+    )
+    memberships = (
+        db.query(models.FestMember)
+        .filter(models.FestMember.user_id == user.id)
+        .order_by(models.FestMember.created_at.desc())
+        .all()
+    )
+    home_college = db.query(models.College).filter(models.College.id == user.college_id).first() if user.college_id else None
+    college_names = [c.name for c in db.query(models.College).filter(models.College.id.in_(user.college_ids or [0])).order_by(models.College.name).all()]
+
+    return schemas.AdminUserDetail(
+        id=user.id, name=user.name, first_name=user.first_name, last_name=user.last_name, email=user.email, phone=user.phone,
+        date_of_birth=user.date_of_birth, role=user.role.value, is_active=user.is_active is not False, created_at=user.created_at,
+        terms_accepted_at=user.terms_accepted_at, interests_set=bool(user.interests_set), study_year=user.study_year,
+        home_college=home_college.name if home_college else None, has_password=user.has_password, google_linked=user.google_linked,
+        can_host_fests=bool(user.can_host_fests), can_host_city_events=bool(user.can_host_city_events),
+        colleges=college_names,
+        student=schemas.AdminStudentInfo(
+            verified=user.is_student_verified, verified_until=user.student_verified_until,
+            latest_method=latest.method.value if latest else None, latest_status=latest.status.value if latest else None,
+            latest_at=latest.created_at if latest else None,
+            latest_college=(latest.college.name if latest and latest.college else None),
+            latest_reject_reason=latest.reject_reason if latest else None,
+        ),
+        active_sessions=[schemas.AdminSession(created_at=s.created_at, last_seen_at=s.last_seen_at, expires_at=s.expires_at, ip=s.ip, user_agent=s.user_agent) for s in sessions],
+        last_seen_at=sessions[0].last_seen_at if sessions else None,
+        recent_sign_ins=[schemas.AdminSignIn(at=e.at, portal=e.portal, success=e.success, reason=e.reason, ip=e.ip) for e in sign_ins],
+        fests=[schemas.AdminUserFest(slug=m.fest.slug, name=m.fest.name, my_role=m.role.value, status=m.fest.status.value, review_status=m.fest.review_status) for m in memberships if m.fest],
+    )
+
+
+@router.patch("/users/{user_id}/profile", response_model=schemas.AdminUserDetail)
+def update_user_profile(user_id: int, data: schemas.AdminProfileUpdate, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Correct a person's name, phone, date of birth, study year or home college. Email, password and roles stay out of reach."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    updates = data.model_dump(exclude_unset=True)
+    if updates.get("college_id") is not None and not db.query(models.College).filter(models.College.id == updates["college_id"]).first():
+        raise HTTPException(status_code=400, detail="College not found")
+    if updates.get("phone"):
+        taken = db.query(models.User).filter(models.User.phone == updates["phone"], models.User.id != user.id).first()
+        if taken:
+            raise HTTPException(status_code=400, detail="That phone number is already in use")
+    if "first_name" in updates or "last_name" in updates:
+        first = updates.get("first_name", user.first_name) or ""
+        last = updates.get("last_name", user.last_name) or ""
+        user.name = f"{first} {last}".strip() or user.name
+    for field, value in updates.items():
+        if field in ("first_name", "last_name") and value is None:
+            continue
+        if field == "college_id":
+            user.college_id = value
+        else:
+            setattr(user, field, value)
+    db.commit()
+    return user_detail(user.id, db, admin)
+
+
 @router.get("/users", response_model=List[schemas.AdminUserOut])
 def search_users(
     q: str = Query(default="", max_length=100),
@@ -135,12 +220,17 @@ def set_user_role(
         if owns_fest:
             raise HTTPException(status_code=400, detail="This person owns a fest. Transfer the fest to someone else before removing organiser access.")
         user.organizer_colleges.clear()
+        user.can_host_fests = False
+        user.can_host_city_events = False
     else:
-        colleges = _valid_partner_colleges(db, data.college_ids)
+        # Colleges only matter for fests. A city-events-only organiser needs none
+        colleges = _valid_partner_colleges(db, data.college_ids) if data.can_host_fests else []
         user.organizer_colleges.clear()
         db.flush()
         for c in colleges:
             user.organizer_colleges.append(models.OrganizerCollege(college_id=c.id))
+        user.can_host_fests = data.can_host_fests
+        user.can_host_city_events = data.can_host_city_events
     if new_role == models.RoleEnum.organizer and user.role != models.RoleEnum.organizer:
         user.organizer_welcome_pending = True  # shown once, the next time they open the site
     user.role = new_role
@@ -162,6 +252,24 @@ def sign_out_user(user_id: int, db: Session = Depends(get_db), admin: models.Use
     ended = revoke_user_sessions(db, user.id)
     db.commit()
     return {"message": "Signed out", "sessions_ended": ended}
+
+
+@router.put("/users/{user_id}/permissions", response_model=schemas.AdminUserOut)
+def set_organizer_permissions(
+    user_id: int,
+    data: schemas.PermissionChange,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Switch fest hosting and city events on or off for one organiser. Each one is independent."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user or user.role != models.RoleEnum.organizer:
+        raise HTTPException(status_code=404, detail="Organiser not found")
+    user.can_host_fests = data.can_host_fests
+    user.can_host_city_events = data.can_host_city_events
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @router.put("/users/{user_id}/colleges", response_model=schemas.AdminUserOut)

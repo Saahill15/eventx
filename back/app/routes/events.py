@@ -5,7 +5,7 @@ from typing import List
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user, require_organizer
-from app.permissions import can_view_event, is_fest_staff
+from app.permissions import can_host_city_events, can_view_event, fest_hosting_switched_off, is_fest_staff
 from app.routes.announcements import announce_cancellation
 
 router = APIRouter()
@@ -38,6 +38,8 @@ def get_my_events(db: Session = Depends(get_db), current_user=Depends(require_or
     """Return city events owned by the current organizer.
     Fest events are managed via /fests/:slug, not here.
     """
+    if not can_host_city_events(current_user):
+        return []
     return (
         db.query(models.Event)
         .filter(
@@ -84,6 +86,8 @@ def create_event(data: schemas.EventCreate, db: Session = Depends(get_db), curre
     """
     event_data = data.model_dump()
 
+    if data.event_type == "city" and not can_host_city_events(current_user):
+        raise HTTPException(status_code=403, detail="City events are not switched on for your account. Ask HiveOut to enable them.")
     if data.event_type == "fest":
         _assert_fest_editable(db, data.fest_id, current_user)
 
@@ -138,7 +142,7 @@ def update_event(
     # Ownership check: city event organizer or fest owner/core or admin
     if current_user.role != models.RoleEnum.admin:
         if event.event_type == models.EventTypeEnum.city:
-            if event.organizer_id != current_user.id:
+            if event.organizer_id != current_user.id or not can_host_city_events(current_user):
                 raise HTTPException(status_code=403, detail="Not your event")
         else:
             is_member = (
@@ -153,7 +157,7 @@ def update_event(
                 )
                 .first()
             )
-            if not is_member:
+            if not is_member or fest_hosting_switched_off(current_user):
                 raise HTTPException(status_code=403, detail="Forbidden")
 
     # Count active registrations for this event
@@ -257,7 +261,7 @@ def _require_event_manager(db: Session, event: models.Event, user):
     if user.role == models.RoleEnum.admin:
         return
     if event.event_type == models.EventTypeEnum.city:
-        allowed = event.organizer_id == user.id
+        allowed = event.organizer_id == user.id and can_host_city_events(user)
     else:
         allowed = is_fest_staff(db, event.fest_id, user)
     if not allowed:
