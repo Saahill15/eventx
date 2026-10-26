@@ -107,6 +107,8 @@ def seed():
                         role=models.RoleEnum.organizer,
                         auth_provider=models.AuthProviderEnum.email,
                         interests_set=True,
+                        can_host_fests=True,
+                        can_host_city_events=True,
                     )
                     db.add(user)
                     organizer_users.append(user)

@@ -86,8 +86,27 @@ def make_organizer(email):
     db = TestingSessionLocal()
     user = db.query(models.User).filter(models.User.email == email).first()
     user.role = models.RoleEnum.organizer
+    user.can_host_fests = True
+    user.can_host_city_events = True
     db.commit()
     db.close()
+
+def verify_student(email):
+    """Make an account a verified student, the way a confirmed student email does."""
+    from datetime import datetime, timedelta
+    db = TestingSessionLocal()
+    db.query(models.User).filter(models.User.email == email).update({"student_verified_until": datetime.utcnow() + timedelta(days=365)})
+    db.commit()
+    db.close()
+
+def join_team(owner_token, slug, email, role, invitee_token):
+    """Invite a verified student to a fest team and have them accept, so they are a member."""
+    verify_student(email)
+    r = client.post(f"/api/fests/{slug}/members", json={"email": email, "role": role}, headers=auth(owner_token))
+    assert r.status_code == 201, r.text
+    r = client.post(f"/api/fest-invites/{r.json()['id']}/accept", headers=auth(invitee_token))
+    assert r.status_code == 200, r.text
+    return r.json()
 
 def create_college(token):
     r = client.post("/api/colleges/", json={"name": "IIT Bombay", "area": "Powai", "partner_status": "partner"}, headers=auth(token))

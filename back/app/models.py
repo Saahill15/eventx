@@ -77,7 +77,10 @@ class User(Base):
     student_verified_until = Column(DateTime, nullable=True)  # a verification lasts one year
     # Set when an admin makes the account an organiser; cleared once the person has seen the welcome screen
     organizer_welcome_pending = Column(Boolean, nullable=False, default=False, server_default="0")
-    google_sub       = Column(String(255), unique=True, nullable=True)   # the Google account linked to this one, if any
+    # What an organiser may do. Set per person by an admin; being an organiser alone grants neither
+    can_host_fests       = Column(Boolean, nullable=False, default=False, server_default="0")
+    can_host_city_events = Column(Boolean, nullable=False, default=False, server_default="0")
+    google_sub      = Column(String(255), unique=True, nullable=True)   # the Google account linked to this one, if any
     terms_accepted_at = Column(DateTime, nullable=True)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -464,6 +467,38 @@ class FestTransfer(Base):
     fest      = relationship("Fest")
     from_user = relationship("User", foreign_keys=[from_user_id])
     to_user   = relationship("User", foreign_keys=[to_user_id])
+
+
+class FestInvite(Base):
+    """An offer to join a fest's committee. The person joins only after they accept it."""
+    __tablename__ = "fest_invites"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    invited_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role          = Column(String(12), nullable=False, default="volunteer")
+    status        = Column(String(12), nullable=False, default="pending")   # pending | accepted | declined | cancelled
+    created_at    = Column(DateTime, nullable=False)
+    decided_at    = Column(DateTime, nullable=True)
+
+    fest    = relationship("Fest")
+    user    = relationship("User", foreign_keys=[user_id])
+    inviter = relationship("User", foreign_keys=[invited_by_id])
+
+
+class AccountNotice(Base):
+    """A message about the person's own account, shown from the bell icon. Not an email, though an email may also be sent."""
+    __tablename__ = "account_notices"
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    kind       = Column(String(30), nullable=False)   # fest_invite | fest_invite_answer
+    title      = Column(String(120), nullable=False)
+    body       = Column(String(500), nullable=False)
+    invite_id  = Column(Integer, ForeignKey("fest_invites.id"), nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    read_at    = Column(DateTime, nullable=True)
+
+    invite = relationship("FestInvite")
 
 
 class Department(Base):

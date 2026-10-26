@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import require_organizer
-from app.permissions import is_fest_staff
+from app.permissions import can_host_city_events, is_fest_staff
 
 router = APIRouter()
 
@@ -12,7 +12,7 @@ def _can_manage_event(db: Session, event: models.Event, user) -> bool:
     if user.role == models.RoleEnum.admin:
         return True
     if event.event_type == models.EventTypeEnum.city:
-        return event.organizer_id == user.id
+        return event.organizer_id == user.id and can_host_city_events(user)
     return is_fest_staff(db, event.fest_id, user)
 
 

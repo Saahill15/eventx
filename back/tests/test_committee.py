@@ -4,7 +4,7 @@ import pytest
 
 from test_fixes import user_token, user_id, city_event_payload  # noqa: F401
 from test_full import (
-    client, auth, create_college, create_fest, create_fest_event, get_entry_pass, reset_db,  # noqa: F401
+    client, auth, create_college, create_fest, create_fest_event, get_entry_pass, reset_db, join_team, verify_student,  # noqa: F401
 )
 
 
@@ -18,8 +18,7 @@ class Setup:
         self.college_id = create_college(self.admin)
         self.fest = create_fest(self.owner, self.college_id)
         self.slug = self.fest["slug"]
-        r = client.post(f"/api/fests/{self.slug}/members", json={"email": "core@test.com", "role": "core"}, headers=auth(self.owner))
-        assert r.status_code == 201, r.text
+        join_team(self.owner, self.slug, "core@test.com", "core", self.core)
 
 
 class TestMyFests(Setup):
@@ -107,6 +106,7 @@ class TestTeam(Setup):
         assert {r["user_email"] for r in rows} == {"owner@test.com", "core@test.com"}
 
     def test_invite_by_email_is_case_insensitive(self):
+        verify_student("student@test.com")
         r = client.post(f"/api/fests/{self.slug}/members", json={"email": "STUDENT@test.com", "role": "volunteer"}, headers=auth(self.core))
         assert r.status_code == 201 and r.json()["user_name"] == "Student User"
 

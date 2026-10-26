@@ -1,5 +1,5 @@
 import re
-from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator, model_validator
 from typing import Annotated, Optional, List, Literal
 from datetime import date, datetime
 
@@ -180,6 +180,8 @@ class UserOut(BaseModel):
     is_student_verified: bool = False
     college_ids: List[int] = []   # for organisers: the colleges they may list fests for
     organizer_welcome_pending: bool = False
+    can_host_fests: bool = False
+    can_host_city_events: bool = False
     has_password: bool = True
     google_linked: bool = False
     profile_complete: bool = True   # false until a date of birth and the terms are on file (e.g. after signing up with Google)
@@ -411,6 +413,38 @@ class FestWithEventsOut(BaseModel):
     class Config:
         from_attributes = True
 
+class FestInviteOut(BaseModel):
+    id: int
+    fest_id: int
+    fest_slug: Optional[str] = None
+    fest_name: Optional[str] = None
+    user_id: int
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+    role: str
+    status: str
+    invited_by_name: Optional[str] = None
+    created_at: datetime
+    decided_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class AccountNoticeOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    created_at: datetime
+    read_at: Optional[datetime] = None
+    invite_id: Optional[int] = None
+    invite_status: Optional[str] = None   # the invitation's current state, when the notice is about one
+    fest_slug: Optional[str] = None
+    fest_name: Optional[str] = None
+    role: Optional[str] = None
+
+class NoticeCount(BaseModel):
+    count: int
+
 class FestMemberOut(BaseModel):
     id: int
     fest_id: int
@@ -578,13 +612,87 @@ class AdminUserOut(BaseModel):
     role: str
     is_active: bool
     college_ids: List[int] = []
+    can_host_fests: bool = False
+    can_host_city_events: bool = False
     created_at: datetime
     class Config:
         from_attributes = True
 
+class AdminProfileUpdate(BaseModel):
+    """What an admin may correct on someone's profile. Sign-in details, passwords, roles and Google links are deliberately not here."""
+    model_config = ConfigDict(extra="forbid")   # sending email, password, role etc. is rejected
+    first_name: Optional[NamePart] = None
+    last_name: Optional[NamePart] = None
+    phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+?[0-9 ()-]{7,20}$")]] = None
+    date_of_birth: Optional[date] = None
+    study_year: Optional[int] = Field(default=None, ge=1, le=6)
+    college_id: Optional[int] = None
+
+class AdminSignIn(BaseModel):
+    at: datetime
+    portal: str
+    success: bool
+    reason: str
+    ip: Optional[str] = None
+
+class AdminSession(BaseModel):
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    ip: Optional[str] = None
+    user_agent: Optional[str] = None
+
+class AdminStudentInfo(BaseModel):
+    verified: bool
+    verified_until: Optional[datetime] = None
+    latest_method: Optional[str] = None
+    latest_status: Optional[str] = None
+    latest_at: Optional[datetime] = None
+    latest_college: Optional[str] = None
+    latest_reject_reason: Optional[str] = None
+
+class AdminUserFest(BaseModel):
+    slug: str
+    name: str
+    my_role: str
+    status: str
+    review_status: str
+
+class AdminUserDetail(BaseModel):
+    id: int
+    name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    role: str
+    is_active: bool
+    created_at: datetime
+    terms_accepted_at: Optional[datetime] = None
+    interests_set: bool
+    study_year: Optional[int] = None
+    home_college: Optional[str] = None
+    has_password: bool
+    google_linked: bool
+    can_host_fests: bool
+    can_host_city_events: bool
+    colleges: List[str] = []
+    student: AdminStudentInfo
+    active_sessions: List[AdminSession] = []
+    last_seen_at: Optional[datetime] = None
+    recent_sign_ins: List[AdminSignIn] = []
+    fests: List[AdminUserFest] = []
+
 class RoleChange(BaseModel):
     role: Literal["user", "organizer"]
-    college_ids: List[int] = []   # required (at least one) when making someone an organiser
+    college_ids: List[int] = []   # required (at least one) when making someone an organiser that hosts fests
+    can_host_fests: bool = True
+    can_host_city_events: bool = False
+
+class PermissionChange(BaseModel):
+    can_host_fests: bool
+    can_host_city_events: bool
 
 class ActiveChange(BaseModel):
     is_active: bool

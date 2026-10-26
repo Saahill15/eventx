@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { canHostFests } from "@/lib/permissions";
 import type { FestStats, MyFest } from "@/lib/types";
 import { formatDay } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -27,7 +28,7 @@ export function CommitteeOverview() {
   const { user } = useAuth();
   const { fests } = useMyFests();
   const [rows, setRows] = useState<Row[] | null>(null);
-  const canCreate = user?.role === "organizer";
+  const canCreate = canHostFests(user);
 
   // Numbers come from each fest the person can manage; volunteers cannot see them, so those fests just show no stats
   useEffect(() => {

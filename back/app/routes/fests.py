@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user
-from app.permissions import can_view_fest
+from app.permissions import can_host_fests, can_view_fest, fest_hosting_switched_off
 from app.fest_review import fest_missing
+from app import notices
 
 router = APIRouter()
 
@@ -15,9 +16,11 @@ router = APIRouter()
 # ─── Permission helpers ───────────────────────────────────────────────────────
 
 def _is_fest_privileged(fest: models.Fest, user: models.User, db: Session) -> bool:
-    """Return True if user is admin OR a FestMember with role owner/core."""
+    """Return True if user is admin OR a FestMember with role owner/core, and still allowed to host fests."""
     if user.role == models.RoleEnum.admin:
         return True
+    if fest_hosting_switched_off(user):
+        return False
     return (
         db.query(models.FestMember)
         .filter(
@@ -361,7 +364,7 @@ def create_fest(
     current_user: models.User = Depends(get_current_user),
 ):
     """Start a fest as a draft. Organisers can only start fests for the colleges an admin assigned to them."""
-    if current_user.role not in (models.RoleEnum.admin, models.RoleEnum.organizer):
+    if current_user.role not in (models.RoleEnum.admin, models.RoleEnum.organizer) or not can_host_fests(current_user):
         raise HTTPException(status_code=403, detail="Committee tools are switched on by the HiveOut team. Get in touch to have your account set up.")
 
     college = db.query(models.College).filter(models.College.id == payload.college_id).first()
@@ -394,7 +397,7 @@ def create_fest(
 
 
 # ─── POST /fests/:slug/members ───────────────────────────────────────────────
-@router.post("/{slug}/members", response_model=schemas.FestMemberOut, status_code=status.HTTP_201_CREATED)
+@router.post("/{slug}/members", response_model=Union[schemas.FestMemberOut, schemas.FestInviteOut], status_code=status.HTTP_201_CREATED)
 def add_fest_member(
     slug: str,
     payload: schemas.AddFestMember,
@@ -428,6 +431,8 @@ def add_fest_member(
             status_code=404,
             detail="No EventX account with that email. Ask them to sign up first, then add them.",
         )
+    if target.role == models.RoleEnum.admin:
+        raise HTTPException(status_code=400, detail="You can't add this user to a fest team.")
     target_id = target.id
 
     # Upsert: if already a member, update their role
@@ -451,11 +456,34 @@ def add_fest_member(
         db.refresh(existing)
         return existing
 
-    member = models.FestMember(fest_id=fest.id, user_id=target_id, role=role)
-    db.add(member)
+    # Nobody joins a committee straight away: they get an invitation and join once they accept it.
+    # Verification is checked when they accept, so they can be invited first and verify afterwards.
+    pending = (
+        db.query(models.FestInvite)
+        .filter(models.FestInvite.fest_id == fest.id, models.FestInvite.user_id == target_id, models.FestInvite.status == "pending")
+        .first()
+    )
+    if pending:
+        pending.role = role.value
+        pending.invited_by_id = current_user.id
+        db.commit()
+        db.refresh(pending)
+        return notices.invite_out(pending)
+
+    invite = models.FestInvite(fest_id=fest.id, user_id=target_id, invited_by_id=current_user.id, role=role.value, status="pending", created_at=datetime.utcnow())
+    db.add(invite)
+    db.flush()
+    notices.notify(
+        db, target_id, "fest_invite",
+        title=f"Invitation to join {fest.name}",
+        body=f"{current_user.name} has invited you to join the team as {notices.ROLE_NAMES.get(role.value, role.value)}. Accept or decline below. Joining needs a verified student status.",
+        invite_id=invite.id,
+    )
     db.commit()
-    db.refresh(member)
-    return member
+    db.refresh(invite)
+    if target.email:
+        notices.send_invite_email(target.email, target.name, fest.name, role.value, current_user.name)
+    return notices.invite_out(invite)
 
 
 # ─── DELETE /fests/:slug/members/:user_id ────────────────────────────────────

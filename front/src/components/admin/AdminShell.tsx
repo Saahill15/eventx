@@ -22,7 +22,7 @@ const SECTIONS: { id: string; label?: string; pages: Page[] }[] = [
     { href: "/admin/city", label: "City events", title: "City events", blurb: "Standalone events waiting for approval.", icon: <CalendarClock className={ic} />, key: "c", badge: "city_events_pending" },
   ] },
   { id: "manage", label: "Manage", pages: [
-    { href: "/admin/people", label: "People", title: "People", blurb: "Roles, college access, suspensions and sessions.", icon: <Users className={ic} />, key: "p" },
+    { href: "/admin/users", label: "Users", title: "Users", blurb: "Roles, organiser permissions, college access and suspensions.", icon: <Users className={ic} />, key: "u" },
     { href: "/admin/colleges", label: "Colleges", title: "Colleges", blurb: "Partnerships and coordinator details.", icon: <Landmark className={ic} />, key: "l" },
   ] },
   { id: "security", label: "Security", pages: [{ href: "/admin/security", label: "Sign-in log", title: "Sign-in log", blurb: "Every attempt to sign in, successful or not: who, from where, and what happened.", icon: <ShieldAlert className={ic} />, key: "g" }] },
@@ -40,7 +40,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => { api<AdminOverview>("/api/admin/overview").then(setCounts).catch(() => {}); }, []);
   useEffect(() => { if (isAdmin) refresh(); }, [isAdmin, pathname, refresh]);
 
-  // Keyboard: press "g" and then a letter to jump (g d dashboard, g f fests, g s proofs, g c city events, g p people, g l colleges, g g sign-in log)
+  // Keyboard: press "g" and then a letter to jump (g d dashboard, g f fests, g s proofs, g c city events, g u users, g l colleges, g g sign-in log)
   useEffect(() => {
     let armed = 0;
     const onKey = (e: KeyboardEvent) => {

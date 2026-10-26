@@ -4,7 +4,7 @@ import pytest
 
 from test_full import (  # shared app, in-memory DB and helpers
     client, auth, signup, signup_payload, login, make_admin, make_organizer, TestingSessionLocal,
-    create_college, create_fest, create_fest_event, approve_event, get_entry_pass, reset_db,  # noqa: F401
+    create_college, create_fest, create_fest_event, approve_event, get_entry_pass, reset_db, join_team,  # noqa: F401
 )
 from app import models
 from app.routes import auth as auth_routes
@@ -167,8 +167,8 @@ class TestFestPermissions:
         self.college_id = create_college(self.admin)
         self.fest = create_fest(self.owner, self.college_id)
         self.slug = self.fest["slug"]
-        self.add(self.owner, "core@test.com", "core")
-        self.add(self.owner, "core2@test.com", "core")
+        join_team(self.owner, self.slug, "core@test.com", "core", self.core)
+        join_team(self.owner, self.slug, "core2@test.com", "core", self.core2)
 
     def add(self, token, email, role):
         return client.post(f"/api/fests/{self.slug}/members", json={"user_id": user_id(email), "role": role}, headers=auth(token))

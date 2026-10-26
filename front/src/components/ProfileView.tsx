@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { AuthSession } from "@/lib/types";
 import { Button } from "./ui/Button";
+import { StudentVerification } from "./StudentVerification";
 import { ErrorNote, Field, Notice, Pill } from "./ui/bits";
 
 const when = (iso: string) => new Date(iso + "Z").toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -130,6 +131,7 @@ export function ProfileView() {
       </div>
       {user.role === "admin" && <Notice tone="info">Admin sessions end after 15 minutes without activity and after 8 hours at most.</Notice>}
       <Details />
+      {user.role !== "admin" && <StudentVerification />}
       <Security />
       <Button variant="outline" onClick={() => { logout(); router.push("/"); }}>Sign out</Button>
     </div>

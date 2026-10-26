@@ -104,13 +104,13 @@ body { background: var(--color-fog); color: var(--color-ink); font-family: var(-
 .sb nav { display: grid; gap: 14px; overflow-y: auto; }
 .sb-group { display: grid; gap: 2px; }
 .sb-head { display: flex; align-items: center; justify-content: space-between; }
-.sb-label { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 500; color: #5b6f70; cursor: pointer; text-align: left; }
+.sb-label { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: #2d4142; cursor: pointer; text-align: left; }
 .sb-label:hover { color: #12292A; }
 .sb-label svg { transition: transform .2s; }
 .sb-label[aria-expanded="true"] svg { transform: rotate(90deg); }
 .sb-items { display: grid; gap: 2px; }
-.sb-items a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; font-size: 14px; font-weight: 500; color: #2f4546; text-decoration: none; transition: background .2s, color .2s; }
-.sb-items a svg { flex: none; width: 17px; height: 17px; opacity: .8; }
+.sb-items a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; font-size: 14px; font-weight: 500; color: #0b1f1e; text-decoration: none; transition: background .2s, color .2s; }
+.sb-items a svg { flex: none; width: 17px; height: 17px; color: #1f3a3b; }
 .sb-items a:hover { background: rgba(10,35,34,.04); color: #071D1C; }
 .sb-items a[aria-current="page"] { background: rgba(10,35,34,.07); color: #071D1C; }
 .sb-badge { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: rgba(11,127,124,.12); color: #0a6f6c; font-size: 12px; font-weight: 500; line-height: 20px; text-align: center; }
@@ -119,7 +119,7 @@ body { background: var(--color-fog); color: var(--color-ink); font-family: var(-
 .sb-add:hover { background: rgba(10,35,34,.07); color: #071D1C; }
 .sb-dot { flex: none; width: 8px; height: 8px; margin: 0 4.5px; border-radius: 50%; background: #c6cfcd; }
 .sb-dot.live { background: #16a34a; }
-.sb-empty { padding: 4px 10px; font-size: 12.5px; color: #5b6f70; }
+.sb-empty { padding: 4px 10px; font-size: 12.5px; color: #3d5253; }
 .ws-grid { display: grid; grid-template-columns: 15rem minmax(0, 1fr); }
 @media (max-width: 860px) {
   .ws-grid { display: block; }

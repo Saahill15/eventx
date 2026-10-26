@@ -15,6 +15,8 @@ export interface User {
   is_student_verified: boolean;
   college_ids: number[];
   organizer_welcome_pending: boolean;
+  can_host_fests: boolean;
+  can_host_city_events: boolean;
   has_password: boolean;
   google_linked: boolean;
   profile_complete: boolean;
@@ -193,6 +195,44 @@ export interface RegistrationDetail extends Registration {
   is_team_leader: boolean;
 }
 
+export interface StudentStatus {
+  verified: boolean;
+  verified_until: string | null;
+  college_id: number | null;
+  can_verify: boolean;
+  pending: { id: number; method: string; created_at: string; email: string | null; document_type: string | null } | null;
+  last_rejection: string | null;
+}
+
+export interface FestInvite {
+  id: number;
+  fest_id: number;
+  fest_slug: string | null;
+  fest_name: string | null;
+  user_id: number;
+  user_name: string | null;
+  user_email: string | null;
+  role: "owner" | "core" | "volunteer";
+  status: "pending" | "accepted" | "declined" | "cancelled";
+  invited_by_name: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface AccountNotice {
+  id: number;
+  kind: "fest_invite" | "fest_invite_answer";
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+  invite_id: number | null;
+  invite_status: "pending" | "accepted" | "declined" | "cancelled" | null;
+  fest_slug: string | null;
+  fest_name: string | null;
+  role: string | null;
+}
+
 export interface Member {
   id: number;
   fest_id: number;
@@ -209,7 +249,36 @@ export interface AdminUser {
   role: Role;
   is_active: boolean;
   college_ids: number[];
+  can_host_fests: boolean;
+  can_host_city_events: boolean;
   created_at: string;
+}
+
+export interface AdminUserDetail {
+  id: number;
+  name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  terms_accepted_at: string | null;
+  interests_set: boolean;
+  study_year: number | null;
+  home_college: string | null;
+  has_password: boolean;
+  google_linked: boolean;
+  can_host_fests: boolean;
+  can_host_city_events: boolean;
+  colleges: string[];
+  student: { verified: boolean; verified_until: string | null; latest_method: string | null; latest_status: string | null; latest_at: string | null; latest_college: string | null; latest_reject_reason: string | null };
+  active_sessions: { created_at: string; last_seen_at: string; expires_at: string; ip: string | null; user_agent: string | null }[];
+  last_seen_at: string | null;
+  recent_sign_ins: { at: string; portal: string; success: boolean; reason: string; ip: string | null }[];
+  fests: { slug: string; name: string; my_role: string; status: string; review_status: string }[];
 }
 
 export interface AdminOverview {

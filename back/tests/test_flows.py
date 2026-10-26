@@ -4,7 +4,7 @@ import pytest
 
 from test_fixes import user_token, user_id, city_event_payload  # noqa: F401
 from test_full import (
-    client, auth, create_college, create_fest, create_fest_event, get_entry_pass, reset_db,  # noqa: F401
+    client, auth, create_college, create_fest, create_fest_event, get_entry_pass, reset_db, join_team,  # noqa: F401
 )
 
 
@@ -18,8 +18,7 @@ class Setup:
         self.college_id = create_college(self.admin)
         self.fest = create_fest(self.owner, self.college_id)
         self.slug = self.fest["slug"]
-        r = client.post(f"/api/fests/{self.slug}/members", json={"email": "vol@test.com", "role": "volunteer"}, headers=auth(self.owner))
-        assert r.status_code == 201, r.text
+        join_team(self.owner, self.slug, "vol@test.com", "volunteer", self.volunteer)
         self.pass_data = get_entry_pass(self.student, self.slug).json()
         self.code = self.pass_data["qr_code"]
 

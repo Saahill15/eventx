@@ -52,7 +52,7 @@ export function OverviewTab() {
       <PageHeader
         title={greeting(user?.first_name)}
         sub={waiting ? `${waiting} thing${waiting === 1 ? " is" : "s are"} waiting for you.` : "Nothing is waiting for you."}
-        actions={<><Button href="/admin/people" variant="outline" size="sm">People</Button><Button href="/admin/fests" size="sm">Review fests{o.fests_in_review ? ` (${o.fests_in_review})` : ""}</Button></>}
+        actions={<><Button href="/admin/users" variant="outline" size="sm">Users</Button><Button href="/admin/fests" size="sm">Review fests{o.fests_in_review ? ` (${o.fests_in_review})` : ""}</Button></>}
       />
 
       <StatStrip items={[
@@ -62,8 +62,8 @@ export function OverviewTab() {
         { label: "Sent back for changes", value: o.fests_changes_requested, hint: "With the organiser", href: "/admin/fests" },
       ]} />
       <StatStrip items={[
-        { label: "Members", value: o.members, hint: `${o.verified_students} verified students`, href: "/admin/people" },
-        { label: "Organisers", value: o.organizers, hint: o.suspended ? `${o.suspended} account${o.suspended === 1 ? "" : "s"} suspended` : "None suspended", href: "/admin/people" },
+        { label: "Members", value: o.members, hint: `${o.verified_students} verified students`, href: "/admin/users" },
+        { label: "Organisers", value: o.organizers, hint: o.suspended ? `${o.suspended} account${o.suspended === 1 ? "" : "s"} suspended` : "None suspended", href: "/admin/users" },
         { label: "Partner colleges", value: o.partner_colleges, hint: `${o.prospect_colleges} prospect${o.prospect_colleges === 1 ? "" : "s"}`, href: "/admin/colleges" },
         { label: "Live fests", value: o.fests_live, hint: `${o.events_total} events · ${o.fest_passes} passes` },
       ]} />

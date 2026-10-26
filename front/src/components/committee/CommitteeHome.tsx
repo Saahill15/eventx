@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { canHostFests } from "@/lib/permissions";
 import type { College, Fest, MyFest } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Pill, Skeleton } from "@/components/ui/bits";
@@ -69,7 +70,7 @@ export function CommitteeHome() {
   const [colleges, setColleges] = useState<College[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const canCreate = user?.role === "organizer" || user?.role === "admin";
+  const canCreate = canHostFests(user);
 
   useEffect(() => { if (window.location.hash === "#new") setCreating(true); }, []);
   useEffect(() => {

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { canHostCityEvents } from "@/lib/permissions";
 import type { FestEvent } from "@/lib/types";
 import { formatDay, priceLabel } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -13,14 +15,17 @@ const STATUS = { pending: { label: "Waiting for HiveOut", tone: "amber" }, appro
 
 /** Standalone events that are not part of a fest. Each one is reviewed by HiveOut before it appears on the site. */
 export function CityEventsPage() {
+  const { user } = useAuth();
   const [events, setEvents] = useState<FestEvent[] | null>(null);
   const [editing, setEditing] = useState<FestEvent | "new" | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => { api<FestEvent[]>("/api/events/mine").then(setEvents).catch((e) => { setError(e instanceof Error ? e.message : "Could not load."); setEvents([]); }); }, []);
-  useEffect(load, [load]);
+  useEffect(() => { if (canHostCityEvents(user)) load(); }, [load, user]);
 
   const act = async (fn: () => Promise<unknown>) => { setBusy(true); setError(""); try { await fn(); load(); } catch (e) { setError(e instanceof Error ? e.message : "That did not work."); } setBusy(false); };
+
+  if (!canHostCityEvents(user)) return <EmptyState title="City events are not switched on" body="HiveOut turns city events on for each organiser account. Ask the HiveOut team to enable them for yours." />;
 
   if (editing) return <EventForm kind="city" event={editing === "new" ? null : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />;
 
