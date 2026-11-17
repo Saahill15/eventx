@@ -10,7 +10,7 @@ IS_PRODUCTION = os.getenv("APP_ENV", "development") == "production"
 
 # The interactive docs list every endpoint, so they are switched off in production
 app = FastAPI(
-    title="EventX API",
+    title="HiveOut API",
     docs_url=None if IS_PRODUCTION else "/docs",
     redoc_url=None if IS_PRODUCTION else "/redoc",
     openapi_url=None if IS_PRODUCTION else "/openapi.json",
@@ -69,4 +69,4 @@ def on_startup():
 
 @app.get("/")
 def root():
-    return {"message": "EventX API is running"}
+    return {"message": "HiveOut API is running"}

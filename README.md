@@ -1,4 +1,4 @@
-# EventX
+# HiveOut
 
 College-fest and city-event platform: discover fests, get a free entry pass, register for events, and manage events as an organiser or admin.
 

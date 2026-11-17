@@ -53,7 +53,7 @@ def seed():
                 )
                 admin_email, admin_password = creds
                 db.add(models.User(
-                    name="EventX Admin",
+                    name="HiveOut Admin",
                     email=admin_email,
                     hashed_password=pwd.hash(admin_password[:72]),
                     role=models.RoleEnum.admin,

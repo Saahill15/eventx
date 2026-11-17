@@ -429,7 +429,7 @@ def add_fest_member(
     if not target:
         raise HTTPException(
             status_code=404,
-            detail="No EventX account with that email. Ask them to sign up first, then add them.",
+            detail="No HiveOut account with that email. Ask them to sign up first, then add them.",
         )
     if target.role == models.RoleEnum.admin:
         raise HTTPException(status_code=400, detail="You can't add this user to a fest team.")
