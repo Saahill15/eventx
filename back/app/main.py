@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401  (registers the tables with Base.metadata)
+from app import dev_mode
 from app.migrate import run_migrations
 from app.seed import seed
 from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements, short_links, transfers, event_import, invites, dev_switch
@@ -61,14 +62,13 @@ app.include_router(event_import.router,  prefix="/api/fests",       tags=["Event
 app.include_router(short_links.router,   prefix="/api/short-links", tags=["Short links"])
 app.include_router(gate.router,           prefix="/api/fests",       tags=["Gate"])
 app.include_router(fest_events.router,   prefix="/api/fest-events", tags=["FestEventRegistrations"])
-if dev_switch.enabled():  # local development only: needs APP_ENV != production and DEV_ROLE_SWITCHER=1
+if dev_mode.enabled():  # local development only: needs APP_ENV != production and DEV_ROLE_SWITCHER=1
     app.include_router(dev_switch.router, prefix="/api/dev",        tags=["Dev"])
 
 @app.on_event("startup")
 def on_startup():
     run_migrations()
     seed()
-    dev_switch.disable_dev_accounts_if_off()
 
 @app.get("/")
 def root():

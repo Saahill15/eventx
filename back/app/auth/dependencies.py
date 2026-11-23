@@ -6,6 +6,7 @@ from app.database import get_db
 from app.auth.jwt import decode_token
 from app.auth.sessions import check_session
 from app import models
+from app.dev_mode import enabled as dev_mode_enabled, is_dev_account
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -17,6 +18,9 @@ def _user_from_token(token: str, db: Session):
     user = db.query(models.User).filter(models.User.id == payload.get("sub")).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if is_dev_account(user.email) and not dev_mode_enabled():
+        # A demo account from a developer's machine (for example in a copied database) is unusable wherever the switcher is off
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
     if user.is_active is False:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
     # Tokens without a live server-side session are refused (signed out, timed out, or issued before sessions existed)

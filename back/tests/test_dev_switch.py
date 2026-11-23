@@ -19,7 +19,8 @@ def session_factory():
     Base.metadata.create_all(bind=engine)
     factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = factory()
-    db.add_all([models.College(name="College A", partner_status="partner"), models.College(name="College B", partner_status="partner")])
+    db.add_all([models.College(name="College A", partner_status="partner"), models.College(name="College B", partner_status="partner"),
+                models.College(name="Prospect College", partner_status="prospect")])
     db.commit()
     db.close()
     return factory
@@ -159,35 +160,107 @@ class TestPersonas:
         assert event.portal == "dev" and event.reason == "dev_switch" and event.success is True
 
 
-class TestDisabledWhenOff:
-    def test_demo_accounts_are_disabled_at_startup_when_the_switcher_is_off(self, session_factory, monkeypatch):
-        client = make_client(session_factory, monkeypatch)
-        token = switch(client, "admin").json()["access_token"]
-        assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+class TestAdminPanelChangesStick:
+    """Switching only signs in. It never puts a demo account back to its starting state."""
 
-        monkeypatch.delenv("DEV_ROLE_SWITCHER")  # e.g. the database was copied somewhere the flag is not set
-        dev_switch.disable_dev_accounts_if_off()
-        assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == 403
-        assert all(u.is_active is False for u in session_factory().query(models.User).all())
+    def me(self, client, token):
+        return client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"})
 
-    def test_accounts_stay_enabled_while_the_switcher_is_on(self, session_factory, monkeypatch):
+    def test_removing_the_organiser_role_survives_switching_again(self, session_factory, monkeypatch):
         client = make_client(session_factory, monkeypatch)
-        switch(client, "admin")
-        dev_switch.disable_dev_accounts_if_off()
-        assert session_factory().query(models.User).one().is_active is True
+        switch(client, "organizer")
+        db = session_factory()
+        user = db.query(models.User).filter(models.User.email == "organizer@dev.hiveout.test").one()
+        user.role = models.RoleEnum.user
+        user.can_host_fests = False
+        user.can_host_city_events = False
+        db.query(models.OrganizerCollege).filter(models.OrganizerCollege.user_id == user.id).delete()
+        db.commit()
 
-    def test_switching_back_on_re_enables_an_account(self, session_factory, monkeypatch):
+        me = self.me(client, switch(client, "organizer").json()["access_token"]).json()
+        assert me["role"] == "user" and me["can_host_fests"] is False and me["can_host_city_events"] is False and me["college_ids"] == []
+
+    def test_adding_a_role_back_also_survives(self, session_factory, monkeypatch):
         client = make_client(session_factory, monkeypatch)
-        switch(client, "admin")
-        monkeypatch.delenv("DEV_ROLE_SWITCHER")
-        dev_switch.disable_dev_accounts_if_off()
-        monkeypatch.setenv("DEV_ROLE_SWITCHER", "1")
+        switch(client, "user")
+        db = session_factory()
+        user = db.query(models.User).filter(models.User.email == "user@dev.hiveout.test").one()
+        user.role = models.RoleEnum.organizer
+        user.can_host_fests = True
+        db.commit()
+        me = self.me(client, switch(client, "user").json()["access_token"]).json()
+        assert me["role"] == "organizer" and me["can_host_fests"] is True
+
+    def test_changing_the_role_again_and_again_keeps_the_last_one(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        switch(client, "organizer")
+        for role in (models.RoleEnum.user, models.RoleEnum.organizer, models.RoleEnum.user):
+            db = session_factory()
+            db.query(models.User).filter(models.User.email == "organizer@dev.hiveout.test").one().role = role
+            db.commit()
+            assert self.me(client, switch(client, "organizer").json()["access_token"]).json()["role"] == role.value
+
+    def test_student_verification_removed_in_the_admin_panel_stays_removed(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        switch(client, "student")
+        db = session_factory()
+        db.query(models.User).filter(models.User.email == "student@dev.hiveout.test").one().student_verified_until = None
+        db.commit()
+        me = self.me(client, switch(client, "student").json()["access_token"]).json()
+        assert me["is_student_verified"] is False
+
+    def test_a_suspended_demo_account_stays_suspended(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        switch(client, "user")
+        db = session_factory()
+        db.query(models.User).filter(models.User.email == "user@dev.hiveout.test").one().is_active = False
+        db.commit()
+        res = switch(client, "user")
+        assert res.status_code == 403 and "suspended" in res.json()["detail"]
+        assert session_factory().query(models.User).filter(models.User.email == "user@dev.hiveout.test").one().is_active is False
+
+    def test_other_demo_accounts_are_unaffected_by_that_suspension(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        switch(client, "user")
+        db = session_factory()
+        db.query(models.User).filter(models.User.email == "user@dev.hiveout.test").one().is_active = False
+        db.commit()
         assert switch(client, "admin").status_code == 200
 
-    def test_other_accounts_are_left_alone(self, session_factory, monkeypatch):
+
+class TestUnusableWhereTheSwitcherIsOff:
+    def test_a_demo_account_token_stops_working_when_the_switcher_is_off(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        token = switch(client, "admin").json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        assert client.get("/api/users/me", headers=headers).status_code == 200
+
+        monkeypatch.delenv("DEV_ROLE_SWITCHER")  # e.g. the database was copied somewhere the flag is not set
+        assert client.get("/api/users/me", headers=headers).status_code == 403
+
+    def test_it_works_again_when_the_switcher_is_back_on_and_nothing_was_changed(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        token = switch(client, "admin").json()["access_token"]
+        monkeypatch.delenv("DEV_ROLE_SWITCHER")
+        assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == 403
+        monkeypatch.setenv("DEV_ROLE_SWITCHER", "1")
+        assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+        assert session_factory().query(models.User).one().is_active is True  # the account itself was never modified
+
+    def test_production_refuses_demo_accounts_even_with_the_flag_set(self, session_factory, monkeypatch):
+        client = make_client(session_factory, monkeypatch)
+        token = switch(client, "admin").json()["access_token"]
+        monkeypatch.setenv("APP_ENV", "production")
+        assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == 403
+
+    def test_ordinary_accounts_are_never_affected(self, session_factory, monkeypatch):
+        from app.auth.jwt import create_token
+        from app.auth.sessions import start_session
         client = make_client(session_factory, monkeypatch, flag=None)
         db = session_factory()
-        db.add(models.User(name="Real Person", email="real@example.com", role=models.RoleEnum.user, is_active=True))
+        user = models.User(name="Real Person", email="real@example.com", role=models.RoleEnum.user, is_active=True)
+        db.add(user)
         db.commit()
-        dev_switch.disable_dev_accounts_if_off()
-        assert session_factory().query(models.User).filter(models.User.email == "real@example.com").one().is_active is True
+        db.refresh(user)
+        token = start_session(db, user)["access_token"]
+        assert client.get("/api/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
