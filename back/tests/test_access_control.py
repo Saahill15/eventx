@@ -29,7 +29,9 @@ def concrete(path):
 
 def api_routes():
     for r in app.routes:
-        if isinstance(r, APIRoute) and r.path.startswith(("/api", "/")) and r.path not in ("/openapi.json", "/docs", "/redoc", "/docs/oauth2-redirect"):
+        # /api/dev exists only on a developer's own machine (DEV_ROLE_SWITCHER=1) and signs people in without a password,
+        # so it cannot demand a sign-in. It refuses everyone else instead; that is covered in test_dev_switch.py
+        if isinstance(r, APIRoute) and r.path.startswith(("/api", "/")) and not r.path.startswith("/api/dev") and r.path not in ("/openapi.json", "/docs", "/redoc", "/docs/oauth2-redirect"):
             for m in r.methods - {"HEAD", "OPTIONS"}:
                 yield m, r.path
 

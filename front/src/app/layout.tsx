@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/auth";
 import { SITE_URL } from "@/lib/api";
 import { MotionProvider } from "@/components/motion";
 import { SiteChrome } from "@/components/shell/SiteChrome";
+import { DevRoleSwitcher } from "@/components/shell/DevRoleSwitcher";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MotionProvider>
           <AuthProvider>
             <SiteChrome>{children}</SiteChrome>
+            <DevRoleSwitcher />
           </AuthProvider>
         </MotionProvider>
       </body>

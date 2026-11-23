@@ -13,6 +13,8 @@ interface AuthState {
   login: (email: string, password: string, portal?: "admin") => Promise<AuthResult>;
   signup: (input: SignupInput) => Promise<AuthResult>;
   googleSignIn: (credential: string) => Promise<AuthResult>;
+  /** Local development only: sign in as a demo account. Works only when the API has DEV_ROLE_SWITCHER=1. */
+  devSwitch: (persona: string) => Promise<AuthResult>;
   refresh: () => Promise<void>;
   logout: () => void;
 }
@@ -122,7 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [finish],
   );
 
-  const value = useMemo(() => ({ user, loading, login, signup, googleSignIn, logout, refresh: loadUser }), [user, loading, login, signup, googleSignIn, logout, loadUser]);
+  const devSwitch = useCallback(
+    async (persona: string) => finish(await api<AuthResult>("/api/dev/switch", { method: "POST", body: { persona } })),
+    [finish],
+  );
+
+  const value = useMemo(() => ({ user, loading, login, signup, googleSignIn, devSwitch, logout, refresh: loadUser }), [user, loading, login, signup, googleSignIn, devSwitch, logout, loadUser]);
   return (
     <AuthContext.Provider value={value}>
       {children}
