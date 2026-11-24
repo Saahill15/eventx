@@ -14,7 +14,7 @@ export function FestPoster({ fest, college }: { fest: Fest; college?: string | n
         <div className="glass-photo absolute inset-x-2.5 bottom-2.5 rounded-[1.25rem] p-4">
           {college && <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-white/80"><Building2 className="h-3.5 w-3.5" />{college}</p>}
           <p className="font-display text-xl font-semibold leading-tight tracking-tight">{fest.name}</p>
-          <p className="mt-1 text-xs text-white/80">{fest.event_count} event{fest.event_count === 1 ? "" : "s"}{fest.tagline ? ` · ${fest.tagline}` : ""}</p>
+          <p className="mt-1 text-xs text-white/80">{fest.event_count === 0 && fest.dates_tba ? "Dates coming soon" : `${fest.event_count} event${fest.event_count === 1 ? "" : "s"}`}{fest.tagline ? ` · ${fest.tagline}` : ""}</p>
         </div>
       </Link>
     </motion.div>

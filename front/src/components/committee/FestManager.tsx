@@ -108,7 +108,7 @@ export function FestManager({ slug }: { slug: string }) {
 
       {tab === "overview" && <FestOverviewTab fest={f} role={role} reload={loadFest} goTo={go} />}
       {tab === "details" && <FestDetailsTab key={f.review_status + f.name} fest={f} frozen={frozen} onSaved={loadFest} />}
-      {tab === "events" && <EventsTab fest={f} events={events} frozen={frozen} reload={() => { loadEvents(); loadFest(); }} />}
+      {tab === "events" && <EventsTab fest={f} events={events} frozen={frozen} goTo={go} reload={() => { loadEvents(); loadFest(); }} />}
       {tab === "registrations" && <RegistrationsTab events={events} reload={loadEvents} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
       {tab === "announcements" && <AnnouncementsTab slug={slug} live={f.status === "live"} events={publicEvents} />}

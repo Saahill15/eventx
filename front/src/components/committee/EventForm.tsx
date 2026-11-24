@@ -37,12 +37,48 @@ const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fes
   team_max: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_max, 10) || null : null,
 });
 
+/** Starting points for a new fest event. They set the structure (registration, teams, usual times); you write the title and details. */
+const TEMPLATES: { key: string; label: string; about: string; hint: string; minutes: number; set: Partial<State> }[] = [
+  { key: "competition", label: "Competition", about: "Solo entries, with rules and prizes", minutes: 180, hint: "Who can enter, the rules, how it is judged and the prizes.",
+    set: { requires_registration: true, approval_mode: "auto", time: "11:00" } },
+  { key: "team", label: "Team competition", about: "People register as a team", minutes: 180, hint: "Team size, the rules, how it is judged and the prizes.",
+    set: { requires_registration: true, is_team_event: true, team_min: "2", team_max: "4", time: "11:00" } },
+  { key: "workshop", label: "Workshop", about: "Limited seats, hands-on", minutes: 120, hint: "What people will learn, who it is for and what to bring.",
+    set: { requires_registration: true, registration_limit: "60", category: "Education", time: "10:00" } },
+  { key: "talk", label: "Talk or panel", about: "Open to walk in", minutes: 60, hint: "Who is speaking and what they will talk about.",
+    set: { requires_registration: false, category: "Education", time: "15:00" } },
+  { key: "show", label: "Concert or show", about: "Open to walk in", minutes: 180, hint: "Who is performing and what to expect.",
+    set: { requires_registration: false, category: "Music", time: "18:00" } },
+  { key: "exhibition", label: "Exhibition or stalls", about: "Open to walk in, all day", minutes: 420, hint: "What is on display and what visitors can do.",
+    set: { requires_registration: false, time: "10:00" } },
+];
+/** What a template resets before it applies, so switching templates leaves nothing behind. */
+const STRUCTURE_RESET: Partial<State> = { requires_registration: false, is_team_event: false, team_min: "2", team_max: "4", registration_limit: "", approval_mode: "auto", category: "" };
+
+/** "11:00" plus 180 minutes is "14:00". Stops at the end of the day. */
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  const total = Math.min(h * 60 + (m || 0) + minutes, 23 * 60 + 59);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 /** One form for both kinds of event: a fest's events (with registration and questions) and standalone city events. */
-export function EventForm({ kind, fest, event, onSaved, onCancel }: { kind: "fest" | "city"; fest?: FestManage; event: ManagedEvent | FestEvent | null; onSaved: () => void; onCancel: () => void }) {
+export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onSaved, onCancel }: {
+  kind: "fest" | "city"; fest?: FestManage; event: ManagedEvent | FestEvent | null; copyOf?: ManagedEvent | null; siblings?: ManagedEvent[]; onSaved: () => void; onCancel: () => void;
+}) {
   const isFest = kind === "fest";
-  const [f, setF] = useState<State>(event ? toState(event) : empty);
-  const [image, setImage] = useState<string | null>(event?.image_url ?? null);
-  const [sections, setSections] = useState<ExtraSection[]>(event?.extra_sections ?? []);
+  const base = event ?? copyOf;
+  // A new fest event starts on the day of the last one added (or the fest's first day), so most of the form is already right
+  const lastDate = siblings.length ? siblings[siblings.length - 1].date.slice(0, 10) : fest?.start_date ?? "";
+  const [f, setF] = useState<State>(event ? toState(event) : copyOf ? { ...toState(copyOf), title: `${copyOf.title} (copy)` } : { ...empty, date: isFest ? lastDate : "" });
+  const [image, setImage] = useState<string | null>(base?.image_url ?? null);
+  const [sections, setSections] = useState<ExtraSection[]>(base?.extra_sections ?? []);
+  const [template, setTemplate] = useState<string | null>(null);
+  const [duration, setDuration] = useState(120);
+  const [endAuto, setEndAuto] = useState(!base);   // the end time follows the start time until it is typed by hand
+  const [descHint, setDescHint] = useState("");
+  const venues = Array.from(new Set(siblings.map((e) => e.location).filter(Boolean) as string[]));
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [loadedQuestions, setLoadedQuestions] = useState("[]");
   const [busy, setBusy] = useState(false);
@@ -52,9 +88,24 @@ export function EventForm({ kind, fest, event, onSaved, onCancel }: { kind: "fes
   const locked = registered > 0;
 
   useEffect(() => {
-    if (!event || !isFest) return;
-    api<Question[]>(`/api/events/${event.id}/questions`).then((qs) => { const d = qs.map(toDraft); setQuestions(d); setLoadedQuestions(JSON.stringify(toQuestionPayload(d))); }).catch(() => {});
-  }, [event, isFest]);
+    const source = event ?? copyOf;
+    if (!source || !isFest) return;
+    // For a copy the questions are loaded as drafts but not marked as saved, so they are created with the new event
+    api<Question[]>(`/api/events/${source.id}/questions`).then((qs) => { const d = qs.map(toDraft); setQuestions(d); if (event) setLoadedQuestions(JSON.stringify(toQuestionPayload(d))); }).catch(() => {});
+  }, [event, copyOf, isFest]);
+
+  const applyTemplate = (t: (typeof TEMPLATES)[number] | null) => {
+    setTemplate(t?.key ?? "blank");
+    setDescHint(t?.hint ?? "");
+    if (!t) return;
+    setDuration(t.minutes);
+    setF((x) => {
+      const time = x.time || t.set.time || "";
+      return { ...x, ...STRUCTURE_RESET, ...t.set, time, end_time: endAuto || !x.end_time ? addMinutes(time, t.minutes) : x.end_time };
+    });
+    setEndAuto(true);
+  };
+  const changeStart = (time: string) => setF((x) => ({ ...x, time, end_time: endAuto && time ? addMinutes(time, duration) : x.end_time }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,19 +135,32 @@ export function EventForm({ kind, fest, event, onSaved, onCancel }: { kind: "fes
 
   return (
     <form onSubmit={submit} className="card max-w-4xl space-y-5 p-6 sm:p-8">
-      <h2 className="font-display text-xl font-bold tracking-tight">{event ? "Edit event" : isFest ? "New event" : "New city event"}</h2>
+      <h2 className="font-display text-xl font-bold tracking-tight">{event ? "Edit event" : copyOf ? "New event from a copy" : isFest ? "New event" : "New city event"}</h2>
       <ErrorNote>{error}</ErrorNote>
+      {copyOf && <Notice tone="info">This is a copy of &ldquo;{copyOf.title}&rdquo;. Change the title, date and anything else that is different, then add it.</Notice>}
+      {isFest && !event && !copyOf && (
+        <fieldset>
+          <legend className="mb-2 text-sm font-semibold">Start from a template <span className="font-normal text-mute">(optional)</span></legend>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Event template">
+            {TEMPLATES.map((t) => (
+              <button key={t.key} type="button" role="radio" aria-checked={template === t.key} title={t.about} onClick={() => applyTemplate(t)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${template === t.key ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>{t.label}</button>
+            ))}
+            <button type="button" role="radio" aria-checked={template === "blank"} onClick={() => applyTemplate(null)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${template === "blank" ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>Blank</button>
+          </div>
+          {template && template !== "blank" && <p className="mt-2 text-xs text-mute">{TEMPLATES.find((t) => t.key === template)?.about}. Times and settings are a starting point: change anything.</p>}
+        </fieldset>
+      )}
       {!isFest && <Notice tone="info">City events are standalone events, not part of a fest. HiveOut reviews each one before it appears on the site.</Notice>}
       <Field label="Title"><input className="field" required value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. Battle of Bands" /></Field>
-      <Field label="Description" hint={isFest ? "Required" : undefined}><textarea className="field min-h-28" required={isFest} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>
+      <Field label="Description" hint={isFest ? "Required" : undefined}><textarea className="field min-h-28" required={isFest} placeholder={descHint} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Date"><input className="field" type="date" required value={f.date} min={isFest ? fest?.start_date ?? undefined : undefined} max={isFest ? fest?.end_date ?? undefined : undefined} onChange={(e) => set("date", e.target.value)} /></Field>
-        <Field label="Starts"><input className="field" type="time" required={isFest} value={f.time} onChange={(e) => set("time", e.target.value)} /></Field>
-        <Field label="Ends"><input className="field" type="time" required={isFest} value={f.end_time} onChange={(e) => set("end_time", e.target.value)} /></Field>
+        <Field label="Starts"><input className="field" type="time" required={isFest} value={f.time} onChange={(e) => changeStart(e.target.value)} /></Field>
+        <Field label="Ends"><input className="field" type="time" required={isFest} value={f.end_time} onChange={(e) => { setEndAuto(false); set("end_time", e.target.value); }} /></Field>
       </div>
       {isFest && fest?.start_date && fest?.end_date && <p className="-mt-3 text-xs text-mute">Events must fall between your fest&apos;s dates ({fest.start_date} to {fest.end_date}).</p>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Venue"><input className="field" required={isFest} value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="e.g. Main Auditorium" /></Field>
+        <Field label="Venue"><input className="field" required={isFest} list="venue-suggestions" value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="e.g. Main Auditorium" /><datalist id="venue-suggestions">{venues.map((v) => <option key={v} value={v} />)}</datalist></Field>
         <Field label="Category"><select className="field" value={f.category} onChange={(e) => set("category", e.target.value)}><option value="">Select</option>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
       </div>
       <ImageUpload label="Cover image" value={image} onChange={setImage} aspect="aspect-[16/10]" />

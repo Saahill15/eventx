@@ -392,6 +392,7 @@ class FestOut(BaseModel):
     status: str
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    dates_tba: bool = False   # the dates are not fixed yet: shown as "Dates coming soon"
     campus_address: Optional[str] = None
     map_url: Optional[str] = None
     instagram_url: Optional[str] = None
@@ -401,6 +402,30 @@ class FestOut(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+REVIEW_FIELD_KEYS = ("name", "tagline", "dates", "banner", "description", "venue", "contact", "events", "links")
+
+
+class ReviewFieldNote(BaseModel):
+    """One thing the admin wants fixed, tied to a part of the fest so the organiser can find it."""
+    key: Literal["name", "tagline", "dates", "banner", "description", "venue", "contact", "events", "links"]
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+
+
+class ReviewDecision(BaseModel):
+    """Sending a fest back, rejecting it or taking it offline: a general note, notes on specific fields, or both."""
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=1000)]] = None
+    fields: List[ReviewFieldNote] = Field(default_factory=list, max_length=len(REVIEW_FIELD_KEYS))
+
+    @model_validator(mode="after")
+    def something_to_say(self):
+        if not self.note and not self.fields:
+            raise ValueError("write a note, or flag at least one field")
+        keys = [f.key for f in self.fields]
+        if len(keys) != len(set(keys)):
+            raise ValueError("each field can be flagged once")
+        return self
+
 
 class FestManageOut(FestOut):
     """What the committee and admins see: adds private contact details and the review state."""
@@ -412,8 +437,14 @@ class FestManageOut(FestOut):
     faculty_email: Optional[str] = None
     review_status: str = "draft"
     review_note: Optional[str] = None
+    review_fields: List[ReviewFieldNote] = Field(default_factory=list)
     submitted_at: Optional[datetime] = None
     reviewed_at: Optional[datetime] = None
+
+    @field_validator("review_fields", mode="before")
+    @classmethod
+    def no_fields_means_empty(cls, v):
+        return v or []
 
 class FestWithEventsOut(BaseModel):
     id: int
@@ -497,6 +528,7 @@ class FestUpdate(BaseModel):
     college_id: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    dates_tba: Optional[bool] = None   # true = "dates coming soon": clears the dates, and needs no events yet
     campus_address: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
     map_url: Optional[str] = None
     instagram_url: Optional[str] = None
@@ -984,6 +1016,7 @@ class ChecklistItem(BaseModel):
     tab: str                   # which tab of the fest manager completes it: details | events | team
     hint: Optional[str] = None
     problems: List[str] = []   # specifics still wrong inside this item (for example, which event lacks a venue)
+    flag: Optional[str] = None  # what HiveOut asked to change about this item, while the fest is back with the organiser
 
 class ChecklistOut(BaseModel):
     missing: List[str] = []

@@ -333,7 +333,7 @@ def get_fest_for_review(slug: str, db: Session = Depends(get_db), _=Depends(requ
     return _review_view(db, fest)
 
 
-def _decide_fest(db: Session, slug: str, admin: models.User, outcome: str, note: Optional[str]) -> models.Fest:
+def _decide_fest(db: Session, slug: str, admin: models.User, outcome: str, note: Optional[str], fields=None) -> models.Fest:
     fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
     if not fest:
         raise HTTPException(status_code=404, detail="Fest not found")
@@ -341,6 +341,7 @@ def _decide_fest(db: Session, slug: str, admin: models.User, outcome: str, note:
         raise HTTPException(status_code=400, detail="This fest is not waiting for review")
     fest.review_status = outcome
     fest.review_note = note
+    fest.review_fields = [f.model_dump() for f in fields] if fields else None
     fest.reviewed_by = admin.id
     fest.reviewed_at = datetime.utcnow()
     return fest
@@ -360,25 +361,25 @@ def approve_fest(slug: str, data: Optional[schemas.ReviewNote] = None, db: Sessi
 
 
 @router.post("/fests/{slug}/request-changes", response_model=schemas.FestReviewOut)
-def request_fest_changes(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
-    """Send it back to the organiser with a note saying what to fix."""
-    fest = _decide_fest(db, slug, admin, "changes_requested", data.note)
+def request_fest_changes(slug: str, data: schemas.ReviewDecision, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Send it back to the organiser: a note saying what to fix, and/or notes on the specific fields that need changing."""
+    fest = _decide_fest(db, slug, admin, "changes_requested", data.note, data.fields)
     db.commit()
     db.refresh(fest)
     return _review_view(db, fest)
 
 
 @router.post("/fests/{slug}/reject", response_model=schemas.FestReviewOut)
-def reject_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
-    """Decline the fest. The organiser sees the reason and may fix things and submit again."""
-    fest = _decide_fest(db, slug, admin, "rejected", data.note)
+def reject_fest(slug: str, data: schemas.ReviewDecision, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    """Decline the fest. The organiser sees the reason (and any flagged fields) and may fix things and submit again."""
+    fest = _decide_fest(db, slug, admin, "rejected", data.note, data.fields)
     db.commit()
     db.refresh(fest)
     return _review_view(db, fest)
 
 
 @router.post("/fests/{slug}/unpublish", response_model=schemas.FestReviewOut)
-def unpublish_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+def unpublish_fest(slug: str, data: schemas.ReviewDecision, db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
     """Take an approved fest offline and send it back to its organiser with a note. They can fix it and submit again."""
     fest = db.query(models.Fest).filter(models.Fest.slug == slug).first()
     if not fest:
@@ -388,6 +389,7 @@ def unpublish_fest(slug: str, data: schemas.ReviewNote, db: Session = Depends(ge
     fest.status = models.FestStatusEnum.draft
     fest.review_status = "changes_requested"
     fest.review_note = data.note
+    fest.review_fields = [f.model_dump() for f in data.fields] if data.fields else None
     fest.reviewed_by = admin.id
     fest.reviewed_at = datetime.utcnow()
     db.commit()

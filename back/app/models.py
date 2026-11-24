@@ -322,6 +322,10 @@ class Fest(Base):
     # Review: draft -> in_review -> approved (or changes_requested / rejected). Only approved fests can go live.
     review_status  = Column(String(20), nullable=False, default="draft", server_default="draft")
     review_note    = Column(String(1000), nullable=True)
+    # What the admin flagged, by field: [{"key": "banner", "note": "Too blurry"}]. Cleared when the fest is submitted again
+    review_fields  = Column(JSON, nullable=True)
+    # True when the committee has not fixed its dates yet: the fest is listed as "Dates coming soon" and needs no events
+    dates_tba      = Column(Boolean, nullable=False, default=False, server_default="0")
     submitted_at   = Column(DateTime, nullable=True)
     reviewed_by    = Column(Integer, ForeignKey("users.id", name="fk_fests_reviewed_by"), nullable=True)
     reviewed_at    = Column(DateTime, nullable=True)

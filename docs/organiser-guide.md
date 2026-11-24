@@ -10,20 +10,28 @@ This is the working logic for committees. It matches what the backend does today
 
 ## 2. Listing a fest
 
-Starting a fest needs only a name, a web address (`/fest/your-fest`) and the college. It begins as a **draft**, visible only to the committee, and the person who started it becomes the **director** (owner).
+Starting a fest needs only a **name**. The college is chosen for you when the organiser has just one, and the web address is built from the name (it can be edited, and cannot change afterwards). **Dates are optional** at this point, since many colleges have not fixed them. The fest begins as a **draft**, visible only to the committee, and the person who started it becomes the **director** (owner). The committee contact starts as the director's own name and email, so they only need to add a phone number.
+
+After creating it, the director lands on a **"Get your fest ready" checklist** with a progress bar: dates, banner, description, campus address, contact, first event, and an optional step to invite the committee. Each step has a button that opens the right tab, and everything saves as they go.
 
 To submit it for review these must all be filled in:
 
 | Detail | Notes |
 |---|---|
-| Name, tagline, description | |
-| Start and end date | End cannot be before start |
-| Campus address and map link | Map link must be an http(s) address |
+| Name, description | The tagline is optional |
+| Start and end date | End cannot be before start. Not final yet? See **Dates coming soon** below |
+| Campus address | The map link is optional: a Google Maps link is built from the address when none is given |
 | Banner image | Uploaded (JPEG, PNG or WebP up to 3 MB) or a link |
 | Committee contact name, email, phone | Private: only the committee and admins see them |
-| At least one event | Each with the event details below, dated inside the fest's start and end dates |
+| At least one event | Each with the event details below, dated inside the fest's start and end dates (not needed while dates are coming soon) |
 
 Optional: logo, Instagram and website links, faculty coordinator for this fest (otherwise the college's coordinator on file), and **extra sections** (up to 10 blocks of title plus text, such as Rules, Prizes, Accommodation).
+
+### Dates coming soon
+
+If the committee has not fixed its dates, it can choose **"Not final yet"** on the checklist, or tick "The dates are not final yet" under Fest details. The fest then needs **no dates and no events** to be sent for review, and once live it is listed as **"Dates coming soon"** on its page, its card and its share image. Entry passes still work.
+
+Events need dates, so a fest in this state cannot take events (or a CSV import) until its dates are set. Setting dates switches it off again. A fest that already has events cannot be switched to "dates coming soon".
 
 Submitting lists anything still missing. While a fest is **in review** it is frozen so the admin reviews exactly what was submitted; the organiser can **withdraw** it to edit.
 
@@ -32,8 +40,8 @@ Submitting lists anything still missing. While a fest is **in review** it is fro
 The admin sees the fest, its events, the organisers, and the college's partnership record side by side, and can:
 
 - **Approve**: the director can now make the fest live. A note is optional.
-- **Request changes**: sends it back with a note. The organiser fixes things and submits again.
-- **Reject**: sends it back with a reason. The organiser may fix and submit again.
+- **Request changes**: sends it back. The admin can **flag specific parts** of the fest (name, tagline, description, dates, banner, campus address, links, contact, events) with a short note on each, and/or write a general note. The organiser sees a feedback card on the Overview with a "Fix this" button for each flagged part, the note appears on the matching checklist step and on the matching box under Fest details, and the flags clear when the fest is submitted again.
+- **Reject**: sends it back with a reason, and optionally flagged fields. The organiser may fix and submit again.
 
 A fest can only go **live** once approved, and the director (or an admin) switches it live or offline.
 
@@ -47,6 +55,8 @@ A fest can only go **live** once approved, and the director (or an admin) switch
 ## 5. Events
 
 A fest event needs: title, date, **start time, end time, venue, description**. Optional: category, cover image (a designed placeholder is shown if none), price and **student price**, seat limit, automatic or manual approval, **students only**, extra sections, and custom registration questions.
+
+**Templates and defaults.** A new event can start from a template (Competition, Team competition, Workshop, Talk or panel, Concert or show, Exhibition or stalls) that sets registration, team size, seat limit, category and usual times; the committee writes the title and details. A new event starts on the day of the last one added (or the fest's first day), the end time follows the start time until it is typed by hand, and venues already used in the fest are suggested. **Duplicate** copies an existing event, with its questions, into a new one.
 
 Removing an event: with nobody registered it is **deleted**. With registrations the delete is refused; **cancel** it instead. Cancelling keeps it listed as cancelled, closes registration, and posts an announcement emailed to everyone registered.
 

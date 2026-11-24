@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Copy, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import type { FestManage, ManagedEvent } from "@/lib/types";
 import { formatDay, formatTime, priceLabel } from "@/lib/format";
@@ -10,8 +10,11 @@ import { EmptyState, ErrorNote, Notice, Pill } from "@/components/ui/bits";
 import { EventForm } from "./EventForm";
 import { ImportEvents } from "./ImportEvents";
 
-export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; events: ManagedEvent[]; frozen: boolean; reload: () => void }) {
-  const [editing, setEditing] = useState<ManagedEvent | "new" | null>(null);
+export function EventsTab({ fest, events, frozen, reload, goTo }: { fest: FestManage; events: ManagedEvent[]; frozen: boolean; reload: () => void; goTo?: (tab: string) => void }) {
+  const [editing, setEditing] = useState<ManagedEvent | "new" | { copy: ManagedEvent } | null>(null);
+  const comingSoon = fest.dates_tba && !fest.start_date;
+  const flagged = fest.review_fields.find((x) => x.key === "events");
+  const sentBack = fest.review_status === "changes_requested" || fest.review_status === "rejected";
   const [importing, setImporting] = useState(false);
   const [cancelling, setCancelling] = useState<number | null>(null);
   const [reason, setReason] = useState("");
@@ -25,18 +28,25 @@ export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; 
   };
 
   if (importing) return <ImportEvents slug={fest.slug} onDone={reload} onClose={() => setImporting(false)} />;
-  if (editing) return <EventForm kind="fest" fest={fest} event={editing === "new" ? null : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />;
+  if (editing) {
+    const copy = typeof editing === "object" && "copy" in editing ? editing.copy : null;
+    return <EventForm kind="fest" fest={fest} event={editing === "new" || copy ? null : (editing as ManagedEvent)} copyOf={copy} siblings={events} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />;
+  }
 
   return (
     <div className="max-w-4xl">
+      {sentBack && flagged && <div className="mb-5"><Notice tone="warn"><strong>HiveOut asked about the events:</strong> {flagged.note}</Notice></div>}
+      {comingSoon && (
+        <div className="mb-5"><Notice tone="info">Your fest is listed as &ldquo;Dates coming soon&rdquo;. Events need dates, so set the fest&apos;s dates first.{goTo && <> <button onClick={() => goTo("details")} className="font-semibold underline underline-offset-4">Set dates</button></>}</Notice></div>
+      )}
       {frozen && <div className="mb-5"><Notice tone="warn">This fest is with HiveOut for review, so events are locked. Withdraw it from the Overview tab to make changes.</Notice></div>}
       <div className="mb-5 flex items-center justify-between">
         <p className="text-sm text-mute">{events.length} event{events.length === 1 ? "" : "s"}</p>
-        {!frozen && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setImporting(true)}>Import from CSV</Button><Button size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> New event</Button></div>}
+        {!frozen && !comingSoon && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setImporting(true)}>Import from CSV</Button><Button size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /> New event</Button></div>}
       </div>
       <div className="mb-4"><ErrorNote>{error}</ErrorNote></div>
       {events.length === 0 ? (
-        <EmptyState title="No events yet" body="Add the events of your fest. Every fest needs at least one before it can be reviewed." action={!frozen ? <Button onClick={() => setEditing("new")}>Add an event</Button> : undefined} />
+        <EmptyState title="No events yet" body={comingSoon ? "Once your dates are set you can add events here." : "Add the events of your fest. Every fest needs at least one before it can be reviewed, unless its dates are coming soon."} action={!frozen && !comingSoon ? <Button onClick={() => setEditing("new")}>Add an event</Button> : undefined} />
       ) : (
         <div className="space-y-3">
           {events.map((e) => (
@@ -51,6 +61,7 @@ export function EventsTab({ fest, events, frozen, reload }: { fest: FestManage; 
                 <div className="flex flex-wrap gap-2">
                   <Button href={`/events/${e.id}`} variant="ghost" size="sm">View</Button>
                   {!frozen && !e.cancelled && <Button variant="outline" size="sm" onClick={() => setEditing(e)}>Edit</Button>}
+                  {!frozen && !e.cancelled && <Button variant="ghost" size="sm" onClick={() => setEditing({ copy: e })} title="Start a new event from this one"><Copy className="h-3.5 w-3.5" /> Duplicate</Button>}
                   {!frozen && !e.cancelled && <Button variant="outline" size="sm" onClick={() => { setCancelling(e.id); setReason(""); }}>Cancel event</Button>}
                   {e.cancelled && <Button variant="outline" size="sm" disabled={busy} onClick={() => act(() => api(`/api/events/${e.id}/restore`, { method: "POST" }))}>Restore</Button>}
                   {!frozen && e.registration_count === 0 && <button disabled={busy} onClick={() => window.confirm(`Delete "${e.title}"? This cannot be undone.`) && act(() => api(`/api/events/${e.id}`, { method: "DELETE" }))} className="px-2 text-sm font-semibold text-red-600 hover:underline">Delete</button>}

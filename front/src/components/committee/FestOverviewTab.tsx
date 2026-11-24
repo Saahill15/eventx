@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Circle } from "lucide-react";
+import { AlertCircle, Check, Circle } from "lucide-react";
 import { api } from "@/lib/api";
 import type { ChecklistItem, FestManage, FestStats } from "@/lib/types";
+import { REVIEW_FIELDS, reviewFieldLabel } from "@/lib/reviewFields";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Notice, Skeleton } from "@/components/ui/bits";
 import { Stat } from "@/components/admin/shared";
@@ -42,6 +43,7 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
   const doneCount = required.filter((i) => i.done).length;
   const next = required.find((i) => !i.done);
   const ready = missing !== null && missing.length === 0;
+  const sentBack = status === "changes_requested" || status === "rejected";
 
   const stage = fest.status === "live" ? 3 : status === "approved" ? 2 : status === "in_review" ? 1 : 0;
   const pending = stats?.events.reduce((n, e) => n + e.pending, 0) ?? 0;
@@ -59,8 +61,24 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
 
       <ErrorNote>{error}</ErrorNote>
 
-      {(status === "changes_requested" || status === "rejected") && fest.review_note && (
-        <Notice tone="warn"><strong>{status === "rejected" ? "HiveOut rejected this fest:" : "HiveOut asked for changes:"}</strong> {fest.review_note}</Notice>
+      {(status === "changes_requested" || status === "rejected") && (fest.review_note || fest.review_fields.length > 0) && (
+        <section className="card space-y-4 border-l-4 border-amber-400 p-6" aria-label="Feedback from HiveOut">
+          <div>
+            <h2 className="font-display text-lg font-semibold tracking-tight">{status === "rejected" ? "HiveOut did not approve this fest" : "HiveOut asked for a few changes"}</h2>
+            {fest.review_note && <p className="mt-1 text-sm text-neutral-700">{fest.review_note}</p>}
+          </div>
+          {fest.review_fields.length > 0 && (
+            <ul className="divide-y divide-black/10">
+              {fest.review_fields.map((f) => (
+                <li key={f.key} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                  <div className="min-w-0"><p className="text-sm font-semibold">{reviewFieldLabel(f.key)}</p><p className="text-sm text-neutral-700">{f.note}</p></div>
+                  {canSubmit && <Button size="sm" variant="outline" onClick={() => goTo(REVIEW_FIELDS.find((x) => x.key === f.key)?.tab ?? "details")}>Fix this</Button>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-mute">When you have made the changes, send the fest for review again below.</p>
+        </section>
       )}
 
       {fest.status === "live" ? (
@@ -83,8 +101,8 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <ReviewPill status={status} />
-              <h2 className="mt-3 font-display text-xl font-semibold tracking-tight">{ready ? "You are ready to send it for review" : "Get your fest ready"}</h2>
-              <p className="mt-1 text-mute">{missing === null ? "Checking…" : ready ? "Everything is filled in. HiveOut will review it and let you know." : "A few quick steps, then HiveOut reviews your fest. Everything saves as you go."}</p>
+              <h2 className="mt-3 font-display text-xl font-semibold tracking-tight">{sentBack ? "Make the changes, then send it again" : ready ? "You are ready to send it for review" : "Get your fest ready"}</h2>
+              <p className="mt-1 text-mute">{missing === null ? "Checking…" : sentBack ? "Fix what HiveOut asked about above. When you are done, send the fest for review again." : ready ? "Everything is filled in. HiveOut will review it and let you know." : "A few quick steps, then HiveOut reviews your fest. Everything saves as you go."}</p>
             </div>
             {canSubmit && <Button size="lg" disabled={busy || missing === null || missing.length > 0} onClick={() => post("submit")}>Send for review</Button>}
           </div>
@@ -103,14 +121,22 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
               const isNext = next?.key === it.key;
               return (
                 <li key={it.key} className="flex items-start gap-4 py-4">
-                  <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${it.done ? "bg-emerald-500 text-white" : isNext ? "bg-ink text-white" : "bg-wash text-mute"}`} aria-hidden="true">{it.done ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}</span>
+                  <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${it.flag ? "bg-amber-400 text-ink" : it.done ? "bg-emerald-500 text-white" : isNext ? "bg-ink text-white" : "bg-wash text-mute"}`} aria-hidden="true">{it.flag ? <AlertCircle className="h-3.5 w-3.5" /> : it.done ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}</span>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-semibold ${it.done ? "text-mute line-through decoration-1" : ""}`}>{it.label}{!it.required && <span className="ml-2 rounded-full bg-wash px-2 py-0.5 text-xs font-medium text-mute no-underline">Optional</span>}</p>
+                    <p className={`text-sm font-semibold ${it.done && !it.flag ? "text-mute line-through decoration-1" : ""}`}>{it.key === "dates" && fest.dates_tba ? "Dates: coming soon" : it.label}{!it.required && <span className="ml-2 rounded-full bg-wash px-2 py-0.5 text-xs font-medium text-mute no-underline">Optional</span>}</p>
+                    {it.flag && <p className="mt-0.5 text-sm text-amber-800"><span className="font-semibold">HiveOut asked:</span> {it.flag}</p>}
+                    {it.key === "dates" && fest.dates_tba && <p className="mt-0.5 text-sm text-mute">Your fest is listed as &ldquo;Dates coming soon&rdquo;. Set them whenever you know.</p>}
                     {!it.done && it.hint && <p className="mt-0.5 text-sm text-mute">{it.hint}</p>}
                     {!it.done && it.problems.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-mute">{it.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
                   </div>
-                  {canSubmit && !it.done && <Button size="sm" variant={isNext ? "ink" : "outline"} onClick={() => goTo(it.tab)}>{it.key === "dates" ? "Set dates" : it.key === "events" ? "Add event" : it.key === "team" ? "Invite" : "Fill in"}</Button>}
-                  {canSubmit && it.done && <button onClick={() => goTo(it.tab)} className="text-xs font-semibold text-mute underline underline-offset-4 hover:text-ink">Edit</button>}
+                  {canSubmit && it.key === "dates" && !it.done && (
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <Button size="sm" variant={isNext ? "ink" : "outline"} onClick={() => goTo(it.tab)}>Set dates</Button>
+                      <button disabled={busy} onClick={() => run(() => api(`/api/fests/${fest.slug}`, { method: "PATCH", body: { dates_tba: true } }))} className="text-xs font-semibold text-mute underline underline-offset-4 hover:text-ink disabled:opacity-50">Not final yet</button>
+                    </div>
+                  )}
+                  {canSubmit && !(it.key === "dates" && !it.done) && !it.done && <Button size="sm" variant={isNext ? "ink" : "outline"} onClick={() => goTo(it.tab)}>{it.key === "events" ? "Add event" : it.key === "team" ? "Invite" : "Fill in"}</Button>}
+                  {canSubmit && it.done && (it.flag ? <Button size="sm" variant="outline" onClick={() => goTo(it.tab)}>Fix this</Button> : <button onClick={() => goTo(it.tab)} className="text-xs font-semibold text-mute underline underline-offset-4 hover:text-ink">Edit</button>)}
                 </li>
               );
             })}

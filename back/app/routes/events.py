@@ -2,6 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from app.fest_review import events_blocked_reason
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user, require_organizer
@@ -100,6 +101,9 @@ def create_event(data: schemas.EventCreate, db: Session = Depends(get_db), curre
             raise HTTPException(status_code=400, detail="Fest not found")
         if not is_fest_staff(db, fest.id, current_user):
             raise HTTPException(status_code=403, detail="Only the fest's owner or core team can add events to it")
+        blocked = events_blocked_reason(fest)
+        if blocked:
+            raise HTTPException(status_code=400, detail=blocked)
 
     if data.event_type == "city":
         event_data["organizer_id"] = current_user.id

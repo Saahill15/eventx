@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import type { FestManage } from "@/lib/types";
+import type { FestManage, ReviewFieldNote } from "@/lib/types";
+import { REVIEW_FIELDS, reviewFieldLabel } from "@/lib/reviewFields";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Field, Notice } from "@/components/ui/bits";
 import { ImageUpload } from "@/components/ui/ImageUpload";
@@ -10,8 +11,14 @@ import { SectionsEditor } from "./SectionsEditor";
 
 const blank = (v: string) => (v.trim() ? v.trim() : null);
 
-function Card({ title, children, note }: { title: string; children: React.ReactNode; note?: string }) {
-  return <section className="card space-y-4 p-6 sm:p-7"><div><h3 className="font-display text-lg font-semibold tracking-tight">{title}</h3>{note && <p className="mt-1 text-sm text-mute">{note}</p>}</div>{children}</section>;
+function Card({ title, children, note, flags = [] }: { title: string; children: React.ReactNode; note?: string; flags?: ReviewFieldNote[] }) {
+  return (
+    <section className="card space-y-4 p-6 sm:p-7">
+      <div><h3 className="font-display text-lg font-semibold tracking-tight">{title}</h3>{note && <p className="mt-1 text-sm text-mute">{note}</p>}</div>
+      {flags.length > 0 && <Notice tone="warn">{flags.map((f) => <span key={f.key} className="block"><strong>HiveOut asked about the {reviewFieldLabel(f.key).toLowerCase()}:</strong> {f.note}</span>)}</Notice>}
+      {children}
+    </section>
+  );
 }
 
 export function FestDetailsTab({ fest, frozen, onSaved }: { fest: FestManage; frozen: boolean; onSaved: () => void }) {
@@ -21,12 +28,15 @@ export function FestDetailsTab({ fest, frozen, onSaved }: { fest: FestManage; fr
     contact_name: fest.contact_name ?? "", contact_email: fest.contact_email ?? "", contact_phone: fest.contact_phone ?? "",
     faculty_name: fest.faculty_name ?? "", faculty_phone: fest.faculty_phone ?? "", faculty_email: fest.faculty_email ?? "",
   });
+  const [tba, setTba] = useState(fest.dates_tba);
   const [banner, setBanner] = useState<string | null>(fest.banner_url);
   const [logo, setLogo] = useState<string | null>(fest.logo_url);
   const [sections, setSections] = useState(fest.extra_sections ?? []);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const sentBack = fest.review_status === "changes_requested" || fest.review_status === "rejected";
+  const flagsFor = (card: string) => (sentBack ? fest.review_fields.filter((x) => REVIEW_FIELDS.find((r) => r.key === x.key)?.card === card) : []);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setSaved(false); setF((x) => ({ ...x, [k]: e.target.value })); };
 
   const save = async (e: React.FormEvent) => {
@@ -34,7 +44,7 @@ export function FestDetailsTab({ fest, frozen, onSaved }: { fest: FestManage; fr
     setBusy(true); setError("");
     try {
       await api(`/api/fests/${fest.slug}`, { method: "PATCH", body: {
-        name: f.name.trim(), tagline: blank(f.tagline), description: blank(f.description), start_date: blank(f.start_date), end_date: blank(f.end_date),
+        name: f.name.trim(), tagline: blank(f.tagline), description: blank(f.description), start_date: tba ? null : blank(f.start_date), end_date: tba ? null : blank(f.end_date), dates_tba: tba,
         campus_address: blank(f.campus_address), map_url: blank(f.map_url), instagram_url: blank(f.instagram_url), website_url: blank(f.website_url),
         contact_name: blank(f.contact_name), contact_email: blank(f.contact_email), contact_phone: blank(f.contact_phone),
         faculty_name: blank(f.faculty_name), faculty_phone: blank(f.faculty_phone), faculty_email: blank(f.faculty_email),
@@ -50,24 +60,25 @@ export function FestDetailsTab({ fest, frozen, onSaved }: { fest: FestManage; fr
       {frozen && <Notice tone="warn">This fest is with HiveOut for review, so it cannot be edited. Withdraw it from the Overview tab to make changes.</Notice>}
       <ErrorNote>{error}</ErrorNote>
       <fieldset disabled={frozen} className="space-y-5">
-        <Card title="The basics" note="Changing the name of an approved fest sends it back to review and takes it offline.">
+        <Card title="The basics" flags={flagsFor("basics")} note="Changing the name of an approved fest sends it back to review and takes it offline.">
           <Field label="Fest name"><input className="field" required value={f.name} onChange={set("name")} /></Field>
           <Field label="Tagline"><input className="field" value={f.tagline} onChange={set("tagline")} maxLength={500} placeholder="One line about your fest" /></Field>
           <Field label="About the fest"><textarea className="field min-h-32" value={f.description} onChange={set("description")} maxLength={5000} /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Starts"><input className="field" type="date" value={f.start_date} onChange={set("start_date")} /></Field>
-            <Field label="Ends"><input className="field" type="date" value={f.end_date} onChange={set("end_date")} /></Field>
+            <Field label="Starts"><input className="field" type="date" value={tba ? "" : f.start_date} disabled={tba} onChange={set("start_date")} /></Field>
+            <Field label="Ends"><input className="field" type="date" value={tba ? "" : f.end_date} min={f.start_date || undefined} disabled={tba} onChange={set("end_date")} /></Field>
           </div>
+          <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#111]" checked={tba} onChange={(e) => { setSaved(false); setTba(e.target.checked); }} /><span><span className="font-medium">The dates are not final yet</span><span className="block text-mute">Your fest is listed as &ldquo;Dates coming soon&rdquo; and needs no events until you set them. Untick this and add the dates when you know.</span></span></label>
         </Card>
 
-        <Card title="Pictures">
+        <Card title="Pictures" flags={flagsFor("pictures")}>
           <div className="grid gap-6 sm:grid-cols-2">
             <ImageUpload label="Banner" value={banner} onChange={(u) => { setSaved(false); setBanner(u); }} aspect="aspect-[21/9]" />
             <ImageUpload label="Logo (optional)" value={logo} onChange={(u) => { setSaved(false); setLogo(u); }} aspect="aspect-square max-w-[11rem]" />
           </div>
         </Card>
 
-        <Card title="Where it happens">
+        <Card title="Where it happens" flags={flagsFor("where")}>
           <Field label="Campus address"><input className="field" value={f.campus_address} onChange={set("campus_address")} maxLength={500} /></Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Map link" hint="A Google Maps link"><input className="field" type="url" value={f.map_url} onChange={set("map_url")} placeholder="https://maps.app.goo.gl/…" /></Field>
@@ -76,7 +87,7 @@ export function FestDetailsTab({ fest, frozen, onSaved }: { fest: FestManage; fr
           </div>
         </Card>
 
-        <Card title="Contacts for HiveOut" note="Private. Only the HiveOut team sees these when reviewing your fest.">
+        <Card title="Contacts for HiveOut" flags={flagsFor("contacts")} note="Private. Only the HiveOut team sees these when reviewing your fest.">
           <p className="text-sm font-semibold">Committee contact</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Name"><input className="field" value={f.contact_name} onChange={set("contact_name")} /></Field>

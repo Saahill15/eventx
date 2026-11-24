@@ -269,6 +269,20 @@ def update_fest(
                 if college.partner_status != "partner":
                     raise HTTPException(status_code=400, detail="HiveOut has not partnered with this college yet.")
 
+    # "Dates coming soon": the committee has not fixed its dates. Giving dates always wins and switches it off again.
+    tba = updates.pop("dates_tba", None)
+    dates_given = bool(updates.get("start_date") or updates.get("end_date"))
+    if tba is True and not dates_given:
+        if db.query(models.Event).filter(models.Event.fest_id == fest.id).count():
+            raise HTTPException(status_code=400, detail="Your fest already has events, and events need dates. Remove them, or keep the dates.")
+        updates["start_date"] = None
+        updates["end_date"] = None
+        updates["dates_tba"] = True
+    elif tba is False:
+        updates["dates_tba"] = False
+    if dates_given:
+        updates["dates_tba"] = False
+
     new_start = updates.get("start_date", fest.start_date)
     new_end = updates.get("end_date", fest.end_date)
     if new_start and new_end and new_end < new_start:
@@ -284,6 +298,7 @@ def update_fest(
 
     if sensitive_changed and fest.review_status == "approved" and current_user.role != models.RoleEnum.admin:
         fest.review_status = "in_review"
+        fest.review_fields = None
         fest.review_note = "Sent back to review because the fest's " + " and ".join(l.replace("_id", "") for l in sensitive_changed) + " changed."
         fest.submitted_at = datetime.utcnow()
         fest.status = models.FestStatusEnum.draft
@@ -317,6 +332,7 @@ def submit_fest(
 
     fest.review_status = "in_review"
     fest.review_note = None
+    fest.review_fields = None
     fest.submitted_at = datetime.utcnow()
     db.commit()
     db.refresh(fest)

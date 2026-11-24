@@ -34,7 +34,10 @@ export default async function FestPage({ params }: Props) {
   const [fest, events, colleges] = await Promise.all([getFestBySlug(slug), getFestEvents(slug), getColleges()]);
   if (!fest) notFound();
   const college = colleges?.find((c) => c.id === fest.college_id);
-  const dates = range((events ?? []).map((e) => e.date));
+  const eventDates = range((events ?? []).map((e) => e.date));
+  const festDates = fest.start_date ? range([fest.start_date, fest.end_date ?? fest.start_date]) : null;
+  const comingSoon = !eventDates && !festDates && !!fest.dates_tba;
+  const dates = eventDates ?? festDates;
   const venues = Array.from(new Set((events ?? []).map((e) => e.location).filter(Boolean) as string[]));
 
   return (
@@ -44,6 +47,7 @@ export default async function FestPage({ params }: Props) {
         <div className="relative mx-auto max-w-4xl">
           <FadeUp className="flex flex-wrap justify-center gap-2.5">
             {dates && <InfoChip icon={<CalendarDays className="h-4 w-4" />}>{dates}</InfoChip>}
+            {comingSoon && <InfoChip icon={<CalendarDays className="h-4 w-4" />}>Dates coming soon</InfoChip>}
             {college && <InfoChip icon={<Building2 className="h-4 w-4" />}>{college.name}</InfoChip>}
           </FadeUp>
           <FadeUp delay={0.08}><h1 className="mt-7 font-display text-5xl font-semibold leading-[1.02] tracking-[-0.03em] sm:text-7xl lg:text-8xl">{fest.name}</h1></FadeUp>
@@ -75,7 +79,7 @@ export default async function FestPage({ params }: Props) {
           </Reveal>
         )}
 
-        <Reveal>{events === null ? <div className="card p-10 text-mute">We could not load the programme right now.</div> : <Programme events={events} />}</Reveal>
+        <Reveal>{events === null ? <div className="card p-10 text-mute">We could not load the programme right now.</div> : events.length === 0 && comingSoon ? <div className="card p-10 text-center"><p className="font-display text-xl font-semibold tracking-tight">Dates coming soon</p><p className="mx-auto mt-2 max-w-md text-mute">The committee has not fixed the dates yet. The programme will appear here once they do. Get your free entry pass below and you will see it first.</p></div> : <Programme events={events} />}</Reveal>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Reveal><EntryPassPanel slug={fest.slug} name={fest.name} isLive={fest.status === "live"} /></Reveal>

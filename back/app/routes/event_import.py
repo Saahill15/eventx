@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.fest_review import events_blocked_reason
 from app import models, schemas
 from app.auth.dependencies import get_current_user
 from app.database import get_db
@@ -187,6 +188,9 @@ async def import_events(
     user: models.User = Depends(get_current_user),
 ):
     fest = _staff_fest(db, slug, user)
+    blocked = events_blocked_reason(fest)
+    if blocked:
+        raise HTTPException(status_code=400, detail=blocked)
     if fest.review_status == "in_review" and user.role != models.RoleEnum.admin:
         raise HTTPException(status_code=400, detail="Your fest is waiting for review. Withdraw it first if you need to change events.")
     raw = await file.read(MAX_BYTES + 1)

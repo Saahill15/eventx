@@ -63,6 +63,8 @@ export interface Fest {
   description?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** The dates are not fixed yet: show "Dates coming soon". */
+  dates_tba?: boolean;
   campus_address?: string | null;
   map_url?: string | null;
   instagram_url?: string | null;
@@ -112,6 +114,7 @@ export interface FestManage extends Fest {
   contact_name: string | null; contact_email: string | null; contact_phone: string | null;
   faculty_name: string | null; faculty_phone: string | null; faculty_email: string | null;
   review_status: ReviewStatus; review_note: string | null; submitted_at: string | null; reviewed_at: string | null;
+  dates_tba: boolean; review_fields: ReviewFieldNote[];
 }
 
 export interface Question { id: number; label: string; kind: "short_text" | "choice" | "yes_no"; required: boolean; options: string[] | null; position: number }
@@ -295,7 +298,7 @@ export interface FestReview {
     instagram_url: string | null; website_url: string | null;
     contact_name: string | null; contact_email: string | null; contact_phone: string | null;
     faculty_name: string | null; faculty_phone: string | null; faculty_email: string | null;
-    review_status: string; review_note: string | null; submitted_at: string | null;
+    review_status: string; review_note: string | null; submitted_at: string | null; review_fields?: ReviewFieldNote[];
   };
   college: { id: number; name: string; partner_status: string; coordinator_name: string | null; coordinator_phone: string | null; coordinator_email: string | null } | null;
   events: { id: number; title: string; date: string; time: string | null; end_time: string | null; location: string | null; price: number }[];
@@ -321,4 +324,10 @@ export interface ChecklistItem {
   tab: "details" | "events" | "team";
   hint?: string | null;
   problems: string[];
+  /** What HiveOut asked to change about this step, while the fest is back with the committee. */
+  flag?: string | null;
 }
+
+/** One thing HiveOut asked the committee to fix, tied to a part of the fest. */
+export type ReviewFieldKey = "name" | "tagline" | "dates" | "banner" | "description" | "venue" | "contact" | "events" | "links";
+export interface ReviewFieldNote { key: ReviewFieldKey; note: string }

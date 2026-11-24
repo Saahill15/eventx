@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { FestReview } from "@/lib/types";
+import type { FestReview, ReviewFieldNote } from "@/lib/types";
+import { REVIEW_FIELDS, reviewFieldLabel } from "@/lib/reviewFields";
 import { formatDay, formatTime, mapsLink } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Notice, Pill, Skeleton } from "@/components/ui/bits";
@@ -16,16 +17,51 @@ const FILTERS = [
 type Filter = (typeof FILTERS)[number]["id"];
 const tone = { in_review: "amber", changes_requested: "amber", approved: "green", rejected: "red", draft: "neutral" } as const;
 
+/** Write a note, and/or flag specific parts of the fest with a short note each, so the organiser can see exactly what to fix. */
+function DecisionForm({ placeholder, submitLabel, busy, onSubmit, onCancel }: {
+  placeholder: string; submitLabel: string; busy: boolean; onSubmit: (note: string, fields: ReviewFieldNote[]) => void; onCancel: () => void;
+}) {
+  const [note, setNote] = useState("");
+  const [flags, setFlags] = useState<Record<string, string>>({});
+  const flagged = Object.keys(flags);
+  const toggle = (key: string) => setFlags((f) => { const next = { ...f }; if (key in next) delete next[key]; else next[key] = ""; return next; });
+  const noteOk = note.trim() === "" || note.trim().length >= 5;
+  const valid = noteOk && (note.trim().length >= 5 || flagged.length > 0) && flagged.every((k) => flags[k].trim().length > 0);
+
+  return (
+    <div className="space-y-4">
+      <fieldset>
+        <legend className="mb-2 text-sm font-semibold">Flag what needs fixing <span className="font-normal text-mute">(optional)</span></legend>
+        <ul className="space-y-2">
+          {REVIEW_FIELDS.map((f) => (
+            <li key={f.key}>
+              <label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" className="h-4 w-4 accent-[#111]" checked={f.key in flags} onChange={() => toggle(f.key)} />{f.label}</label>
+              {f.key in flags && <input className="field mt-2" aria-label={`What to change about: ${f.label}`} autoFocus placeholder={`What should they change about the ${f.label.toLowerCase()}?`} maxLength={300} value={flags[f.key]} onChange={(e) => setFlags((x) => ({ ...x, [f.key]: e.target.value }))} />}
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-semibold">General note {flagged.length > 0 && <span className="font-normal text-mute">(optional)</span>}</span>
+        <textarea className="field min-h-20" placeholder={placeholder} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
+      </label>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy || !valid} onClick={() => onSubmit(note.trim(), flagged.map((key) => ({ key: key as ReviewFieldNote["key"], note: flags[key].trim() })))}>{submitLabel}</Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
   const [open, setOpen] = useState(r.fest.review_status === "in_review");
   const [mode, setMode] = useState<"" | "request-changes" | "reject" | "unpublish">("");
-  const [note, setNote] = useState("");
   const act = useAction(onDone);
   const f = r.fest;
-  const decide = (kind: "approve" | "request-changes" | "reject" | "unpublish") =>
+  const decide = (kind: "approve" | "request-changes" | "reject" | "unpublish", note = "", fields: ReviewFieldNote[] = []) =>
     act.run(async () => {
-      await api(`/api/admin/fests/${f.slug}/${kind}`, { method: "POST", body: kind === "approve" ? undefined : { note } });
-      setMode(""); setNote("");
+      await api(`/api/admin/fests/${f.slug}/${kind}`, { method: "POST", body: kind === "approve" ? undefined : { note: note || null, fields } });
+      setMode("");
     });
 
   return (
@@ -48,9 +84,12 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
         <div className="mt-6 space-y-6 border-t border-black/5 pt-6">
           {r.missing.length > 0 && <Notice tone="warn"><strong>Incomplete:</strong> {r.missing.join(" · ")}</Notice>}
           {f.review_note && <Notice tone="info"><strong>Last note:</strong> {f.review_note}</Notice>}
+          {(f.review_fields ?? []).length > 0 && (
+            <Notice tone="info"><strong>Flagged last time:</strong> {(f.review_fields ?? []).map((x) => `${reviewFieldLabel(x.key)}: ${x.note}`).join(" · ")}</Notice>
+          )}
 
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Detail label="Dates">{f.start_date && f.end_date ? `${f.start_date} → ${f.end_date}` : ""}</Detail>
+            <Detail label="Dates">{f.start_date && f.end_date ? `${f.start_date} → ${f.end_date}` : f.dates_tba ? "Coming soon (not fixed yet)" : ""}</Detail>
             <Detail label="Campus address">{f.campus_address}</Detail>
             <Detail label="Map">{(f.map_url || f.campus_address) && <a className="underline" href={f.map_url || mapsLink(f.campus_address ?? "")} target="_blank" rel="noopener noreferrer">Open map</a>}</Detail>
             <Detail label="Committee contact">{[f.contact_name, f.contact_phone, f.contact_email].filter(Boolean).join(" · ")}</Detail>
@@ -81,10 +120,7 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
             <div className="space-y-3 border-t border-black/5 pt-5">
               <ErrorNote>{act.error}</ErrorNote>
               {mode === "unpublish" ? (
-                <>
-                  <textarea className="field min-h-24" placeholder="Why is it being taken offline? The organiser will see this and can fix and resubmit." value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
-                  <div className="flex gap-2"><Button size="sm" disabled={act.busy || note.trim().length < 5} onClick={() => decide("unpublish")}>Take offline</Button><Button size="sm" variant="ghost" onClick={() => { setMode(""); setNote(""); }}>Cancel</Button></div>
-                </>
+                <DecisionForm placeholder="Why is it being taken offline? The organiser will see this and can fix and resubmit." submitLabel="Take offline" busy={act.busy} onCancel={() => setMode("")} onSubmit={(n, fl) => decide("unpublish", n, fl)} />
               ) : <Button size="sm" variant="outline" onClick={() => setMode("unpublish")}>Take offline and send back</Button>}
             </div>
           )}
@@ -92,14 +128,8 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
           {f.review_status === "in_review" && (
             <div className="space-y-3 border-t border-black/5 pt-5">
               <ErrorNote>{act.error}</ErrorNote>
-              {mode ? (
-                <>
-                  <textarea className="field min-h-24" placeholder={mode === "reject" ? "Why is this being rejected? The organiser will see this." : "What should the organiser fix?"} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
-                  <div className="flex gap-2">
-                    <Button size="sm" disabled={act.busy || note.trim().length < 5} onClick={() => decide(mode)}>{mode === "reject" ? "Reject fest" : "Send back with note"}</Button>
-                    <Button size="sm" variant="ghost" onClick={() => { setMode(""); setNote(""); }}>Cancel</Button>
-                  </div>
-                </>
+              {mode && mode !== "unpublish" ? (
+                <DecisionForm placeholder={mode === "reject" ? "Why is this being rejected? The organiser will see this." : "Anything else the organiser should know?"} submitLabel={mode === "reject" ? "Reject fest" : "Send back"} busy={act.busy} onCancel={() => setMode("")} onSubmit={(n, fl) => decide(mode, n, fl)} />
               ) : (
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" disabled={act.busy || r.missing.length > 0} onClick={() => decide("approve")}>Approve</Button>
