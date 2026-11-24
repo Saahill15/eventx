@@ -243,7 +243,17 @@ export interface Member {
   role: "owner" | "core" | "volunteer";
   user_name: string | null;
   user_email: string | null;
+  title?: string | null;
+  committee_team_id?: number | null;
+  team_name?: string | null;
+  /** The fest-member id of their lead (not a user id). */
+  reports_to_id?: number | null;
+  reports_to_name?: string | null;
 }
+
+/** A function inside a fest's committee, such as Sponsorship or PR. */
+export interface CommitteeTeam { id: number; fest_id: number; name: string; description: string | null; member_count: number }
+export interface Org { teams: CommitteeTeam[]; members: Member[] }
 
 export interface AdminUser {
   id: number;
@@ -331,3 +341,26 @@ export interface ChecklistItem {
 /** One thing HiveOut asked the committee to fix, tied to a part of the fest. */
 export type ReviewFieldKey = "name" | "tagline" | "dates" | "banner" | "description" | "venue" | "contact" | "events" | "links";
 export interface ReviewFieldNote { key: ReviewFieldKey; note: string }
+
+/** A piece of committee work: who does what by when. */
+export type TaskStatus = "todo" | "doing" | "done";
+export interface FestTask {
+  id: number; fest_id: number; title: string; description: string | null; status: TaskStatus; due_date: string | null;
+  assignee_member_id: number | null; assignee_name: string | null; committee_team_id: number | null; team_name: string | null;
+  created_by_name: string | null; created_at: string; completed_at: string | null; overdue: boolean;
+  meeting_id?: number | null; meeting_title?: string | null;
+}
+
+export interface FestMeetingSummary {
+  id: number; fest_id: number; title: string; starts_at: string; location: string | null; agenda: string | null; minutes: string | null;
+  created_by_name: string | null; invited_count: number; attended_count: number; action_count: number; open_action_count: number;
+}
+export interface MeetingAttendee { member_id: number; user_name: string | null; title: string | null; attended: boolean }
+export interface FestMeetingDetail extends FestMeetingSummary { attendees: MeetingAttendee[]; actions: FestTask[] }
+
+/** The master schedule of a fest, with clashes marked. */
+export interface ScheduleItem { id: number; title: string; date: string; time: string | null; end_time: string | null; location: string | null; category: string | null; cancelled: boolean; clash_ids: number[] }
+export interface Schedule {
+  days: { date: string; items: ScheduleItem[] }[]; venues: string[];
+  clashes: { date: string; venue: string; first_id: number; second_id: number }[]; unscheduled: ScheduleItem[];
+}

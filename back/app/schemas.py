@@ -499,8 +499,174 @@ class FestMemberOut(BaseModel):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
     created_at: datetime
+    # Where they sit in the committee
+    title: Optional[str] = None
+    committee_team_id: Optional[int] = None
+    team_name: Optional[str] = None
+    reports_to_id: Optional[int] = None   # the fest-member id of their lead
+    reports_to_name: Optional[str] = None
     class Config:
         from_attributes = True
+
+
+# Committee structure: teams, titles and who reports to whom
+class CommitteeTeamIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+
+class CommitteeTeamUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+
+class CommitteeTeamOut(BaseModel):
+    id: int
+    fest_id: int
+    name: str
+    description: Optional[str] = None
+    member_count: int = 0
+
+class MemberPlacement(BaseModel):
+    """Change where someone sits. Send only what changes; null clears a field."""
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)]] = None
+    committee_team_id: Optional[int] = None
+    reports_to_id: Optional[int] = None
+
+TASK_STATUSES = ("todo", "doing", "done")
+
+
+class TaskIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
+    status: Literal["todo", "doing", "done"] = "todo"
+    due_date: Optional[date] = None
+    assignee_member_id: Optional[int] = None
+    committee_team_id: Optional[int] = None
+    meeting_id: Optional[int] = None   # set when the task is an action item from a meeting
+
+
+class TaskUpdate(BaseModel):
+    """Send only what changes; null clears the optional fields."""
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
+    status: Optional[Literal["todo", "doing", "done"]] = None
+    due_date: Optional[date] = None
+    assignee_member_id: Optional[int] = None
+    committee_team_id: Optional[int] = None
+    meeting_id: Optional[int] = None
+
+
+class TaskOut(BaseModel):
+    id: int
+    fest_id: int
+    title: str
+    description: Optional[str] = None
+    status: str
+    due_date: Optional[date] = None
+    assignee_member_id: Optional[int] = None
+    assignee_name: Optional[str] = None
+    committee_team_id: Optional[int] = None
+    team_name: Optional[str] = None
+    created_by_name: Optional[str] = None
+    meeting_id: Optional[int] = None
+    meeting_title: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    overdue: bool = False
+    class Config:
+        from_attributes = True
+
+
+class MeetingIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    starts_at: datetime
+    location: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    agenda: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]] = None
+    member_ids: Optional[List[int]] = None   # who is invited; leave out to invite the whole committee
+
+
+class MeetingUpdate(BaseModel):
+    """Send only what changes; null clears the optional fields."""
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    starts_at: Optional[datetime] = None
+    location: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    agenda: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]] = None
+    minutes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=20000)]] = None
+    member_ids: Optional[List[int]] = None
+
+
+class MeetingAttendance(BaseModel):
+    attended_member_ids: List[int] = []
+
+
+class MeetingAttendeeOut(BaseModel):
+    member_id: int
+    user_name: Optional[str] = None
+    title: Optional[str] = None
+    attended: bool = False
+    class Config:
+        from_attributes = True
+
+
+class MeetingOut(BaseModel):
+    id: int
+    fest_id: int
+    title: str
+    starts_at: datetime
+    location: Optional[str] = None
+    agenda: Optional[str] = None
+    minutes: Optional[str] = None
+    created_by_name: Optional[str] = None
+    invited_count: int = 0
+    attended_count: int = 0
+    action_count: int = 0
+    open_action_count: int = 0
+    class Config:
+        from_attributes = True
+
+
+class MeetingDetail(MeetingOut):
+    attendees: List[MeetingAttendeeOut] = []
+    actions: List[TaskOut] = []
+
+
+class ScheduleItem(BaseModel):
+    id: int
+    title: str
+    date: date
+    time: Optional[str] = None
+    end_time: Optional[str] = None
+    location: Optional[str] = None
+    category: Optional[str] = None
+    cancelled: bool = False
+    clash_ids: List[int] = []
+
+
+class ScheduleClash(BaseModel):
+    date: date
+    venue: str
+    first_id: int
+    second_id: int
+
+
+class ScheduleDay(BaseModel):
+    date: date
+    items: List[ScheduleItem] = []
+
+
+class ScheduleOut(BaseModel):
+    days: List[ScheduleDay] = []
+    venues: List[str] = []
+    clashes: List[ScheduleClash] = []
+    unscheduled: List[ScheduleItem] = []   # events that cannot be placed yet: no time or no venue
+
+
+class ClashCheckOut(BaseModel):
+    clashes: List[ScheduleItem] = []
+
+
+class OrgOut(BaseModel):
+    teams: List[CommitteeTeamOut] = []
+    members: List[FestMemberOut] = []
 
 class AddFestMember(BaseModel):
     user_id: Optional[int] = None

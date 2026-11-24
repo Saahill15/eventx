@@ -14,11 +14,14 @@ import { FestOverviewTab } from "./FestOverviewTab";
 import { GateTab } from "./GateTab";
 import { RegistrationsTab } from "./RegistrationsTab";
 import { TeamTab } from "./TeamTab";
+import { TasksTab } from "./TasksTab";
+import { MeetingsTab } from "./MeetingsTab";
+import { ScheduleTab } from "./ScheduleTab";
 import { HandOverCard } from "./HandOverCard";
 
 const TABS = [
-  { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true },
-  { id: "registrations", label: "Registrations", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
+  { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true }, { id: "schedule", label: "Schedule", staff: true },
+  { id: "registrations", label: "Registrations", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -73,6 +76,7 @@ export function FestManager({ slug }: { slug: string }) {
         <Link href="/dashboard/fests" className="text-sm text-mute hover:text-ink">← Your fests</Link>
         <h1 className="mb-2 mt-3 text-[26px] leading-tight">Check-in</h1>
         <p className="mb-6 text-mute">You are a volunteer on this fest. You can check people in on the day.</p>
+        <div className="mb-8"><TasksTab slug={slug} canManage={false} mineOnly /></div>
         <GateTab slug={slug} events={publicEvents} canUndo={false} />
       </div>
     );
@@ -110,6 +114,9 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "details" && <FestDetailsTab key={f.review_status + f.name} fest={f} frozen={frozen} onSaved={loadFest} />}
       {tab === "events" && <EventsTab fest={f} events={events} frozen={frozen} goTo={go} reload={() => { loadEvents(); loadFest(); }} />}
       {tab === "registrations" && <RegistrationsTab events={events} reload={loadEvents} />}
+      {tab === "schedule" && <ScheduleTab slug={slug} goTo={go} />}
+      {tab === "tasks" && <TasksTab slug={slug} canManage />}
+      {tab === "meetings" && <MeetingsTab slug={slug} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
       {tab === "announcements" && <AnnouncementsTab slug={slug} live={f.status === "live"} events={publicEvents} />}
       {tab === "team" && <div className="max-w-4xl space-y-8"><TeamTab slug={slug} myRole={role} />{role === "owner" && <HandOverCard slug={slug} />}</div>}

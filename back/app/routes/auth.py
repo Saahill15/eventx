@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
+from app.passwords import BCRYPT_ROUNDS
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user
@@ -19,7 +20,7 @@ router = APIRouter()
 pwd = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
-    bcrypt__truncate_error=False,  # truncate >72 bytes to avoid backend ValueError
+    bcrypt__rounds=BCRYPT_ROUNDS, bcrypt__truncate_error=False,  # truncate >72 bytes to avoid backend ValueError
 )
 
 # ─── Failed-login throttle ────────────────────────────────────────────────────

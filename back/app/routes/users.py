@@ -1,6 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.passwords import BCRYPT_ROUNDS
 from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user
@@ -8,7 +9,7 @@ from app.auth.sessions import revoke_user_sessions
 from passlib.context import CryptContext
 
 router = APIRouter()
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
+pwd = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=BCRYPT_ROUNDS, bcrypt__truncate_error=False)
 
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user=Depends(get_current_user)):

@@ -3,30 +3,83 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { FestInvite, FestRole, Member } from "@/lib/types";
+import type { CommitteeTeam, FestInvite, FestRole, Member, Org } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Pill, Skeleton } from "@/components/ui/bits";
 import { Field, Notice } from "@/components/ui/bits";
 import { formatDay } from "@/lib/format";
+import { OrgChart } from "./OrgChart";
+import { TeamsPanel } from "./TeamsPanel";
 
 const LABEL: Record<string, string> = { owner: "Festival director", core: "Core team", volunteer: "Volunteer" };
 const HELP: Record<string, string> = { core: "Can manage events, registrations and the team", volunteer: "Helps on the day, no management access" };
 const ORDER: Record<string, number> = { owner: 0, core: 1, volunteer: 2 };
 
+/** Everyone someone leads, directly or through others. They cannot be picked as that person's own lead (it would loop). */
+function below(members: Member[], id: number): Set<number> {
+  const out = new Set<number>();
+  const walk = (lead: number) => { for (const m of members) if (m.reports_to_id === lead && !out.has(m.id)) { out.add(m.id); walk(m.id); } };
+  walk(id);
+  return out;
+}
+
+function PlaceEditor({ slug, member, members, teams, onDone }: { slug: string; member: Member; members: Member[]; teams: CommitteeTeam[]; onDone: (changed: boolean) => void }) {
+  const [title, setTitle] = useState(member.title ?? "");
+  const [teamId, setTeamId] = useState(member.committee_team_id ? String(member.committee_team_id) : "");
+  const [leadId, setLeadId] = useState(member.reports_to_id ? String(member.reports_to_id) : "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const blocked = below(members, member.id);
+  const leads = members.filter((m) => m.id !== member.id && !blocked.has(m.id));
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError("");
+    try {
+      await api(`/api/fests/${slug}/org/members/${member.id}`, { method: "PATCH", body: { title: title.trim() || null, committee_team_id: teamId ? Number(teamId) : null, reports_to_id: leadId ? Number(leadId) : null } });
+      onDone(true);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not save."); setBusy(false); }
+  };
+
+  return (
+    <form onSubmit={save} className="mt-3 space-y-4 rounded-2xl bg-wash p-4">
+      <ErrorNote>{error}</ErrorNote>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Title" hint="In your fest's words"><input className="field" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Sponsorship Head" /></Field>
+        <Field label="Team">
+          <select className="field" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+            <option value="">No team</option>
+            {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Reports to">
+          <select className="field" value={leadId} onChange={(e) => setLeadId(e.target.value)}>
+            <option value="">Nobody</option>
+            {leads.map((m) => <option key={m.id} value={m.id}>{m.user_name}{m.title ? `, ${m.title}` : ""}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="flex gap-2"><Button size="sm" type="submit" disabled={busy}>{busy ? "Saving…" : "Save place"}</Button><Button size="sm" type="button" variant="ghost" onClick={() => onDone(false)}>Cancel</Button></div>
+    </form>
+  );
+}
+
 export function TeamTab({ slug, myRole }: { slug: string; myRole: FestRole }) {
   const { user } = useAuth();
-  const [members, setMembers] = useState<Member[] | null>(null);
+  const [org, setOrg] = useState<Org | null>(null);
   const [invites, setInvites] = useState<FestInvite[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("volunteer");
+  const [placing, setPlacing] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const canGrantCore = myRole === "owner" || myRole === "admin";
+  const canEdit = myRole === "owner" || myRole === "core" || myRole === "admin";
 
   const load = useCallback(async () => {
-    try { setMembers(await api<Member[]>(`/api/fests/${slug}/members`)); }
-    catch (e) { setError(e instanceof Error ? e.message : "Could not load the team."); setMembers([]); }
+    try { setOrg(await api<Org>(`/api/fests/${slug}/org`)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not load the team."); setOrg({ teams: [], members: [] }); }
   }, [slug]);
   const loadInvites = useCallback(() => { api<FestInvite[]>(`/api/fests/${slug}/invites`).then(setInvites).catch(() => {}); }, [slug]);
   useEffect(() => { load(); loadInvites(); }, [load, loadInvites]);
@@ -55,9 +108,10 @@ export function TeamTab({ slug, myRole }: { slug: string; myRole: FestRole }) {
   };
 
   const canRemove = (m: Member) => m.user_id !== user?.id && (m.role === "owner" ? myRole === "admin" : m.role === "core" ? canGrantCore : true);
+  const canPlace = (m: Member) => canEdit && (m.role !== "owner" || myRole === "owner" || myRole === "admin");
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-4xl space-y-8">
       <form onSubmit={add} className="card space-y-4 p-6 sm:p-8">
         <h2 className="font-display text-xl font-extrabold tracking-tight">Add a team member</h2>
         <ErrorNote>{error}</ErrorNote>
@@ -66,7 +120,7 @@ export function TeamTab({ slug, myRole }: { slug: string; myRole: FestRole }) {
           <Field label="Their HiveOut email" hint="They need a HiveOut account. They confirm the invite, and must be a verified student to join.">
             <input className="field" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@college.edu" />
           </Field>
-          <Field label="Role" hint={HELP[role]}>
+          <Field label="Access level" hint={HELP[role]}>
             <select className="field" value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="volunteer">Volunteer</option>
               {canGrantCore && <option value="core">Core team</option>}
@@ -94,21 +148,31 @@ export function TeamTab({ slug, myRole }: { slug: string; myRole: FestRole }) {
         </div>
       )}
 
-      {members === null ? <Skeleton className="h-20" /> : (
-        <div className="space-y-3">
-          {[...members].sort((a, b) => ORDER[a.role] - ORDER[b.role]).map((m) => (
-            <div key={m.id} className="card flex items-center justify-between gap-4 p-4 sm:p-5">
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{m.user_name}{m.user_id === user?.id ? " (you)" : ""}</p>
-                <p className="truncate text-sm text-neutral-500">{m.user_email}</p>
+      {org === null ? <Skeleton className="h-32" /> : (
+        <>
+          <OrgChart members={org.members} meId={user?.id} />
+          <TeamsPanel slug={slug} teams={org.teams} members={org.members} canEdit={canEdit} reload={load} />
+
+          <section className="space-y-3" aria-label="Everyone on the committee">
+            <h2 className="font-display text-xl font-extrabold tracking-tight">Everyone</h2>
+            {[...org.members].sort((a, b) => ORDER[a.role] - ORDER[b.role]).map((m) => (
+              <div key={m.id} className="card p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{m.user_name}{m.user_id === user?.id ? " (you)" : ""}</p>
+                    <p className="truncate text-sm text-neutral-500">{[m.title, m.team_name, m.reports_to_name ? `reports to ${m.reports_to_name}` : null].filter(Boolean).join(" · ") || m.user_email}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <Pill tone="amber">{LABEL[m.role]}</Pill>
+                    {canPlace(m) && <button onClick={() => setPlacing(placing === m.id ? null : m.id)} className="text-sm font-semibold underline underline-offset-4">{placing === m.id ? "Close" : "Edit place"}</button>}
+                    {canRemove(m) && <button onClick={() => remove(m)} className="text-sm font-semibold text-red-600 hover:underline">Remove</button>}
+                  </div>
+                </div>
+                {placing === m.id && <PlaceEditor slug={slug} member={m} members={org.members} teams={org.teams} onDone={(changed) => { setPlacing(null); if (changed) load(); }} />}
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <Pill tone="amber">{LABEL[m.role]}</Pill>
-                {canRemove(m) && <button onClick={() => remove(m)} className="text-sm font-semibold text-red-600 hover:underline">Remove</button>}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </section>
+        </>
       )}
     </div>
   );

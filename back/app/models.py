@@ -340,6 +340,18 @@ class Fest(Base):
         return len([e for e in self.events if e.status == "approved"])
 
 
+class CommitteeTeam(Base):
+    """A function inside a fest's committee, such as Sponsorship, PR or Logistics. Each fest names its own."""
+    __tablename__ = "committee_teams"
+    __table_args__ = (UniqueConstraint("fest_id", "name", name="uq_committee_teams_fest_name"),)
+
+    id          = Column(Integer, primary_key=True, index=True)
+    fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    name        = Column(String(80), nullable=False)
+    description = Column(String(300), nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class FestMember(Base):
     """Maps users to fests with a role (owner / core / volunteer)."""
     __tablename__ = "fest_members"
@@ -351,11 +363,18 @@ class FestMember(Base):
     id         = Column(Integer, primary_key=True, index=True)
     fest_id    = Column(Integer, ForeignKey("fests.id"), nullable=False)
     user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
-    role       = Column(Enum(FestMemberRoleEnum), default=FestMemberRoleEnum.volunteer)
+    role       = Column(Enum(FestMemberRoleEnum), default=FestMemberRoleEnum.volunteer)   # the access level: owner / core / volunteer
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Where this person sits in the committee. The access level above stays three simple tiers; these are the fest's own words
+    title             = Column(String(80), nullable=True)   # for example "Sponsorship Head" or "Event Coordinator, Dance"
+    committee_team_id = Column(Integer, ForeignKey("committee_teams.id", name="fk_fest_members_team"), nullable=True)
+    reports_to_id     = Column(Integer, ForeignKey("fest_members.id", name="fk_fest_members_reports_to"), nullable=True)
 
     fest = relationship("Fest", back_populates="members")
     user = relationship("User", back_populates="fest_memberships")
+    committee_team = relationship("CommitteeTeam")
+    reports_to = relationship("FestMember", remote_side="FestMember.id")
 
     @property
     def user_name(self):
@@ -364,6 +383,104 @@ class FestMember(Base):
     @property
     def user_email(self):
         return self.user.email if self.user else None
+
+    @property
+    def team_name(self):
+        return self.committee_team.name if self.committee_team else None
+
+    @property
+    def reports_to_name(self):
+        return self.reports_to.user_name if self.reports_to else None
+
+
+class FestMeeting(Base):
+    """A committee meeting: when and where, the agenda, who was invited, what was decided, and the follow-ups it produced."""
+    __tablename__ = "fest_meetings"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    title         = Column(String(200), nullable=False)
+    starts_at     = Column(DateTime, nullable=False)   # a wall-clock time, like event times
+    location      = Column(String(255), nullable=True)
+    agenda        = Column(Text, nullable=True)
+    minutes       = Column(Text, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_fest_meetings_creator"), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    attendees  = relationship("FestMeetingAttendee", cascade="all, delete-orphan")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+    @property
+    def created_by_name(self):
+        return self.created_by.name if self.created_by else None
+
+    @property
+    def invited_count(self):
+        return len(self.attendees)
+
+    @property
+    def attended_count(self):
+        return len([a for a in self.attendees if a.attended])
+
+
+class FestMeetingAttendee(Base):
+    """Someone invited to a meeting, and whether they came."""
+    __tablename__ = "fest_meeting_attendees"
+    meeting_id = Column(Integer, ForeignKey("fest_meetings.id"), primary_key=True)
+    member_id  = Column(Integer, ForeignKey("fest_members.id"), primary_key=True)
+    attended   = Column(Boolean, nullable=False, default=False, server_default="0")
+
+    member = relationship("FestMember")
+
+    @property
+    def user_name(self):
+        return self.member.user_name if self.member else None
+
+    @property
+    def title(self):
+        return self.member.title if self.member else None
+
+
+class FestTask(Base):
+    """A piece of work for the committee: who does what by when. Optionally tied to a team."""
+    __tablename__ = "fest_tasks"
+    id                 = Column(Integer, primary_key=True, index=True)
+    fest_id            = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    title              = Column(String(200), nullable=False)
+    description        = Column(Text, nullable=True)
+    status             = Column(String(10), nullable=False, default="todo", server_default="todo")   # todo | doing | done
+    due_date           = Column(Date, nullable=True)
+    assignee_member_id = Column(Integer, ForeignKey("fest_members.id", name="fk_fest_tasks_assignee"), nullable=True)
+    committee_team_id  = Column(Integer, ForeignKey("committee_teams.id", name="fk_fest_tasks_team"), nullable=True)
+    meeting_id         = Column(Integer, ForeignKey("fest_meetings.id", name="fk_fest_tasks_meeting"), nullable=True)   # the meeting it came out of
+    created_by_id      = Column(Integer, ForeignKey("users.id", name="fk_fest_tasks_creator"), nullable=True)
+    created_at         = Column(DateTime, nullable=False, server_default=func.now())
+    completed_at       = Column(DateTime, nullable=True)
+
+    meeting        = relationship("FestMeeting", foreign_keys=[meeting_id])
+    assignee       = relationship("FestMember", foreign_keys=[assignee_member_id])
+    committee_team = relationship("CommitteeTeam")
+    created_by     = relationship("User", foreign_keys=[created_by_id])
+
+    @property
+    def assignee_name(self):
+        return self.assignee.user_name if self.assignee else None
+
+    @property
+    def team_name(self):
+        return self.committee_team.name if self.committee_team else None
+
+    @property
+    def created_by_name(self):
+        return self.created_by.name if self.created_by else None
+
+    @property
+    def meeting_title(self):
+        return self.meeting.title if self.meeting else None
+
+    @property
+    def overdue(self):
+        from datetime import date
+        return bool(self.due_date and self.status != "done" and self.due_date < date.today())
 
 
 class FestPass(Base):

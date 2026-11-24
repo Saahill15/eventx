@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime, timedelta
+from app.passwords import BCRYPT_ROUNDS
 from app.database import SessionLocal
 from app import models
 
@@ -49,7 +50,7 @@ def seed():
                 pwd = CryptContext(
                     schemes=["bcrypt"],
                     deprecated="auto",
-                    bcrypt__truncate_error=False,  # truncate >72 bytes to avoid backend ValueError
+                    bcrypt__rounds=BCRYPT_ROUNDS, bcrypt__truncate_error=False,  # truncate >72 bytes to avoid backend ValueError
                 )
                 admin_email, admin_password = creds
                 db.add(models.User(
@@ -71,7 +72,7 @@ def seed():
             pwd = CryptContext(
                 schemes=["bcrypt"],
                 deprecated="auto",
-                bcrypt__truncate_error=False,
+                bcrypt__rounds=BCRYPT_ROUNDS, bcrypt__truncate_error=False,
             )
 
             iitb   = db.query(models.College).filter(models.College.name == "IIT Bombay").first()

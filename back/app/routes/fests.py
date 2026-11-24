@@ -537,6 +537,10 @@ def remove_fest_member(
     if member.role == models.FestMemberRoleEnum.core and _actor_fest_role(fest, current_user, db) == "core":
         raise HTTPException(status_code=403, detail="Only the fest owner can remove core members")
 
+    # Anyone who reported to this person now has no lead, so the chart never points at someone who has left
+    db.query(models.FestMember).filter(models.FestMember.reports_to_id == member.id).update({"reports_to_id": None}, synchronize_session=False)
+    db.query(models.FestTask).filter(models.FestTask.assignee_member_id == member.id).update({"assignee_member_id": None}, synchronize_session=False)
+    db.query(models.FestMeetingAttendee).filter(models.FestMeetingAttendee.member_id == member.id).delete(synchronize_session=False)
     db.delete(member)
     db.commit()
 

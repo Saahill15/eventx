@@ -94,6 +94,20 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
     api<Question[]>(`/api/events/${source.id}/questions`).then((qs) => { const d = qs.map(toDraft); setQuestions(d); if (event) setLoadedQuestions(JSON.stringify(toQuestionPayload(d))); }).catch(() => {});
   }, [event, copyOf, isFest]);
 
+  // Warn, without blocking, when this event wants a venue another event already has at the same time
+  const [clashes, setClashes] = useState<{ id: number; title: string; time: string | null; end_time: string | null }[]>([]);
+  useEffect(() => {
+    if (!isFest || !fest || !f.date || !f.time || !f.location.trim()) { setClashes([]); return; }
+    let live = true;
+    const timer = window.setTimeout(() => {
+      const q = new URLSearchParams({ day: f.date, time: f.time, location: f.location.trim() });
+      if (f.end_time) q.set("end_time", f.end_time);
+      if (event?.id) q.set("exclude_event_id", String(event.id));
+      api<{ clashes: typeof clashes }>(`/api/fests/${fest.slug}/schedule/check?${q}`).then((r) => { if (live) setClashes(r.clashes); }).catch(() => { if (live) setClashes([]); });
+    }, 400);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [isFest, fest, f.date, f.time, f.end_time, f.location, event?.id]);
+
   const applyTemplate = (t: (typeof TEMPLATES)[number] | null) => {
     setTemplate(t?.key ?? "blank");
     setDescHint(t?.hint ?? "");
@@ -163,6 +177,7 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
         <Field label="Venue"><input className="field" required={isFest} list="venue-suggestions" value={f.location} onChange={(e) => set("location", e.target.value)} placeholder="e.g. Main Auditorium" /><datalist id="venue-suggestions">{venues.map((v) => <option key={v} value={v} />)}</datalist></Field>
         <Field label="Category"><select className="field" value={f.category} onChange={(e) => set("category", e.target.value)}><option value="">Select</option>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
       </div>
+      {clashes.length > 0 && <Notice tone="warn"><strong>This clashes with another event at {f.location.trim()}:</strong> {clashes.map((c) => `${c.title} (${c.time ?? ""}${c.end_time ? `–${c.end_time}` : ""})`).join(", ")}. You can still save it, or pick another time or venue.</Notice>}
       <ImageUpload label="Cover image" value={image} onChange={setImage} aspect="aspect-[16/10]" />
 
       <div className="space-y-4 rounded-2xl bg-wash p-5">

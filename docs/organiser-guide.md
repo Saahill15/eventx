@@ -70,10 +70,25 @@ Per event, up to 10 questions of three types: **short text**, **choice from a li
 
 The director or core team posts a notice, to the **whole fest** (everyone with a pass) or **one event** (everyone registered). It appears on the fest page and in each student's notifications. Tick "email" to also send it through Brevo. Fest must be live; limit 10 per fest per day. Email sending runs after the post, and the announcement records how many emails went out or failed.
 
-## 8. Day of the fest
+## 8. Running the committee
+
+These tools are for the committee itself. They sit in the fest's tabs and are available as soon as the fest exists, before review.
+
+**Committee structure (Committee tab).** Access stays three simple levels (festival director, core team, volunteer), because that decides who can manage what. On top of it every fest uses its own words:
+- **Teams:** the parts of the committee (Sponsorship, PR, Logistics and so on). One click adds the usual nine; add, rename or delete your own. Up to 30 per fest. Deleting a team keeps its people and tasks.
+- **Titles and reporting lines:** "Edit place" on each person sets a title in the fest's own words (for example "Sponsorship Head"), a team, and who they report to. The chart that results shows on the same tab. A chart cannot loop (nobody can end up reporting to someone who reports to them), the lead must be on the same committee, and only the director or an admin can move the director.
+- Removing someone clears the lead of the people who reported to them, unassigns their tasks and takes them off meeting invitations.
+
+**Tasks (Tasks tab).** Who does what by when: a title, an owner, a team, a due date and details, on a board of To do, In progress and Done. The director and core team add, edit, assign and delete; the person a task is assigned to can move it along; volunteers see their own tasks above the check-in screen. Filters: all, mine, overdue, by team. A task is overdue once its due date has passed and it is not done. Up to 500 per fest.
+
+**Meetings (Meetings tab).** Schedule a meeting with a date, time, place and agenda, and choose who is invited (everyone by default). Invitees get a notification, and again if the time or place changes, or when they are added later; cancelling a future meeting tells them too. After the meeting the core team records who came, writes the minutes, and adds **action items**, which are ordinary tasks tied to the meeting and show on the task board with "From the meeting...". Cancelling a meeting keeps its action items. Up to 300 per fest.
+
+**Schedule (Schedule tab).** Every event by day and venue. Two events **clash** when they are at the same venue on the same day and their times overlap; back-to-back is fine, venue names are compared ignoring capitalisation and spacing, an event with no end time is assumed to take an hour, and cancelled events never clash. Clashes are marked in red and listed at the top. While an event is being created or edited the form warns about a clash (without blocking the save). Events with no time or venue are listed as "not placed yet".
+
+## 9. Day of the fest
 
 Volunteers and the committee scan pass QR codes: look up a pass, check in at the gate, check in at an event, undo a wrong scan (director and core only). Stats show passes issued and used, and per-event registered, waiting and attended.
 
 ## Not built yet
 
-Team events, waitlists, payments and refunds, transferring a fest to a new director, ticket tiers and promo codes, certificates, bulk import of events from a spreadsheet. Screens for most of the above are the next step.
+Waitlists, payments and refunds, transferring a fest to a new director, ticket tiers and promo codes, certificates, bulk import of events from a spreadsheet. Screens for most of the above are the next step.
