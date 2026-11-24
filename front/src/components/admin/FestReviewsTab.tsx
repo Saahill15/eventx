@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { FestReview } from "@/lib/types";
-import { formatDay, formatTime } from "@/lib/format";
+import { formatDay, formatTime, mapsLink } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Notice, Pill, Skeleton } from "@/components/ui/bits";
 import { Chips, Detail, useAction, useCounts, when } from "./shared";
@@ -52,7 +52,7 @@ function FestCard({ r, onDone }: { r: FestReview; onDone: () => void }) {
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Detail label="Dates">{f.start_date && f.end_date ? `${f.start_date} → ${f.end_date}` : ""}</Detail>
             <Detail label="Campus address">{f.campus_address}</Detail>
-            <Detail label="Map">{f.map_url && <a className="underline" href={f.map_url} target="_blank" rel="noopener noreferrer">Open map</a>}</Detail>
+            <Detail label="Map">{(f.map_url || f.campus_address) && <a className="underline" href={f.map_url || mapsLink(f.campus_address ?? "")} target="_blank" rel="noopener noreferrer">Open map</a>}</Detail>
             <Detail label="Committee contact">{[f.contact_name, f.contact_phone, f.contact_email].filter(Boolean).join(" · ")}</Detail>
             <Detail label="Faculty coordinator">{[f.faculty_name, f.faculty_phone, f.faculty_email].filter(Boolean).join(" · ")}</Detail>
             <Detail label="Directors">{r.owners.join(", ")}</Detail>

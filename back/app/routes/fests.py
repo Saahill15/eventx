@@ -7,7 +7,7 @@ from app.database import get_db
 from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user
 from app.permissions import can_host_fests, can_view_fest, fest_hosting_switched_off
-from app.fest_review import fest_missing
+from app.fest_review import fest_checklist_items, fest_missing
 from app import notices
 
 router = APIRouter()
@@ -225,7 +225,8 @@ def fest_checklist(
         raise HTTPException(status_code=404, detail="Fest not found")
     _require_fest_privileged(fest, current_user, db)
     events = db.query(models.Event).filter(models.Event.fest_id == fest.id).all()
-    return schemas.ChecklistOut(missing=fest_missing(fest, events))
+    members = db.query(models.FestMember).filter(models.FestMember.fest_id == fest.id).count()
+    return schemas.ChecklistOut(missing=fest_missing(fest, events), items=fest_checklist_items(fest, events, members))
 
 
 # ─── PATCH /fests/:slug ──────────────────────────────────────────────────────
@@ -384,6 +385,9 @@ def create_fest(
 
     fest = models.Fest(
         slug=payload.slug, name=payload.name, tagline=payload.tagline, college_id=college.id,
+        start_date=payload.start_date, end_date=payload.end_date,
+        # The committee contact starts as the person creating the fest, so they only have to confirm it
+        contact_name=current_user.name, contact_email=current_user.email, contact_phone=current_user.phone,
         status=models.FestStatusEnum.draft, review_status="draft",
     )
     db.add(fest)

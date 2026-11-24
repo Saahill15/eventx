@@ -128,8 +128,9 @@ class TestFestListingAndReview(Setup):
         r = self.submit()
         assert r.status_code == 400
         missing = r.json()["detail"]["missing"]
-        for expected in ("description", "start date", "campus address", "map link", "banner image", "committee contact phone", "at least one event"):
+        for expected in ("description", "start date", "campus address", "banner image", "committee contact phone", "at least one event"):
             assert expected in missing
+        assert "map link" not in missing and "tagline" not in missing  # both are optional
 
     def test_submit_checks_event_details_and_dates(self):
         fest = self.start()

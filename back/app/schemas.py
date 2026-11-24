@@ -351,11 +351,26 @@ class EventUpdate(BaseModel):
 RESERVED_FEST_SLUGS = {"all", "my-passes", "my-pass", "mine"}
 
 class FestCreate(BaseModel):
-    """Starting a fest needs only a name, a web address and the college. Everything else is filled in before review."""
+    """
+    Starting a fest needs only a name, a web address and the college. Dates are welcome if the committee already has them,
+    but many colleges have not fixed them yet, so they are optional here (they are needed before the fest goes for review).
+    """
     slug: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", min_length=2, max_length=100)
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     tagline: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
     college_id: int
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+    @model_validator(mode="after")
+    def dates_make_sense(self):
+        if self.start_date and not self.end_date:
+            self.end_date = self.start_date  # a one-day fest: only the start was given
+        if self.end_date and not self.start_date:
+            raise ValueError("add a start date as well, or leave both dates empty")
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("the end date cannot be before the start date")
+        return self
 
     @field_validator("slug")
     @classmethod
@@ -961,8 +976,18 @@ class ShortLinkCheck(BaseModel):
 class EventRejection(BaseModel):
     reason: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]] = None
 
+class ChecklistItem(BaseModel):
+    key: str
+    label: str                 # what to do, e.g. "Add a banner image"
+    done: bool
+    required: bool = True      # optional items never block sending for review
+    tab: str                   # which tab of the fest manager completes it: details | events | team
+    hint: Optional[str] = None
+    problems: List[str] = []   # specifics still wrong inside this item (for example, which event lacks a venue)
+
 class ChecklistOut(BaseModel):
     missing: List[str] = []
+    items: List[ChecklistItem] = []
 
 class SubmitOut(BaseModel):
     fest: FestManageOut

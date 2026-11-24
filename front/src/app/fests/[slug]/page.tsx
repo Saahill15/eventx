@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, CalendarDays, MapPin, Ticket } from "lucide-react";
 import { getColleges, getFestBySlug, getFestEvents } from "@/lib/api";
+import { mapsLink } from "@/lib/format";
 import { PosterArt } from "@/components/Poster";
 import { EntryPassPanel } from "@/components/EntryPassPanel";
 import { Programme } from "@/components/Programme";
@@ -88,7 +89,7 @@ export default async function FestPage({ params }: Props) {
                 <div className="mt-5 space-y-2 text-sm">
                   {fest.campus_address && <p className="font-medium">{fest.campus_address}</p>}
                   <p className="flex flex-wrap gap-x-5 gap-y-1 font-semibold">
-                    {fest.map_url && <a href={fest.map_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Open in maps</a>}
+                    {(fest.map_url || fest.campus_address) && <a href={fest.map_url || mapsLink(fest.campus_address ?? "")} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Open in maps</a>}
                     {fest.instagram_url && <a href={fest.instagram_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Instagram</a>}
                     {fest.website_url && <a href={fest.website_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Website</a>}
                   </p>

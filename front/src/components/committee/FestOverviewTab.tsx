@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Circle } from "lucide-react";
 import { api } from "@/lib/api";
-import type { FestManage, FestStats } from "@/lib/types";
+import type { ChecklistItem, FestManage, FestStats } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Notice, Skeleton } from "@/components/ui/bits";
 import { Stat } from "@/components/admin/shared";
@@ -17,6 +17,7 @@ const STEPS = [
 /** The journey of a fest, what is still missing, and the buttons that move it along: submit, withdraw, go live. */
 export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage; role: string; reload: () => void; goTo: (tab: string) => void }) {
   const [missing, setMissing] = useState<string[] | null>(null);
+  const [items, setItems] = useState<ChecklistItem[]>([]);
   const [stats, setStats] = useState<FestStats | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +25,7 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
   const status = fest.review_status;
 
   const load = useCallback(() => {
-    api<{ missing: string[] }>(`/api/fests/${fest.slug}/manage/checklist`).then((r) => setMissing(r.missing)).catch(() => setMissing([]));
+    api<{ missing: string[]; items: ChecklistItem[] }>(`/api/fests/${fest.slug}/manage/checklist`).then((r) => { setMissing(r.missing); setItems(r.items); }).catch(() => { setMissing([]); setItems([]); });
     api<FestStats>(`/api/fests/${fest.slug}/manage/stats`).then(setStats).catch(() => {});
   }, [fest.slug]);
   useEffect(load, [load, fest.review_status, fest.status]);
@@ -36,6 +37,11 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
   };
   const post = (action: string) => run(() => api(`/api/fests/${fest.slug}/${action}`, { method: "POST" }));
   const setLive = (live: boolean) => run(() => api(`/api/fests/${fest.slug}/status`, { method: "PATCH", body: { status: live ? "live" : "draft" } }));
+
+  const required = items.filter((i) => i.required);
+  const doneCount = required.filter((i) => i.done).length;
+  const next = required.find((i) => !i.done);
+  const ready = missing !== null && missing.length === 0;
 
   const stage = fest.status === "live" ? 3 : status === "approved" ? 2 : status === "in_review" ? 1 : 0;
   const pending = stats?.events.reduce((n, e) => n + e.pending, 0) ?? 0;
@@ -75,15 +81,40 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
       ) : (
         <section className="card space-y-5 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div><ReviewPill status={status} /><p className="mt-2 text-mute">{missing === null ? "Checking…" : missing.length === 0 ? "Everything is filled in. You can send your fest to HiveOut for review." : `${missing.length} thing${missing.length === 1 ? "" : "s"} to finish before you can send it for review.`}</p></div>
+            <div>
+              <ReviewPill status={status} />
+              <h2 className="mt-3 font-display text-xl font-semibold tracking-tight">{ready ? "You are ready to send it for review" : "Get your fest ready"}</h2>
+              <p className="mt-1 text-mute">{missing === null ? "Checking…" : ready ? "Everything is filled in. HiveOut will review it and let you know." : "A few quick steps, then HiveOut reviews your fest. Everything saves as you go."}</p>
+            </div>
             {canSubmit && <Button size="lg" disabled={busy || missing === null || missing.length > 0} onClick={() => post("submit")}>Send for review</Button>}
           </div>
-          {missing && missing.length > 0 && (
-            <ul className="space-y-2">
-              {missing.map((m) => <li key={m} className="flex items-start gap-3 text-sm"><Circle className="mt-0.5 h-4 w-4 shrink-0 text-mute" />{m}</li>)}
-              <li className="pt-2"><button onClick={() => goTo("details")} className="text-sm font-semibold underline underline-offset-4">Edit fest details</button><span className="mx-2 text-mute">·</span><button onClick={() => goTo("events")} className="text-sm font-semibold underline underline-offset-4">Edit events</button></li>
-            </ul>
+
+          {required.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-baseline justify-between text-sm"><span className="font-semibold">{doneCount} of {required.length} done</span><span className="text-mute">About a minute each</span></div>
+              <div className="h-2 overflow-hidden rounded-full bg-wash" role="progressbar" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneCount} aria-label="Steps done">
+                <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(doneCount / required.length) * 100}%` }} />
+              </div>
+            </div>
           )}
+
+          <ol className="divide-y divide-black/10">
+            {items.map((it) => {
+              const isNext = next?.key === it.key;
+              return (
+                <li key={it.key} className="flex items-start gap-4 py-4">
+                  <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${it.done ? "bg-emerald-500 text-white" : isNext ? "bg-ink text-white" : "bg-wash text-mute"}`} aria-hidden="true">{it.done ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-semibold ${it.done ? "text-mute line-through decoration-1" : ""}`}>{it.label}{!it.required && <span className="ml-2 rounded-full bg-wash px-2 py-0.5 text-xs font-medium text-mute no-underline">Optional</span>}</p>
+                    {!it.done && it.hint && <p className="mt-0.5 text-sm text-mute">{it.hint}</p>}
+                    {!it.done && it.problems.length > 0 && <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-mute">{it.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+                  </div>
+                  {canSubmit && !it.done && <Button size="sm" variant={isNext ? "ink" : "outline"} onClick={() => goTo(it.tab)}>{it.key === "dates" ? "Set dates" : it.key === "events" ? "Add event" : it.key === "team" ? "Invite" : "Fill in"}</Button>}
+                  {canSubmit && it.done && <button onClick={() => goTo(it.tab)} className="text-xs font-semibold text-mute underline underline-offset-4 hover:text-ink">Edit</button>}
+                </li>
+              );
+            })}
+          </ol>
         </section>
       )}
 

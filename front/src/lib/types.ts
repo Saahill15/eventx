@@ -311,3 +311,14 @@ export interface VerificationReview {
 }
 
 export interface AuthSession { id: string; created_at: string; last_seen_at: string; ip: string | null; user_agent: string | null; current: boolean }
+
+/** One task on the "get your fest ready" checklist. */
+export interface ChecklistItem {
+  key: string;
+  label: string;
+  done: boolean;
+  required: boolean;
+  tab: "details" | "events" | "team";
+  hint?: string | null;
+  problems: string[];
+}
