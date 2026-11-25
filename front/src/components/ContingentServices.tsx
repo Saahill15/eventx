@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { ContingentMember, EnterableEvent, EventEntry, FeeStatement, MyEntries, MyStay } from "@/lib/types";
+import type { ContingentMember, EnterableEvent, EventEntry, FeeStatement, MyEntries, MyStay, PaymentConfig } from "@/lib/types";
 import { formatDay, formatTime, inr } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
+import { PayNow } from "./PayNow";
 import { ErrorNote, Field, Notice, Pill, Skeleton } from "@/components/ui/bits";
 
 function useRun(after: () => void) {
@@ -145,10 +146,25 @@ export function StayPortal({ slug }: { slug: string }) {
 
 const STATUS: Record<string, { text: string; tone: "green" | "amber" | "red" | "neutral" }> = { no_fees: { text: "Nothing to pay", tone: "neutral" }, unpaid: { text: "Unpaid", tone: "red" }, part: { text: "Part paid", tone: "amber" }, paid: { text: "Paid", tone: "green" }, overpaid: { text: "Paid, with extra", tone: "amber" } };
 
+/** Pay all or part of what is owed, online. */
+function FeePay({ contingentId, balance }: { contingentId: number; balance: number }) {
+  const [amount, setAmount] = useState(String(balance));
+  const value = Number(amount);
+  const ok = value > 0 && value <= balance;
+  return (
+    <div className="space-y-3 rounded-2xl bg-wash p-4">
+      <Field label="Amount to pay now (₹)" hint={`You can pay all ${inr(balance)} or part of it.`}><input className="field max-w-xs" type="number" min={1} max={balance} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+      <PayNow endpoint={`/api/payments/contingents/${contingentId}/checkout`} amount={value} body={{ amount: value }} label={ok ? `Pay ${inr(value)} online` : "Enter an amount to pay"} compact />
+    </div>
+  );
+}
+
 /** What the college owes, line by line, what has been received, and how to pay. */
 export function FeesPortal({ slug }: { slug: string }) {
   const [st, setSt] = useState<FeeStatement | null | undefined>(undefined);
   useEffect(() => { api<FeeStatement | null>(`/api/fests/${slug}/fees/mine`).then(setSt).catch(() => setSt(null)); }, [slug]);
+  const [payOn, setPayOn] = useState(false);
+  useEffect(() => { api<PaymentConfig>("/api/payments/config").then((c) => setPayOn(c.enabled)).catch(() => {}); }, []);
   if (st === undefined) return <Skeleton className="h-24" />;
   if (!st || (st.lines.length === 0 && st.payments.length === 0)) return null;
   const s = STATUS[st.status];
@@ -161,6 +177,7 @@ export function FeesPortal({ slug }: { slug: string }) {
         {st.payments.map((p) => <tr key={p.id} className="text-emerald-700"><td className="pt-1">Received {formatDay(p.received_on)}{p.method ? ` · ${p.method}` : ""}</td><td className="pt-1 text-right">−{inr(p.amount)}</td></tr>)}
         <tr className="font-semibold"><td className="pt-3">{st.balance > 0 ? "Still to pay" : st.balance < 0 ? "Paid extra" : "Balance"}</td><td className={`pt-3 text-right ${st.balance > 0 ? "text-red-600" : ""}`}>{inr(Math.abs(st.balance))}</td></tr>
       </tbody></table>
+      {st.balance > 0 && payOn && <FeePay contingentId={st.contingent_id} balance={st.balance} />}
       {st.balance > 0 && (st.due_on || st.instructions) && (
         <div className="rounded-2xl bg-wash p-4 text-sm">{st.due_on && <p className="font-semibold">Please pay by {formatDay(st.due_on)}.</p>}{st.instructions && <p className="mt-1 whitespace-pre-line">{st.instructions}</p>}</div>
       )}

@@ -34,7 +34,7 @@ def get_settings(db: Session, fest: models.Fest) -> models.FinanceSettings:
 
 
 def settings_out(s: models.FinanceSettings) -> schemas.FinanceSettingsOut:
-    return schemas.FinanceSettingsOut(auto_approve_below=rupees(s.auto_approve_below_paise), receipt_required_above=None if s.receipt_required_above_paise is None else rupees(s.receipt_required_above_paise))
+    return schemas.FinanceSettingsOut(auto_approve_below=rupees(s.auto_approve_below_paise), receipt_required_above=None if s.receipt_required_above_paise is None else rupees(s.receipt_required_above_paise), refund_on_cancel=bool(s.refund_on_cancel), refund_cutoff_days=s.refund_cutoff_days or 0)
 
 
 def category_out(db: Session, c: models.FinanceCategory) -> schemas.CategoryOut:

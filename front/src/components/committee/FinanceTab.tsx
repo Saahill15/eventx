@@ -5,9 +5,10 @@ import { api } from "@/lib/api";
 import type { FinanceCategory, FinanceSummary } from "@/lib/types";
 import { BudgetPanel, IncomePanel, OverviewPanel, SettingsPanel, type Section } from "./FinancePanels";
 import { SpendingPanel } from "./FinanceSpend";
+import { PaymentsAdmin } from "./PaymentsAdmin";
 import { SubTabs } from "@/components/ui/SubTabs";
 
-const SECTIONS: { id: Section; label: string }[] = [{ id: "overview", label: "Overview" }, { id: "spending", label: "Spending" }, { id: "budget", label: "Budget" }, { id: "income", label: "Income" }, { id: "settings", label: "Settings" }];
+const SECTIONS: { id: Section; label: string }[] = [{ id: "overview", label: "Overview" }, { id: "spending", label: "Spending" }, { id: "budget", label: "Budget" }, { id: "income", label: "Income" }, { id: "payments", label: "Online payments" }, { id: "settings", label: "Settings" }];
 
 /**
  * The fest's money: the budget, requests to spend with approvals, money coming in from sponsors and others, and where it all
@@ -30,6 +31,7 @@ export function FinanceTab({ slug }: { slug: string }) {
       {section === "spending" && <SpendingPanel slug={slug} onChanged={reload} />}
       {section === "budget" && <BudgetPanel slug={slug} cats={cats} reloadAll={reload} go={setSection} />}
       {section === "income" && <IncomePanel slug={slug} cats={cats} summary={summary} reloadAll={reload} go={setSection} />}
+      {section === "payments" && <PaymentsAdmin slug={slug} />}
       {section === "settings" && <SettingsPanel slug={slug} cats={cats} reloadAll={reload} />}
     </div>
   );

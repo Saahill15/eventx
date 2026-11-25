@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.fest_review import events_blocked_reason
 from app.database import get_db
-from app import models, schemas, waitlist
+from app import models, payments, schemas, waitlist
 from app.money import to_paise
 from app.auth.dependencies import get_current_user, get_optional_user, require_organizer
 from app.permissions import can_host_city_events, can_view_event, fest_hosting_switched_off, is_fest_staff
@@ -326,6 +326,10 @@ def cancel_event(event_id: int, data: schemas.CancelEvent, background_tasks: Bac
         raise HTTPException(status_code=400, detail="Event is already cancelled")
     event.cancelled_at = datetime.utcnow()
     event.cancel_reason = data.reason
+    if event.event_type == models.EventTypeEnum.fest:
+        # Everyone who paid online is refunded in full; a failed refund stays on record for the committee to retry
+        for reg in db.query(models.EventRegistration).filter(models.EventRegistration.event_id == event.id).all():
+            payments.refund_for_registration(db, reg, "The event was cancelled", current_user.id)
     db.commit()
     db.refresh(event)
     if event.event_type == models.EventTypeEnum.fest:

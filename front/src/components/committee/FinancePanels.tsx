@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Field, Notice, Pill, Skeleton } from "@/components/ui/bits";
 import { useRun } from "./FinanceSpend";
 
-export type Section = "overview" | "spending" | "budget" | "income" | "settings";
+export type Section = "overview" | "spending" | "budget" | "income" | "payments" | "settings";
 
 function Bar({ value, pending = 0, max, over }: { value: number; pending?: number; max: number; over?: boolean }) {
   const pct = (n: number) => (max > 0 ? Math.min((n / max) * 100, 100) : n > 0 ? 100 : 0);
@@ -244,10 +244,11 @@ export function SettingsPanel({ slug, cats, reloadAll }: { slug: string; cats: F
   const [s, setS] = useState<FinanceSettings | null>(null);
   const [auto, setAuto] = useState("");
   const [receipts, setReceipts] = useState<{ on: boolean; over: string }>({ on: true, over: "1000" });
+  const [refund, setRefund] = useState<{ on: boolean; days: string }>({ on: true, days: "0" });
   const [saved, setSaved] = useState(false);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"expense" | "income">("expense");
-  const load = useCallback(() => { api<FinanceSettings>(`/api/fests/${slug}/finance/settings`).then((r) => { setS(r); setAuto(String(r.auto_approve_below)); setReceipts({ on: r.receipt_required_above !== null, over: String(r.receipt_required_above ?? 1000) }); }); }, [slug]);
+  const load = useCallback(() => { api<FinanceSettings>(`/api/fests/${slug}/finance/settings`).then((r) => { setS(r); setAuto(String(r.auto_approve_below)); setReceipts({ on: r.receipt_required_above !== null, over: String(r.receipt_required_above ?? 1000) }); setRefund({ on: r.refund_on_cancel, days: String(r.refund_cutoff_days) }); }); }, [slug]);
   useEffect(() => { load(); }, [load]);
   const afterRules = useCallback(() => { setSaved(true); load(); }, [load]);
   const rules = useRun(afterRules);
@@ -255,7 +256,7 @@ export function SettingsPanel({ slug, cats, reloadAll }: { slug: string; cats: F
   if (!s) return <Skeleton className="h-40" />;
   const save = (e: React.FormEvent) => {
     e.preventDefault(); setSaved(false);
-    rules.run(() => api(`/api/fests/${slug}/finance/settings`, { method: "PUT", body: { auto_approve_below: Number(auto) || 0, ...(receipts.on ? { receipt_required_above: Number(receipts.over) || 0 } : { receipts_never_needed: true }) } }));
+    rules.run(() => api(`/api/fests/${slug}/finance/settings`, { method: "PUT", body: { auto_approve_below: Number(auto) || 0, refund_on_cancel: refund.on, refund_cutoff_days: Number(refund.days) || 0, ...(receipts.on ? { receipt_required_above: Number(receipts.over) || 0 } : { receipts_never_needed: true }) } }));
   };
   return (
     <div className="max-w-3xl space-y-6">
@@ -267,6 +268,11 @@ export function SettingsPanel({ slug, cats, reloadAll }: { slug: string; cats: F
         <div className="space-y-2">
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={receipts.on} onChange={(e) => setReceipts({ ...receipts, on: e.target.checked })} /><span><strong>Ask for a receipt on bigger requests</strong><span className="block text-mute">Switch off if your committee does not need receipts.</span></span></label>
           {receipts.on && <Field label="Receipt needed for requests above (₹)"><input className="field max-w-xs" type="number" min={0} step="0.01" value={receipts.over} onChange={(e) => setReceipts({ ...receipts, over: e.target.value })} /></Field>}
+        </div>
+        <div className="space-y-2 border-t border-black/5 pt-4">
+          <p className="text-[15px] font-semibold">Refunds when a student cancels</p>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={refund.on} onChange={(e) => setRefund({ ...refund, on: e.target.checked })} /><span><strong>Refund them on their own, in full</strong><span className="block text-mute">What they paid online goes back through the payment service. Switch off to decide each refund yourselves from Online payments. If you turn someone down, or cancel an event, they are always refunded.</span></span></label>
+          {refund.on && <Field label="Up to how many days before the event?" hint="0 means until the day the event starts."><input className="field max-w-xs" type="number" min={0} max={365} value={refund.days} onChange={(e) => setRefund({ ...refund, days: e.target.value })} /></Field>}
         </div>
         <Button size="sm" type="submit" disabled={rules.busy}>{rules.busy ? "Saving…" : "Save"}</Button>
       </form>

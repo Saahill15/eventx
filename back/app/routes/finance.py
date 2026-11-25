@@ -128,6 +128,10 @@ def put_settings(slug: str, data: schemas.FinanceSettingsIn, db: Session = Depen
         s.receipt_required_above_paise = None
     elif u.get("receipt_required_above") is not None:
         s.receipt_required_above_paise = to_paise(u["receipt_required_above"])
+    if u.get("refund_on_cancel") is not None:
+        s.refund_on_cancel = u["refund_on_cancel"]
+    if u.get("refund_cutoff_days") is not None:
+        s.refund_cutoff_days = u["refund_cutoff_days"]
     db.commit()
     return fin.settings_out(s)
 

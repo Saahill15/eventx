@@ -75,7 +75,10 @@ def promote_one(db: Session, event: models.Event, entry: models.WaitlistEntry) -
     fe._save_answers(db, registration, answers)
     entry.status, entry.promoted_at = "promoted", datetime.utcnow()
     waiting_approval = registration.approval_status == models.RegApprovalStatusEnum.pending
-    body = f"A seat opened up in {event.title} and it is yours. " + ("The organisers will confirm it." if waiting_approval else "You are registered.")
+    if registration.awaiting_payment:
+        body = f"A seat opened up in {event.title} and it is held for you. Pay within 30 minutes to keep it, from My passes."
+    else:
+        body = f"A seat opened up in {event.title} and it is yours. " + ("The organisers will confirm it." if waiting_approval else "You are registered.")
     if team:
         body += f" Your team code is {team.code}: share it with the others."
     notices.notify(db, user.id, "waitlist", f"You are in: {event.title}", body)

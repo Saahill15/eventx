@@ -113,7 +113,7 @@ export function RegistrationsTab({ events, reload }: { events: ManagedEvent[]; r
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{r.user_name}</p>
                   <p className="truncate text-sm text-mute">{r.user_email}</p>
-                  <p className="mt-1 text-xs text-mute">Registered {new Date(r.created_at).toLocaleDateString("en-IN")} · Payment: {r.payment_status}</p>
+                  <p className="mt-1 text-xs text-mute">Registered {new Date(r.created_at).toLocaleDateString("en-IN")} · Payment: {r.awaiting_payment ? "waiting for payment" : r.payment_status}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {r.checked_in && <Pill tone="green">Attended</Pill>}

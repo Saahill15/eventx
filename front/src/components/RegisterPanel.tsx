@@ -7,10 +7,11 @@ import { CheckCircle2, Clock, Copy, Ticket, Users, XCircle } from "lucide-react"
 import { api } from "@/lib/api";
 import { formatLongDay, registrationNote } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
-import type { CityPass, FestEvent, FestPass, Question, Quote, Registration, Team, WaitlistStatus } from "@/lib/types";
+import type { CityPass, FestEvent, FestPass, PaymentConfig, Question, Quote, Registration, Team, WaitlistStatus } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { ErrorNote, Field } from "./ui/bits";
 import { TicketPicker } from "./TicketPicker";
+import { PayNow } from "./PayNow";
 import { inr } from "@/lib/format";
 
 type State = "unknown" | "none" | "confirmed" | "waiting" | "rejected";
@@ -83,6 +84,8 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
   const [tierCount, setTierCount] = useState(0);
   const [wl, setWl] = useState<WaitlistStatus | null>(null);
   const [wlTeam, setWlTeam] = useState("");
+  const [myReg, setMyReg] = useState<Registration | null>(null);
+  const [payOn, setPayOn] = useState<boolean | null>(null);
 
   const isFest = event.event_type === "fest";
   const needsRegistration = isFest && event.requires_registration;
@@ -94,10 +97,12 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
       if (isTeam) {
         const t = await api<Team>(`/api/fest-events/${event.id}/my-team`).catch(() => null);
         setTeam(t);
+        api<Registration[]>("/api/fest-events/my-registrations").then((regs) => setMyReg(regs.find((r) => r.event_id === event.id) ?? null)).catch(() => {});
         setState(t ? (t.status === "approved" ? "confirmed" : t.status === "pending" ? "waiting" : "rejected") : "none");
       } else if (needsRegistration) {
         const regs = await api<Registration[]>("/api/fest-events/my-registrations");
         const mine = regs.find((r) => r.event_id === event.id);
+        setMyReg(mine ?? null);
         setState(!mine ? "none" : mine.approval_status === "approved" ? "confirmed" : mine.approval_status === "pending" ? "waiting" : "rejected");
       } else if (isFest) {
         await api<FestPass>(`/api/fests/${event.fest_slug}/my-pass`).then(() => setHasFestPass(true)).catch(() => setHasFestPass(false));
@@ -111,6 +116,7 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
 
   const loadWaitlist = useCallback(() => { api<WaitlistStatus>(`/api/fest-events/${event.id}/waitlist`).then(setWl).catch(() => setWl(null)); }, [event.id]);
   useEffect(() => { if (user) refresh(); }, [user, refresh]);
+  useEffect(() => { api<PaymentConfig>("/api/payments/config").then((c) => setPayOn(c.enabled)).catch(() => setPayOn(false)); }, []);
   useEffect(() => { if (user && needsRegistration && event.registration_limit) loadWaitlist(); }, [user, needsRegistration, event.registration_limit, loadWaitlist, state]);
   useEffect(() => { if (needsRegistration) api<Question[]>(`/api/events/${event.id}/questions`).then(setQuestions).catch(() => {}); }, [event.id, needsRegistration]);
 
@@ -164,7 +170,8 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
     );
   }
 
-  if (isTeam && team) return <div className="space-y-3"><ErrorNote>{error}</ErrorNote><TeamCard team={team} busy={busy} onLeave={leave} /></div>;
+  const payCard = myReg?.awaiting_payment ? <PayNow endpoint={`/api/payments/registrations/${myReg.id}/checkout`} amount={myReg.amount_due ?? 0} holdUntil={myReg.hold_expires_at} label={`Pay ${inr(myReg.amount_due ?? 0)} to confirm your seat`} /> : null;
+  if (isTeam && team) return <div className="space-y-3"><ErrorNote>{error}</ErrorNote>{payCard}<TeamCard team={team} busy={busy} onLeave={leave} /></div>;
 
   const done = (icon: React.ReactNode, title: string, body?: string, cancellable = false) => (
     <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="rounded-2xl bg-wash p-4">
@@ -177,6 +184,7 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
     </motion.div>
   );
 
+  if (payCard && state !== "rejected") return <div className="space-y-3">{payCard}<button disabled={busy} onClick={leave} className="block w-full text-center text-sm font-semibold text-red-600 hover:underline">Cancel registration</button><ErrorNote>{error}</ErrorNote></div>;
   if (state === "confirmed") return done(<CheckCircle2 className="h-5 w-5 text-emerald-600" />, "You are registered", undefined, needsRegistration);
   if (state === "waiting") return done(<Clock className="h-5 w-5 text-chip-ink" />, "Request sent", "The organisers will confirm your spot. It will show here once approved.", needsRegistration);
   if (state === "rejected") return done(<XCircle className="h-5 w-5 text-red-600" />, "Not approved", "The organisers could not confirm this registration.");
@@ -255,7 +263,8 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
       {asking && <button onClick={() => setAsking(false)} className="w-full text-center text-sm font-semibold text-mute hover:text-ink">Back</button>}
       {isFest && !needsRegistration && <p className="text-center text-xs text-mute">No registration needed. The free fest pass covers entry.</p>}
       {needsRegistration && event.approval_mode === "manual" && <p className="text-center text-xs text-mute">The organisers approve each registration.</p>}
-      {!event.is_free && event.price > 0 && <p className="text-center text-xs text-mute">Online payment is not available yet. The organisers will tell you how to pay.</p>}
+      {!event.is_free && event.price > 0 && payOn === false && <p className="text-center text-xs text-mute">Online payment is not available yet. The organisers will tell you how to pay.</p>}
+      {!event.is_free && event.price > 0 && payOn && <p className="text-center text-xs text-mute">You pay online after you register. Your seat is held for 30 minutes.</p>}
       {needsRegistration && event.waitlist_enabled && event.registration_limit && <p className="text-center text-xs text-mute">If this event fills up, you can join a waiting list.</p>}
     </div>
   );

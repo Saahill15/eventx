@@ -156,6 +156,8 @@ export interface Registration {
   approval_status: "pending" | "approved" | "rejected";
   payment_status: "unpaid" | "paid";
   amount_due?: number | null;
+  awaiting_payment?: boolean;
+  hold_expires_at?: string | null;
   ticket_tier_id?: number | null;
   discount?: number;
   created_at: string;
@@ -494,7 +496,7 @@ export interface FeeSummaryRow { contingent_id: number; contingent_label: string
 export interface FeeSummary { total: number; paid: number; balance: number; rows: FeeSummaryRow[] }
 
 /** Finance: budget, spending with approvals, and money coming in. Amounts are in rupees. */
-export interface FinanceSettings { auto_approve_below: number; receipt_required_above: number | null }
+export interface FinanceSettings { auto_approve_below: number; receipt_required_above: number | null; refund_on_cancel: boolean; refund_cutoff_days: number }
 export interface FinanceCategory { id: number; name: string; kind: "income" | "expense"; position: number; used: boolean }
 export interface BudgetLine {
   id: number; category_id: number; category_name: string; title: string; planned: number; committee_team_id: number | null; team_name: string | null; notes: string | null;
@@ -553,3 +555,14 @@ export interface Shift {
   people: ShiftPerson[]; mine: boolean; can_claim: boolean; can_leave: boolean; can_arrive: boolean;
 }
 export interface ShiftCoverage { upcoming: number; understaffed: number; open_spots: number; soon: { shift_id: number; title: string; starts_at: string; needed: number; filled: number }[]; unassigned_people: string[] }
+
+/** Online payments. */
+export interface PaymentConfig { enabled: boolean; env: "sandbox" | "production" | null }
+export interface Checkout { order_id: string; payment_session_id: string; env: "sandbox" | "production"; amount: number }
+export interface PaymentResult { status: "paid" | "created" | "failed" | "expired"; purpose: "registration" | "contingent_fee"; amount: number; description: string | null; event_id: number | null; event_title: string | null; fest_slug: string | null; registration_id: number | null; contingent_id: number | null }
+export interface RefundRow { id: number; amount: number; status: "pending" | "done" | "failed"; reason: string | null; note: string | null; created_at: string }
+export interface PaymentRow {
+  id: number; order_id: string; purpose: "registration" | "contingent_fee"; description: string | null; user_name: string | null; user_email: string | null; event_id: number | null; event_title: string | null;
+  contingent_id: number | null; amount: number; status: "created" | "paid" | "failed" | "expired"; method: string | null; paid_at: string | null; created_at: string; refunded: number; refundable: number; refunds: RefundRow[];
+}
+export interface PaymentList { collected: number; refunded: number; count: number; payments: PaymentRow[] }

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.database import get_db
-from app import models, pricing, schemas, waitlist
+from app import models, payments, pricing, schemas, waitlist
 from app.auth.dependencies import get_current_user
 from app.permissions import is_fest_member, is_fest_staff
 from app.routes.event_questions import validate_answers
@@ -96,7 +96,7 @@ def _quote_for(db: Session, event: models.Event, user: models.User, tier_id, cod
 
 
 def _new_registration(event: models.Event, fest_pass: models.FestPass, user: models.User, approval=None, team_id=None, quote: Optional[pricing.Quote] = None) -> models.EventRegistration:
-    """A registration with the right approval and payment state. Payment is simulated and always succeeds for now."""
+    """A registration with the right approval and payment state. With the payment gateway on, a paid one waits for the money and holds its seat; with it off, payment is simulated and succeeds at once."""
     if approval is None:
         if event.is_paid or event.approval_mode == models.ApprovalModeEnum.auto:
             approval = models.RegApprovalStatusEnum.approved
@@ -105,17 +105,18 @@ def _new_registration(event: models.Event, fest_pass: models.FestPass, user: mod
     extra = {}
     if quote is not None:
         total = quote.total_paise
-        payment = models.RegPaymentStatusEnum.paid if total > 0 else models.RegPaymentStatusEnum.unpaid   # nothing to pay on a free ticket or a fully discounted one
+        payment = (models.RegPaymentStatusEnum.unpaid if payments.enabled() else models.RegPaymentStatusEnum.paid) if total > 0 else models.RegPaymentStatusEnum.unpaid   # nothing to pay on a free ticket or a fully discounted one
         amount_due = total / 100
         extra = {"ticket_tier_id": quote.tier.id if quote.tier else None, "promo_code_id": quote.promo.id if quote.promo else None, "discount_paise": quote.discount_paise}
     elif event.is_paid:
-        payment = models.RegPaymentStatusEnum.paid
+        payment = models.RegPaymentStatusEnum.unpaid if payments.enabled() else models.RegPaymentStatusEnum.paid
         # Verified students get the student price when the event has one
         amount_due = event.student_price if (user.is_student_verified and event.student_price is not None) else event.price
     else:
         payment, amount_due = models.RegPaymentStatusEnum.unpaid, 0.0
+    hold = payments.hold_until() if payment == models.RegPaymentStatusEnum.unpaid and amount_due > 0 else None
     return models.EventRegistration(
-        fest_pass_id=fest_pass.id, event_id=event.id, approval_status=approval, payment_status=payment, amount_due=amount_due, team_id=team_id, **extra,
+        fest_pass_id=fest_pass.id, event_id=event.id, approval_status=approval, payment_status=payment, amount_due=amount_due, team_id=team_id, hold_expires_at=hold, **extra,
     )
 
 
@@ -147,6 +148,7 @@ def register_for_event(
         return existing
 
     answers = validate_answers(event, data.answers if data else [])
+    payments.release_expired(db, event)
     if event.registration_limit is not None and _seats_taken(db, event) >= event.registration_limit:
         raise HTTPException(status_code=400, detail="Registration full")
 
@@ -205,6 +207,7 @@ def create_team(event_id: int, data: schemas.TeamCreate, db: Session = Depends(g
     if db.query(models.Team).filter(models.Team.event_id == event_id, func.lower(models.Team.name) == data.name.lower()).first():
         raise HTTPException(status_code=400, detail="A team with that name already exists for this event")
     answers = validate_answers(event, data.answers)
+    payments.release_expired(db, event)
     if event.registration_limit is not None and _seats_taken(db, event) >= event.registration_limit:
         raise HTTPException(status_code=400, detail="Registration full: no more teams can join")
 
@@ -284,6 +287,8 @@ def _decide_team(team_id: int, approve: bool, db: Session, user: models.User) ->
         raise HTTPException(status_code=400, detail="Only pending teams can be decided")
     for r in pending:
         r.approval_status = models.RegApprovalStatusEnum.approved if approve else models.RegApprovalStatusEnum.rejected
+        if not approve:
+            payments.refund_for_registration(db, r, "Your registration was not approved", user.id)
     db.flush()
     if not approve:
         waitlist.promote(db, event)
@@ -347,17 +352,11 @@ def cancel_my_registration(
         raise HTTPException(status_code=400, detail="You have already attended this event")
     team = registration.team
     event = registration.event
-    if team and team.leader_user_id == current_user.id:
-        # A leader leaving breaks up the team: everyone's registration goes, unless someone has already attended
-        if any(r.attended for r in team.registrations):
-            raise HTTPException(status_code=400, detail="Someone in your team has already attended, so the team cannot be broken up")
-        for r in list(team.registrations):
-            db.delete(r)
-        db.flush()
-        db.delete(team)
-    else:
-        db.delete(registration)
-    db.flush()
+    if team and team.leader_user_id == current_user.id and any(r.attended for r in team.registrations):
+        # A leader leaving breaks up the team, unless someone has already attended
+        raise HTTPException(status_code=400, detail="Someone in your team has already attended, so the team cannot be broken up")
+    # What was paid online goes back on its own when this fest refunds cancellations and it is early enough; a leader leaving breaks up the team
+    payments.remove_registration(db, registration, "You cancelled your registration", by_user_id=None, eligible=payments.cancel_refund_allowed(db, event))
     waitlist.promote(db, event)   # the seat that just opened goes to whoever has waited longest
     db.commit()
 
@@ -398,6 +397,8 @@ def check_in_to_event(
             raise HTTPException(status_code=400, detail="This student is not registered for the event")
         if registration.approval_status != models.RegApprovalStatusEnum.approved:
             raise HTTPException(status_code=400, detail="Registration is not approved yet")
+        if registration.awaiting_payment:
+            raise HTTPException(status_code=400, detail="Payment is still pending for this registration")
     else:
         # Open events have no registration: record attendance on demand
         registration = (
@@ -496,6 +497,8 @@ def _decide(registration_id: int, approve: bool, db: Session, user: models.User)
     registration.approval_status = (
         models.RegApprovalStatusEnum.approved if approve else models.RegApprovalStatusEnum.rejected
     )
+    if not approve:
+        payments.refund_for_registration(db, registration, "Your registration was not approved", user.id)
     db.flush()
     if not approve:
         waitlist.promote(db, registration.event)   # turning someone down frees their seat
@@ -522,6 +525,8 @@ def my_registrations(
     current_user: models.User = Depends(get_current_user),
 ):
     """Return all event registrations belonging to the current user (via their FestPasses)."""
+    payments.release_expired(db)
+    db.commit()
     pass_ids = [fp.id for fp in db.query(models.FestPass).filter(
         models.FestPass.user_id == current_user.id
     ).all()]

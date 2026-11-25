@@ -221,11 +221,20 @@ Everything here is set by the committee, per event or per fest. Paid events are 
 - *Meetings:* every meeting with its agenda before and its minutes and action items after. Volunteers can read but not change.
 - *My tasks* and *Spending* (their own requests to spend money), and *Check-in* for the gate on the day.
 
+## 14. Online payments
+
+Payments run through Cashfree. While HiveOut's keys are in test mode (`CASHFREE_ENV=sandbox`) every payment is a practice payment and no real money moves; the Online payments page says so. With no keys set at all, paid events are confirmed at once and nothing is charged, as before.
+
+- **Students.** Registering for a paid event holds the seat for 30 minutes. They enter a mobile number (the payment service needs one for the receipt; HiveOut does not save it) and pay on the payment service's page; they come back to HiveOut and the registration is confirmed once the payment service says the money arrived. HiveOut asks the payment service itself, so a page that is closed, or a browser that lies, makes no difference. A hold that runs out frees the seat (and the next person on the waiting list is offered it, with the same 30 minutes to pay). If money arrives after the seat has gone, or someone pays twice, it is refunded automatically. Someone who has not paid cannot be checked in. Registrations waiting for payment show in My passes, with receipts and refunds under *My payments*.
+- **Visiting colleges.** A leader or assistant sees "Pay online" on their fees. They can pay everything owed or part of it, and the payment lands on their statement by itself, marked Online.
+- **Refunds.** Finance, then *Settings*, sets the rule: refund a student who cancels in full on their own (on by default), up to a number of days before the event (0 means until the day it starts). Turning someone down, or cancelling an event, always refunds what was paid. A team leader leaving breaks up the team and refunds everyone's payment. Anything else is done by hand: Finance, then *Online payments*, then Refund, for all of a payment or part of it, with a reason the student is told. A refund that fails (the payment service refused it) stays on record with the reason, and can be tried again. Refunds reach the student's account in 5 to 7 working days.
+- **Online payments page.** Every payment made to the fest, what has been collected after refunds, what has gone back, and the payments that were started but never finished. Visiting colleges' fee payments show here too (their refunds are handled by recording an adjustment on the statement).
+- **Going live.** Put the live keys in `.env`, set `CASHFREE_ENV=production`, and set `PUBLIC_API_URL` to the public https address of the API so the payment service can notify HiveOut (it is optional: without it HiveOut still checks every payment when the student returns).
+
 ## Not built yet
 
 Already built, so not on this list: transferring a fest to a new director, and importing events from a spreadsheet.
 
-- **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
+- **Payouts.** Online payments go to HiveOut's payment account. Paying each fest its share (and settlement reports per fest) is arranged outside HiveOut for now.
 - **Finance, further on:** per-event profit and loss, sponsor deliverables, GST and invoices, and paying vendors online.
-- **Paying fees online:** colleges pay as the fest's instructions say and the committee records it. A payment gateway (Cashfree test keys are set up in `.env`) is still to wire in.
 - **Sponsor deal tracking** (deliverables, follow-ups) is deliberately left out for now. Sponsors are listed with logos and tiers.

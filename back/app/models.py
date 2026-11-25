@@ -679,6 +679,7 @@ class EventRegistration(Base):
     ticket_tier_id  = Column(Integer, ForeignKey("ticket_tiers.id", name="fk_registration_tier"), nullable=True, index=True)
     promo_code_id   = Column(Integer, ForeignKey("promo_codes.id", name="fk_registration_promo"), nullable=True, index=True)
     discount_paise  = Column(Integer, nullable=False, default=0, server_default="0")   # what a promo code took off the price
+    hold_expires_at = Column(DateTime, nullable=True)   # a registration waiting for online payment keeps its seat until then
     attended        = Column(Boolean, default=False, nullable=False, server_default="0")
     attended_at     = Column(DateTime, nullable=True)
     attended_by     = Column(Integer, ForeignKey("users.id", name="fk_event_registrations_attended_by"), nullable=True)
@@ -695,6 +696,11 @@ class EventRegistration(Base):
     @property
     def discount(self):
         return round((self.discount_paise or 0) / 100, 2)
+
+    @property
+    def awaiting_payment(self):
+        """Registered, but the money has not arrived yet."""
+        return self.payment_status == RegPaymentStatusEnum.unpaid and (self.amount_due or 0) > 0
 
     @property
     def tier_name(self):
@@ -1103,6 +1109,8 @@ class FinanceSettings(Base):
     fest_id = Column(Integer, ForeignKey("fests.id"), primary_key=True)
     auto_approve_below_paise      = Column(Integer, nullable=False, default=0, server_default="0")   # a request smaller than this is approved on the spot; 0 means every request is decided by the committee
     receipt_required_above_paise  = Column(Integer, nullable=True, default=100000)                   # a request above this must have a receipt; NULL means receipts are never required
+    refund_on_cancel              = Column(Boolean, nullable=False, default=True, server_default="1")   # a student who cancels is refunded on their own
+    refund_cutoff_days            = Column(Integer, nullable=False, default=0, server_default="0")      # ...up to this many days before the event (0 means until the day it starts)
 
 
 class FinanceCategory(Base):
@@ -1458,3 +1466,62 @@ class ShiftAssignment(Base):
     @property
     def user_id(self):
         return self.member.user_id if self.member else None
+
+
+# ─── Online payments ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+class Payment(Base):
+    """One attempt to pay online: an order at the payment gateway. What it pays for is recorded here, so it survives the registration."""
+    __tablename__ = "payments"
+    id            = Column(Integer, primary_key=True, index=True)
+    order_id      = Column(String(60), nullable=False, unique=True, index=True)   # our reference, also the gateway's order id
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id", name="fk_payment_user"), nullable=False, index=True)
+    purpose       = Column(String(20), nullable=False)                 # registration | contingent_fee
+    event_id      = Column(Integer, ForeignKey("events.id", name="fk_payment_event"), nullable=True)
+    registration_id = Column(Integer, nullable=True, index=True)       # not a foreign key: the registration can be cancelled, the payment stays on record
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_payment_contingent"), nullable=True)
+    description   = Column(String(200), nullable=True)
+    amount_paise  = Column(Integer, nullable=False)
+    status        = Column(String(12), nullable=False, default="created", server_default="created")   # created | paid | failed | expired
+    session_id    = Column(String(500), nullable=True)                 # the gateway's checkout session
+    gateway_payment_id = Column(String(60), nullable=True)
+    method        = Column(String(40), nullable=True)
+    paid_at       = Column(DateTime, nullable=True)
+    applied_at    = Column(DateTime, nullable=True)                    # when what it paid for was updated (a registration confirmed, a fee recorded)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    user      = relationship("User")
+    event     = relationship("Event")
+    contingent = relationship("Contingent")
+    refunds   = relationship("Refund", cascade="all, delete-orphan", order_by="Refund.id")
+
+    @property
+    def user_name(self):
+        return self.user.name if self.user else None
+
+    @property
+    def user_email(self):
+        return self.user.email if self.user else None
+
+    @property
+    def event_title(self):
+        return self.event.title if self.event else None
+
+    @property
+    def refunded_paise(self):
+        return sum(r.amount_paise for r in self.refunds if r.status in ("pending", "done"))
+
+
+class Refund(Base):
+    """Money sent back through the gateway for a payment."""
+    __tablename__ = "refunds"
+    id            = Column(Integer, primary_key=True, index=True)
+    payment_id    = Column(Integer, ForeignKey("payments.id"), nullable=False, index=True)
+    ref           = Column(String(60), nullable=False, unique=True)    # our refund id at the gateway
+    amount_paise  = Column(Integer, nullable=False)
+    status        = Column(String(10), nullable=False, default="pending", server_default="pending")   # pending | done | failed
+    reason        = Column(String(200), nullable=True)
+    note          = Column(String(300), nullable=True)                 # why it failed, when it did
+    by_user_id    = Column(Integer, ForeignKey("users.id", name="fk_refund_by"), nullable=True)   # empty when it happened on its own
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())

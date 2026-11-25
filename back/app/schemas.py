@@ -1192,6 +1192,8 @@ class EventRegistrationOut(BaseModel):
     amount_due: Optional[float] = None
     ticket_tier_id: Optional[int] = None
     discount: float = 0
+    awaiting_payment: bool = False
+    hold_expires_at: Optional[datetime] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -2292,11 +2294,15 @@ class FinanceSettingsIn(BaseModel):
     auto_approve_below: Optional[Rupees] = None        # requests under this are approved on the spot; 0 means every request is decided by the committee
     receipt_required_above: Optional[Rupees] = None    # a request above this needs a receipt; null means never
     receipts_never_needed: Optional[bool] = None       # send true to switch receipts off
+    refund_on_cancel: Optional[bool] = None            # refund a student who cancels, on their own
+    refund_cutoff_days: Optional[int] = Field(default=None, ge=0, le=365)   # ...up to this many days before the event
 
 
 class FinanceSettingsOut(BaseModel):
     auto_approve_below: float = 0
     receipt_required_above: Optional[float] = None
+    refund_on_cancel: bool = True
+    refund_cutoff_days: int = 0
 
 
 class CategoryIn(BaseModel):
@@ -2870,3 +2876,78 @@ class ShiftCoverage(BaseModel):
     open_spots: int
     soon: List[ShiftGap] = []    # understaffed duties in the next few days, soonest first
     unassigned_people: List[str] = []   # committee members with no upcoming duty
+
+
+# ─── online payments ─────────────────────────────────────────────────────────
+
+class PaymentConfig(BaseModel):
+    enabled: bool
+    env: Optional[str] = None
+
+
+class CheckoutIn(BaseModel):
+    phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)]] = None
+
+
+class FeeCheckoutIn(CheckoutIn):
+    amount: Optional[float] = Field(default=None, gt=0, le=10000000)   # defaults to everything still owed
+
+
+class CheckoutOut(BaseModel):
+    order_id: str
+    payment_session_id: str
+    env: str
+    amount: float
+
+
+class PaymentResult(BaseModel):
+    status: str                        # paid | created (still waiting) | failed | expired
+    purpose: str
+    amount: float
+    description: Optional[str] = None
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    fest_slug: Optional[str] = None
+    registration_id: Optional[int] = None
+    contingent_id: Optional[int] = None
+
+
+class RefundOut(BaseModel):
+    id: int
+    amount: float
+    status: str                        # pending | done | failed
+    reason: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+
+
+class PaymentOut(BaseModel):
+    id: int
+    order_id: str
+    purpose: str
+    description: Optional[str] = None
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    contingent_id: Optional[int] = None
+    amount: float
+    status: str
+    method: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    created_at: datetime
+    refunded: float = 0
+    refundable: float = 0
+    refunds: List[RefundOut] = []
+
+
+class PaymentList(BaseModel):
+    collected: float          # paid, less what was refunded
+    refunded: float
+    count: int
+    payments: List[PaymentOut]
+
+
+class RefundIn(BaseModel):
+    amount: Optional[float] = Field(default=None, gt=0, le=10000000)   # defaults to everything left to refund
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=200)]
