@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
-import type { CityPass, FestEvent, FestPass, Registration } from "@/lib/types";
+import type { Certificate, CityPass, FestEvent, FestPass, Registration } from "@/lib/types";
 import { formatDay } from "@/lib/format";
 import { Button } from "./ui/Button";
 import { EmptyState, ErrorNote, Pill, Skeleton } from "./ui/bits";
@@ -54,12 +54,29 @@ function CityPassRow({ pass }: { pass: CityPass }) {
   );
 }
 
+function MyCertificates({ items }: { items: Certificate[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="mt-12" aria-label="My certificates">
+      <h2 className="font-display text-3xl font-bold tracking-tight">My certificates</h2>
+      <ul className="mt-4 grid gap-3 md:grid-cols-2">{items.map((c) => (
+        <li key={c.id} className={`flex items-center justify-between gap-4 rounded-3xl bg-wash p-5 ${c.revoked ? "opacity-60" : ""}`}>
+          <div className="min-w-0"><p className="truncate font-semibold">{c.title}{c.award_text ? ` · ${c.award_text}` : ""}</p><p className="truncate text-sm text-mute">{c.event_title ? `${c.event_title} · ` : ""}{c.fest_name}</p></div>
+          <div className="flex shrink-0 items-center gap-3">{c.revoked && <Pill tone="red">Withdrawn</Pill>}<Link href={`/certificates/${c.code}`} className="text-sm font-semibold underline underline-offset-4">View and print</Link></div>
+        </li>
+      ))}</ul>
+    </section>
+  );
+}
+
 export function MyPasses() {
   const [festPasses, setFestPasses] = useState<FestPass[] | null>(null);
   const [regs, setRegs] = useState<Registration[]>([]);
   const [cityPasses, setCityPasses] = useState<CityPass[]>([]);
+  const [certs, setCerts] = useState<Certificate[]>([]);
   const [error, setError] = useState("");
 
+  useEffect(() => { api<Certificate[]>("/api/users/me/certificates").then(setCerts).catch(() => {}); }, []);
   useEffect(() => {
     Promise.all([api<FestPass[]>("/api/users/me/fest-passes"), api<Registration[]>("/api/fest-events/my-registrations"), api<CityPass[]>("/api/passes/my")])
       .then(([fp, r, cp]) => { setFestPasses(fp); setRegs(r); setCityPasses(cp); })
@@ -68,11 +85,14 @@ export function MyPasses() {
 
   if (festPasses === null) return <div className="grid gap-6 md:grid-cols-2"><Skeleton className="h-80" /><Skeleton className="h-80" /></div>;
   if (error) return <ErrorNote>{error}</ErrorNote>;
-  if (festPasses.length === 0 && cityPasses.length === 0) return <EmptyState title="No passes yet" body="Get a free pass from any fest page and it will show up here with your QR code." action={<Button href="/fests">Browse college fests</Button>} />;
+  if (festPasses.length === 0 && cityPasses.length === 0 && certs.length === 0) return <EmptyState title="No passes yet" body="Get a free pass from any fest page and it will show up here with your QR code." action={<Button href="/fests">Browse college fests</Button>} />;
   return (
-    <Stagger className="grid items-start gap-6 md:grid-cols-2">
-      {festPasses.map((p) => <StaggerItem key={p.id}><FestPassCard pass={p} regs={regs.filter((r) => r.fest_pass_id === p.id)} /></StaggerItem>)}
-      {cityPasses.map((p) => <StaggerItem key={p.id}><CityPassRow pass={p} /></StaggerItem>)}
-    </Stagger>
+    <>
+      <Stagger className="grid items-start gap-6 md:grid-cols-2">
+        {festPasses.map((p) => <StaggerItem key={p.id}><FestPassCard pass={p} regs={regs.filter((r) => r.fest_pass_id === p.id)} /></StaggerItem>)}
+        {cityPasses.map((p) => <StaggerItem key={p.id}><CityPassRow pass={p} /></StaggerItem>)}
+      </Stagger>
+      <MyCertificates items={certs} />
+    </>
   );
 }

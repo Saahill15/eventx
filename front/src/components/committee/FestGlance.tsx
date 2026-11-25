@@ -12,6 +12,16 @@ import { ReviewPill } from "./CommitteeShell";
 interface Glance { org: Org | null; tasks: FestTask[] | null; meetings: FestMeetingSummary[] | null; colleges: ContingentSettings | null; contingents: Contingent[] | null; college: College | null }
 
 /** The fest at a glance: what it is, when it runs, and the numbers that matter right now, each one a shortcut to where you act on it. */
+/** The fest's banner. A missing one, or one that will not load, says so instead of leaving a broken picture. */
+function BannerImage({ src }: { src: string | null }) {
+  const [bad, setBad] = useState(false);
+  if (src && !bad) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt="" onError={() => setBad(true)} className="h-full w-full object-cover" />;
+  }
+  return <div className="flex h-full items-center justify-center px-6 text-center text-sm text-mute">{src ? "The banner could not be loaded. Choose it again in Fest details." : "No banner yet. Add one in Fest details; it is the first thing students see."}</div>;
+}
+
 export function FestGlance({ fest, stats, goTo }: { fest: FestManage; stats: FestStats | null; goTo: (tab: string) => void }) {
   const [g, setG] = useState<Glance>({ org: null, tasks: null, meetings: null, colleges: null, contingents: null, college: null });
 
@@ -43,7 +53,7 @@ export function FestGlance({ fest, stats, goTo }: { fest: FestManage; stats: Fes
     <section className="space-y-5" aria-label="Your fest at a glance">
       <div className="card overflow-hidden">
         <div className="relative aspect-[21/6] min-h-28 w-full bg-wash">
-          {banner ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={banner} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center px-6 text-center text-sm text-mute">No banner yet. Add one in Fest details; it is the first thing students see.</div>}
+          <BannerImage src={banner} />
         </div>
         <div className="flex flex-wrap items-start gap-4 p-5 sm:p-6">
           {logo && /* eslint-disable-next-line @next/next/no-img-element */ <img src={logo} alt="" className="-mt-12 h-16 w-16 rounded-2xl bg-white object-cover shadow-[var(--shadow-card)] ring-4 ring-white sm:-mt-14 sm:h-20 sm:w-20" />}

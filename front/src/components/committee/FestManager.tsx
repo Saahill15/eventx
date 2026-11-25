@@ -25,12 +25,19 @@ import { ScheduleTab } from "./ScheduleTab";
 import { ContingentsTab } from "./ContingentsTab";
 import { HandOverCard } from "./HandOverCard";
 import { GuidedTour, type TourStep } from "@/components/GuidedTour";
+import { SubTabs } from "@/components/ui/SubTabs";
+import { CertificatesAdmin, PromoAdmin, WaitlistAdmin } from "./TicketingAdmin";
 
-const TABS = [
-  { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true }, { id: "schedule", label: "Schedule", staff: true },
-  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "competition", label: "Competition", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "finance", label: "Finance", staff: true }, { id: "sponsors", label: "Sponsors", staff: true }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
+// The sections of a fest, grouped so the whole set fits on screen: five groups, with the sections of the chosen group shown beneath.
+type TabId = "overview" | "details" | "events" | "schedule" | "sponsors" | "announcements" | "registrations" | "gate" | "colleges" | "competition" | "waitlist" | "promos" | "certificates" | "team" | "tasks" | "meetings" | "finance";
+const GROUPS: { id: string; label: string; tabs: { id: TabId; label: string }[] }[] = [
+  { id: "overview", label: "Overview", tabs: [{ id: "overview", label: "Overview" }] },
+  { id: "fest", label: "Your fest", tabs: [{ id: "details", label: "Fest details" }, { id: "events", label: "Events" }, { id: "schedule", label: "Schedule" }, { id: "sponsors", label: "Sponsors" }, { id: "announcements", label: "Announcements" }] },
+  { id: "guests", label: "Guests", tabs: [{ id: "registrations", label: "Registrations" }, { id: "waitlist", label: "Waiting lists" }, { id: "promos", label: "Promo codes" }, { id: "certificates", label: "Certificates" }, { id: "gate", label: "Check-in" }, { id: "colleges", label: "Visiting colleges" }, { id: "competition", label: "Competition" }] },
+  { id: "team", label: "Team", tabs: [{ id: "team", label: "Committee" }, { id: "tasks", label: "Tasks" }, { id: "meetings", label: "Meetings" }] },
+  { id: "finance", label: "Finance", tabs: [{ id: "finance", label: "Finance" }] },
+];
+const TABS = GROUPS.flatMap((g) => g.tabs);
 
 export function FestManager({ slug }: { slug: string }) {
   const { reload: reloadSidebar } = useMyFests();
@@ -70,11 +77,19 @@ export function FestManager({ slug }: { slug: string }) {
     try { seen = !!window.localStorage.getItem(FEST_TOUR_KEY); } catch { /* storage blocked: do not nag */ seen = true; }
     if (new URLSearchParams(window.location.search).get("tour") === "1" || !seen) { const t = window.setTimeout(() => setTouring(true), 700); return () => window.clearTimeout(t); }
   }, [isStaff, fest, role]);
+  // The address says which section is open, on arrival and whenever it changes (a link on the page can change it)
   useEffect(() => {
-    const t = window.location.hash.slice(1) as TabId;
-    if (TABS.some((x) => x.id === t)) setTab(t);
+    const read = () => { const t = window.location.hash.slice(1) as TabId; if (TABS.some((x) => x.id === t)) setTab(t); };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
   }, []);
-  const go = (t: string) => { setTab(t as TabId); window.history.replaceState(null, "", `#${t}`); window.scrollTo({ top: 0 }); };
+  const [lastIn, setLastIn] = useState<Record<string, string>>({});
+  const go = (t: string) => {
+    const g = GROUPS.find((x) => x.tabs.some((y) => y.id === t));
+    if (g) setLastIn((m) => ({ ...m, [g.id]: t }));
+    setTab(t as TabId); window.history.replaceState(null, "", `#${t}`); window.scrollTo({ top: 0 });
+  };
 
   if (role === undefined || (isStaff && !fest)) return <div className="space-y-4"><Skeleton className="h-12 w-72" /><Skeleton className="h-64" /></div>;
 
@@ -105,12 +120,11 @@ export function FestManager({ slug }: { slug: string }) {
   const f = fest!;
   const tour: TourStep[] = [
     { title: "This is your fest's control room", body: "Everything for this fest is in these tabs. Here is what each one is for, in under a minute." },
-    { target: "tab-overview", title: "Overview", body: "Your fest at a glance, and a checklist of what is left before you can send it for review." },
-    { target: "tab-details", title: "Fest details", body: "The name, dates, banner and logo, where it is, and who HiveOut can contact. The number of days is worked out from your dates." },
-    { target: "tab-events", title: "Events", body: "Add your events from a template. Choose which day or days each one runs, whether people register, and team sizes." },
-    { target: "tab-schedule", title: "Schedule", body: "Every day of your fest, with each event in its place. If two events want the same venue at the same time, it tells you." },
-    { target: "tab-tasks", title: "Tasks, meetings and committee", body: "Keep your team organised: give out tasks, run meetings with an agenda and minutes, and set up your teams and who reports to whom." },
-    { target: "tab-colleges", title: "Visiting colleges", body: "If other colleges take part, switch this on to let their leaders register their teams. Leave it off if your fest is just for your own college." },
+    { target: "group-overview", title: "Overview", body: "Your fest at a glance, and a checklist of what is left before you can send it for review." },
+    { target: "group-fest", title: "Your fest", body: "Fest details (name, dates, banner, logo, contact), your events, the schedule of every day, sponsors and announcements. The number of days is worked out from your dates." },
+    { target: "group-guests", title: "Guests", body: "Registrations to approve, check-in on the day, visiting colleges with their entries, accommodation and fees, and the competition between colleges." },
+    { target: "group-team", title: "Team", body: "Your committee and its teams, tasks with owners and dates, and meetings with an agenda and minutes." },
+    { target: "group-finance", title: "Finance", body: "The budget, requests to spend with approvals, income from sponsors and others, and where the money stands." },
     ...(f.review_status === "draft" || f.review_status === "changes_requested" || f.review_status === "rejected" ? [{ target: "checklist", title: "When this is all ticked", body: "Send the fest to HiveOut for review. After approval, one click makes it live for students." }] : []),
   ];
   const frozen = f.review_status === "in_review" && role !== "admin";
@@ -133,13 +147,26 @@ export function FestManager({ slug }: { slug: string }) {
 
       {role === "admin" && <div className="mb-5"><Notice tone="info">You are viewing this fest as an admin.</Notice></div>}
 
-      <nav role="tablist" aria-label="Fest sections" className="no-scrollbar -mx-1 mb-8 flex gap-2 overflow-x-auto px-1">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" data-tour={`tab-${t.id}`} aria-selected={tab === t.id} onClick={() => go(t.id)} className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>
-            {t.label}{t.id === "registrations" && pending > 0 && <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs text-on-brand">{pending}</span>}
-          </button>
-        ))}
-      </nav>
+      {(() => {
+        const group = GROUPS.find((g) => g.tabs.some((t) => t.id === tab)) ?? GROUPS[0];
+        const badge = (n: number) => n > 0 && <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs text-on-brand">{n}</span>;
+        return (
+          <div className="mb-8 space-y-3">
+            <nav role="tablist" aria-label="Fest areas" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
+              {GROUPS.map((g) => {
+                const on = g.id === group.id;
+                const remembered = g.tabs.find((t) => t.id === lastIn[g.id]) ?? g.tabs[0];
+                return (
+                  <button key={g.id} role="tab" data-tour={`group-${g.id}`} aria-selected={on} onClick={() => go(remembered.id)} className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${on ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>
+                    {g.label}{g.id === "guests" && badge(pending)}
+                  </button>
+                );
+              })}
+            </nav>
+            {group.tabs.length > 1 && <SubTabs label={`${group.label} sections`} value={tab} onChange={go} items={group.tabs.map((t) => ({ id: t.id, label: t.label, tour: `tab-${t.id}`, badge: t.id === "registrations" ? pending : 0 }))} />}
+          </div>
+        );
+      })()}
 
       {touring && <GuidedTour steps={tour} onClose={() => endTour()} />}
       {tab === "overview" && <FestOverviewTab fest={f} role={role} reload={loadFest} goTo={go} />}
@@ -152,6 +179,9 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "tasks" && <TasksTab slug={slug} canManage />}
       {tab === "meetings" && <MeetingsTab slug={slug} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
+      {tab === "waitlist" && <WaitlistAdmin slug={slug} />}
+      {tab === "promos" && <PromoAdmin slug={slug} />}
+      {tab === "certificates" && <CertificatesAdmin slug={slug} />}
       {tab === "finance" && <FinanceTab slug={slug} />}
       {tab === "sponsors" && <SponsorsTab slug={slug} live={f.status === "live"} />}
       {tab === "announcements" && <AnnouncementsTab slug={slug} live={f.status === "live"} events={publicEvents} />}

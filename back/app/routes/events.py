@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.fest_review import events_blocked_reason
 from app.database import get_db
-from app import models, schemas
+from app import models, schemas, waitlist
 from app.money import to_paise
 from app.auth.dependencies import get_current_user, get_optional_user, require_organizer
 from app.permissions import can_host_city_events, can_view_event, fest_hosting_switched_off, is_fest_staff
@@ -183,7 +183,7 @@ def update_event(
 
     updates = data.model_dump(exclude_unset=True)
     for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode", "students_only", "is_team_event",
-                         "contingent_entries", "entries_per_contingent", "entry_fee_per", "entry_fee"):
+                         "contingent_entries", "entries_per_contingent", "entry_fee_per", "entry_fee", "waitlist_enabled"):
         if updates.get(non_nullable) is None:
             updates.pop(non_nullable, None)
     if "entry_fee" in updates:
@@ -268,6 +268,9 @@ def update_event(
             db.rollback()
             raise HTTPException(status_code=400, detail="The end time must be after the start time")
 
+    if "registration_limit" in updates:
+        db.flush()
+        waitlist.promote(db, event)   # a bigger limit opens seats for the queue
     db.commit()
     db.refresh(event)
     return event
@@ -344,8 +347,27 @@ def delete_event(event_id: int, db: Session = Depends(get_db), current_user=Depe
        db.query(models.Pass).filter(models.Pass.event_id == event_id).count() > 0:
         raise HTTPException(status_code=409, detail="People have registered for this event. Cancel it instead so they are told.")
     db.query(models.Announcement).filter(models.Announcement.event_id == event_id).update({"event_id": None})
+    _clear_event_links(db, event_id)
     db.delete(event)
     db.commit()
+
+
+def _clear_event_links(db: Session, event_id: int) -> None:
+    """Everything that points at an event, tidied away before the event itself goes (it had no registrations, so nothing is lost)."""
+    db.query(models.TicketTier).filter(models.TicketTier.event_id == event_id).delete(synchronize_session=False)
+    db.query(models.WaitlistEntry).filter(models.WaitlistEntry.event_id == event_id).delete(synchronize_session=False)
+    for entry in db.query(models.ContingentEntry).filter(models.ContingentEntry.event_id == event_id).all():
+        db.delete(entry)
+    db.query(models.PointsEntry).filter(models.PointsEntry.event_id == event_id).delete(synchronize_session=False)
+    db.query(models.EventResult).filter(models.EventResult.event_id == event_id).delete(synchronize_session=False)
+    db.query(models.Award).filter(models.Award.event_id == event_id).delete(synchronize_session=False)
+    penalty_ids = [p.id for p in db.query(models.ContingentPenalty).filter(models.ContingentPenalty.event_id == event_id).all()]
+    if penalty_ids:
+        db.query(models.PointsEntry).filter(models.PointsEntry.penalty_id.in_(penalty_ids)).delete(synchronize_session=False)
+        db.query(models.ContingentPenalty).filter(models.ContingentPenalty.id.in_(penalty_ids)).delete(synchronize_session=False)
+    db.query(models.CompetitionRule).filter(models.CompetitionRule.event_id == event_id).update({"event_id": None}, synchronize_session=False)
+    db.query(models.CertificateTemplate).filter(models.CertificateTemplate.event_id == event_id).update({"event_id": None}, synchronize_session=False)
+    db.query(models.Certificate).filter(models.Certificate.event_id == event_id).update({"event_id": None}, synchronize_session=False)
 
 
 @router.post("/{event_id}/restore", response_model=schemas.EventOut)

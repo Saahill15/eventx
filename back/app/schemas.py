@@ -298,6 +298,9 @@ class EventCreate(BaseModel):
     entry_fee:              float = Field(default=0, ge=0, le=1000000)
     entry_fee_per:          Literal["entry", "participant"] = "entry"
     entry_deadline:         Optional[date] = None
+    # A queue for a full event
+    waitlist_enabled:       bool = False
+    waitlist_limit:         Optional[int] = Field(default=None, ge=1, le=10000)
 
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
@@ -386,6 +389,9 @@ class EventOut(BaseModel):
     entry_fee: float = 0
     entry_fee_per: str = "entry"
     entry_deadline: Optional[date] = None
+    waitlist_enabled: bool = False
+    price_is_from: bool = False
+    waitlist_limit: Optional[int] = None
     cancelled: bool = False
     cancel_reason: Optional[str] = None
     reject_reason: Optional[str] = None
@@ -429,6 +435,8 @@ class EventUpdate(BaseModel):
     entry_fee:              Optional[float] = Field(default=None, ge=0, le=1000000)
     entry_fee_per:          Optional[Literal["entry", "participant"]] = None
     entry_deadline:         Optional[DateOnly] = None
+    waitlist_enabled:       Optional[bool] = None
+    waitlist_limit:         Optional[int] = Field(default=None, ge=1, le=10000)
 
     _check_sections = field_validator("extra_sections")(check_sections)
     _clean_image = field_validator("image_url")(clean_url)
@@ -1182,6 +1190,8 @@ class EventRegistrationOut(BaseModel):
     approval_status: str
     payment_status: str
     amount_due: Optional[float] = None
+    ticket_tier_id: Optional[int] = None
+    discount: float = 0
     created_at: datetime
     class Config:
         from_attributes = True
@@ -1189,6 +1199,8 @@ class EventRegistrationOut(BaseModel):
 class EventRegistrationDetailOut(EventRegistrationOut):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
+    tier_name: Optional[str] = None
+    promo_code_text: Optional[str] = None
     team_name: Optional[str] = None
     is_team_leader: bool = False
     checked_in: bool = False
@@ -1471,6 +1483,8 @@ class AnswerIn(BaseModel):
 
 class RegisterIn(BaseModel):
     answers: List[AnswerIn] = []
+    ticket_tier_id: Optional[int] = None   # needed when the event sells more than one kind of ticket
+    promo_code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
 
 class AnswerOut(BaseModel):
     question_id: int
@@ -1578,10 +1592,14 @@ class SubmitOut(BaseModel):
 class TeamCreate(BaseModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
     answers: List[AnswerIn] = []
+    ticket_tier_id: Optional[int] = None
+    promo_code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
 
 class TeamJoin(BaseModel):
     code: Annotated[str, StringConstraints(strip_whitespace=True, to_upper=True, min_length=4, max_length=12)]
     answers: List[AnswerIn] = []
+    ticket_tier_id: Optional[int] = None
+    promo_code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
 
 class TeamMemberOut(BaseModel):
     registration_id: int
@@ -2507,3 +2525,246 @@ class FinanceSummary(BaseModel):
     by_category: List[CategoryTotal] = []
     by_team: List[TeamTotal] = []
     owed_to_members: List[OwedToMember] = []
+
+
+# ─── Ticketing: tiers, promo codes, quotes ───────────────────────────────────────────────────────────────────────────
+class TierIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+    price: Rupees = 0
+    student_price: Optional[Rupees] = None
+    quantity: Optional[int] = Field(default=None, ge=1, le=100000)
+    sales_open_on: Optional[date] = None
+    sales_close_on: Optional[date] = None
+    active: bool = True
+
+    @model_validator(mode="after")
+    def sensible(self):
+        if self.student_price is not None and self.student_price >= self.price:
+            raise ValueError("the student price must be lower than the price")
+        if self.sales_open_on and self.sales_close_on and self.sales_close_on < self.sales_open_on:
+            raise ValueError("sales cannot close before they open")
+        return self
+
+
+class TierUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+    price: Optional[Rupees] = None
+    student_price: Optional[Rupees] = None
+    quantity: Optional[int] = Field(default=None, ge=1, le=100000)
+    sales_open_on: Optional[date] = None
+    sales_close_on: Optional[date] = None
+    active: Optional[bool] = None
+
+
+class TierOut(BaseModel):
+    id: int
+    event_id: int
+    name: str
+    description: Optional[str] = None
+    price: float
+    student_price: Optional[float] = None
+    quantity: Optional[int] = None
+    remaining: Optional[int] = None       # seats left; None when there is no limit
+    sold: Optional[int] = None            # only shown to the committee
+    sales_open_on: Optional[date] = None
+    sales_close_on: Optional[date] = None
+    active: bool = True
+    status: str = "on_sale"               # on_sale | not_yet | ended | sold_out | off
+    position: int = 0
+
+
+class QuoteIn(BaseModel):
+    ticket_tier_id: Optional[int] = None
+    promo_code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
+
+
+class QuoteOut(BaseModel):
+    tier_id: Optional[int] = None
+    tier_name: Optional[str] = None
+    price: float            # before any code
+    discount: float = 0
+    total: float
+    promo_description: Optional[str] = None
+    free: bool = False
+
+
+class PromoIn(BaseModel):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, to_upper=True, min_length=3, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+    kind: Literal["percent", "flat"]
+    value: float = Field(gt=0, le=10000000)   # a percentage for "percent" (1 to 100), rupees for "flat"
+    event_ids: Optional[List[int]] = Field(default=None, max_length=100)   # none: every event of the fest
+    max_uses: Optional[int] = Field(default=None, ge=1, le=1000000)
+    per_user_limit: int = Field(default=1, ge=1, le=100)
+    valid_from: Optional[date] = None
+    valid_until: Optional[date] = None
+    students_only: bool = False
+    active: bool = True
+
+    @model_validator(mode="after")
+    def sensible(self):
+        if self.kind == "percent" and not (0 < self.value <= 100):
+            raise ValueError("a percentage must be between 1 and 100")
+        if self.valid_from and self.valid_until and self.valid_until < self.valid_from:
+            raise ValueError("a code cannot expire before it starts")
+        return self
+
+
+class PromoUpdate(BaseModel):
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+    value: Optional[float] = Field(default=None, gt=0, le=10000000)
+    event_ids: Optional[List[int]] = Field(default=None, max_length=100)
+    max_uses: Optional[int] = Field(default=None, ge=1, le=1000000)
+    per_user_limit: Optional[int] = Field(default=None, ge=1, le=100)
+    valid_from: Optional[date] = None
+    valid_until: Optional[date] = None
+    students_only: Optional[bool] = None
+    active: Optional[bool] = None
+
+
+class PromoOut(BaseModel):
+    id: int
+    code: str
+    description: Optional[str] = None
+    kind: str
+    value: float                      # percent, or rupees
+    event_ids: Optional[List[int]] = None
+    max_uses: Optional[int] = None
+    per_user_limit: int = 1
+    valid_from: Optional[date] = None
+    valid_until: Optional[date] = None
+    students_only: bool = False
+    active: bool = True
+    used: int = 0
+    discount_given: float = 0         # rupees taken off so far
+    status: str = "live"              # live | not_yet | expired | used_up | off
+
+
+# ─── Waitlist ────────────────────────────────────────────────────────────────────────────────────────────────────────
+class WaitlistJoin(BaseModel):
+    answers: List[AnswerIn] = []
+    ticket_tier_id: Optional[int] = None
+    promo_code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
+    team_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]] = None   # for a team event: the team you will lead
+
+
+class WaitlistMine(BaseModel):
+    position: int
+    status: str            # waiting | promoted | left | removed
+    note: Optional[str] = None
+
+
+class WaitlistStatus(BaseModel):
+    enabled: bool = False
+    full: bool = False
+    waiting: int = 0
+    limit: Optional[int] = None
+    open: bool = False     # a seat can be queued for right now: it is full, there is a list, and it is not full too
+    mine: Optional[WaitlistMine] = None
+
+
+class WaitlistRow(BaseModel):
+    id: int
+    event_id: int
+    event_title: str
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+    position: Optional[int] = None   # place in the queue while waiting
+    status: str
+    team_name: Optional[str] = None
+    ticket_tier_name: Optional[str] = None
+    promo_code: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+    promoted_at: Optional[datetime] = None
+
+
+# ─── Certificates ────────────────────────────────────────────────────────────────────────────────────────────────────
+CERT_KINDS = ("participation", "winner", "appreciation")
+
+
+class Signatory(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] = ""
+
+
+class CertTemplateIn(BaseModel):
+    event_id: Optional[int] = None   # none: usable for any event of the fest
+    kind: Literal["participation", "winner", "appreciation"] = "participation"
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    signatories: List[Signatory] = Field(default_factory=list, max_length=3)
+
+
+class CertTemplateUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]] = None
+    body: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]] = None
+    kind: Optional[Literal["participation", "winner", "appreciation"]] = None
+    event_id: Optional[int] = None
+    signatories: Optional[List[Signatory]] = Field(default=None, max_length=3)
+
+
+class CertTemplateOut(BaseModel):
+    id: int
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    kind: str
+    title: str
+    body: str
+    signatories: List[Signatory] = []
+
+
+class IssueAttendedIn(BaseModel):
+    event_id: int
+    template_id: int
+
+
+class IssueEntriesIn(BaseModel):
+    event_id: int
+    template_id: int
+    award_text: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+
+
+class IssueOneIn(BaseModel):
+    template_id: int
+    recipient_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    event_id: Optional[int] = None
+    email: Optional[EmailStr] = None   # their HiveOut account, so it appears on their page
+    college_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+    award_text: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+
+
+class IssueResult(BaseModel):
+    issued: int
+    skipped: int   # they already had one
+
+
+class RevokeIn(BaseModel):
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=200)]
+
+
+class CertificateOut(BaseModel):
+    id: int
+    code: str
+    kind: str
+    recipient_name: str
+    college_name: Optional[str] = None
+    award_text: Optional[str] = None
+    title: str
+    body: str
+    signatories: List[Signatory] = []
+    fest_name: str
+    event_title: Optional[str] = None
+    issued_at: datetime
+    revoked: bool = False
+    revoked_reason: Optional[str] = None
+    has_account: bool = False
+
+
+class CertificateCheck(BaseModel):
+    """What anyone sees when they check a certificate's code."""
+    valid: bool
+    revoked: bool = False
+    certificate: Optional[CertificateOut] = None

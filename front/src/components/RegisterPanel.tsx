@@ -7,9 +7,11 @@ import { CheckCircle2, Clock, Copy, Ticket, Users, XCircle } from "lucide-react"
 import { api } from "@/lib/api";
 import { formatLongDay, registrationNote } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
-import type { CityPass, FestEvent, FestPass, Question, Registration, Team } from "@/lib/types";
+import type { CityPass, FestEvent, FestPass, Question, Quote, Registration, Team, WaitlistStatus } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { ErrorNote, Field } from "./ui/bits";
+import { TicketPicker } from "./TicketPicker";
+import { inr } from "@/lib/format";
 
 type State = "unknown" | "none" | "confirmed" | "waiting" | "rejected";
 type Answers = Record<number, string>;
@@ -74,6 +76,13 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Which ticket, which promo code, what it works out to, and the waiting list when the event is full
+  const [tierId, setTierId] = useState<number | null>(null);
+  const [promo, setPromo] = useState("");
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [tierCount, setTierCount] = useState(0);
+  const [wl, setWl] = useState<WaitlistStatus | null>(null);
+  const [wlTeam, setWlTeam] = useState("");
 
   const isFest = event.event_type === "fest";
   const needsRegistration = isFest && event.requires_registration;
@@ -100,28 +109,36 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
     } catch { setState("none"); }
   }, [event.id, event.fest_slug, isFest, needsRegistration, isTeam]);
 
+  const loadWaitlist = useCallback(() => { api<WaitlistStatus>(`/api/fest-events/${event.id}/waitlist`).then(setWl).catch(() => setWl(null)); }, [event.id]);
   useEffect(() => { if (user) refresh(); }, [user, refresh]);
+  useEffect(() => { if (user && needsRegistration && event.registration_limit) loadWaitlist(); }, [user, needsRegistration, event.registration_limit, loadWaitlist, state]);
   useEffect(() => { if (needsRegistration) api<Question[]>(`/api/events/${event.id}/questions`).then(setQuestions).catch(() => {}); }, [event.id, needsRegistration]);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError("");
-    try { await fn(); setAsking(false); setTeamMode(""); await refresh(); }
+    try { await fn(); setAsking(false); setTeamMode(""); await refresh(); if (event.registration_limit) loadWaitlist(); }
     catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); }
     finally { setBusy(false); }
   };
   const getPass = () => api(`/api/fests/${event.fest_slug}/entry-pass`, { method: "POST" });
+  const pricing = { ticket_tier_id: tierId, promo_code: promo.trim() || null };
+  const needTier = tierCount > 0 && tierId === null;
+  const price = quote && quote.total > 0 ? ` · pay ${inr(quote.total)}` : "";
+  const joinWaitlist = () => run(async () => { await getPass(); await api(`/api/fest-events/${event.id}/waitlist`, { method: "POST", body: { answers: toAnswers(answers), team_name: wlTeam.trim() || null, ...pricing } }); });
+  const leaveWaitlist = () => { if (window.confirm("Leave the waiting list?")) run(() => api(`/api/fest-events/${event.id}/waitlist`, { method: "DELETE" })); };
+  const ticketPicker = needsRegistration && user ? <TicketPicker event={event} verified={user.is_student_verified} tierId={tierId} setTierId={setTierId} promo={promo} setPromo={setPromo} onQuote={setQuote} onTiers={setTierCount} /> : null;
 
   const register = () => {
     // With questions, the first click shows them; the second sends the answers
     if (needsRegistration && questions.length > 0 && !asking) { setAsking(true); return; }
     run(async () => {
-      if (needsRegistration) { await getPass(); await api(`/api/fest-events/${event.id}/register`, { method: "POST", body: { answers: toAnswers(answers) } }); }
+      if (needsRegistration) { await getPass(); await api(`/api/fest-events/${event.id}/register`, { method: "POST", body: { answers: toAnswers(answers), ...pricing } }); }
       else if (isFest) await getPass();
       else await api(`/api/passes/${event.id}/register`, { method: "POST" });
     });
   };
-  const createTeam = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await getPass(); await api(`/api/fest-events/${event.id}/teams`, { method: "POST", body: { name: teamName.trim(), answers: toAnswers(answers) } }); }); };
-  const joinTeam = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await getPass(); await api("/api/fest-events/teams/join", { method: "POST", body: { code: code.trim(), answers: toAnswers(answers) } }); }); };
+  const createTeam = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await getPass(); await api(`/api/fest-events/${event.id}/teams`, { method: "POST", body: { name: teamName.trim(), answers: toAnswers(answers), ...pricing } }); }); };
+  const joinTeam = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await getPass(); await api("/api/fest-events/teams/join", { method: "POST", body: { code: code.trim(), answers: toAnswers(answers), ...pricing } }); }); };
   const leave = () => {
     const msg = isTeam && team?.i_am_leader ? "Break up the team? Everyone in it loses their registration." : "Cancel your registration?";
     if (window.confirm(msg)) run(() => api(`/api/fest-events/${event.id}/register`, { method: "DELETE" }));
@@ -168,6 +185,35 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
   if (regNote) return notice(`${regNote}.`);
   if (closed) return notice(event.registration_mode !== "closed" && event.registration_deadline ? `Registration closed on ${formatLongDay(`${event.registration_deadline}T00:00:00`)}.` : "Registration is closed.");
 
+  // A full event: queue for a seat if the committee allows it
+  if (wl && wl.full && needsRegistration && state === "none" && !(isTeam && teamMode === "join")) {
+    if (wl.mine?.status === "waiting") {
+      return (
+        <div className="space-y-3 rounded-2xl bg-wash p-4">
+          <p className="flex items-center gap-2 font-semibold"><Clock className="h-5 w-5" />You are number {wl.mine.position} on the waiting list</p>
+          <p className="text-sm text-mute">This event is full. If a seat opens up, it goes to whoever has waited longest, and you will be told.</p>
+          <button disabled={busy} onClick={leaveWaitlist} className="text-sm font-semibold text-red-600 hover:underline">Leave the waiting list</button>
+          <ErrorNote>{error}</ErrorNote>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        <ErrorNote>{error}</ErrorNote>
+        {wl.mine?.status === "removed" && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">You were taken off the waiting list{wl.mine.note ? `: ${wl.mine.note}` : ""}.</p>}
+        <p className="rounded-2xl bg-wash px-4 py-3 text-center text-sm font-semibold text-mute">This event is full.{wl.open ? ` ${wl.waiting} ${wl.waiting === 1 ? "person is" : "people are"} waiting for a seat.` : wl.enabled ? " The waiting list is full too." : ""}</p>
+        {wl.open && (
+          <>
+            {ticketPicker}
+            {isTeam && <Field label="Team name" hint="You will lead the team if a seat opens up."><input className="field" required maxLength={80} value={wlTeam} onChange={(e) => setWlTeam(e.target.value)} /></Field>}
+            {questions.length > 0 && <QuestionFields questions={questions} answers={answers} onChange={setAnswers} />}
+            <Button size="lg" className="w-full" disabled={busy || needTier || (isTeam && !wlTeam.trim())} onClick={joinWaitlist}>{busy ? "Please wait…" : "Join the waiting list"}</Button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   if (isTeam) {
     return (
       <div className="space-y-4">
@@ -182,15 +228,17 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
         {teamMode === "create" && (
           <form onSubmit={createTeam} className="space-y-3">
             <Field label="Team name"><input className="field" required maxLength={80} autoFocus value={teamName} onChange={(e) => setTeamName(e.target.value)} /></Field>
+            {ticketPicker}
             <QuestionFields questions={questions} answers={answers} onChange={setAnswers} />
-            <div className="flex gap-2"><Button type="submit" disabled={busy}>{busy ? "Please wait…" : "Start the team"}</Button><Button type="button" variant="ghost" onClick={() => setTeamMode("")}>Back</Button></div>
+            <div className="flex gap-2"><Button type="submit" disabled={busy || needTier}>{busy ? "Please wait…" : `Start the team${price}`}</Button><Button type="button" variant="ghost" onClick={() => setTeamMode("")}>Back</Button></div>
           </form>
         )}
         {teamMode === "join" && (
           <form onSubmit={joinTeam} className="space-y-3">
             <Field label="Team code"><input className="field font-mono uppercase tracking-[0.2em]" required maxLength={12} autoFocus value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABC234" /></Field>
+            {ticketPicker}
             <QuestionFields questions={questions} answers={answers} onChange={setAnswers} />
-            <div className="flex gap-2"><Button type="submit" disabled={busy}>{busy ? "Please wait…" : "Join the team"}</Button><Button type="button" variant="ghost" onClick={() => setTeamMode("")}>Back</Button></div>
+            <div className="flex gap-2"><Button type="submit" disabled={busy || needTier}>{busy ? "Please wait…" : `Join the team${price}`}</Button><Button type="button" variant="ghost" onClick={() => setTeamMode("")}>Back</Button></div>
           </form>
         )}
         {event.approval_mode === "manual" && <p className="text-center text-xs text-mute">The organisers approve each team.</p>}
@@ -201,12 +249,14 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
   return (
     <div className="space-y-3">
       <ErrorNote>{error}</ErrorNote>
+      {ticketPicker}
       {asking && <QuestionFields questions={questions} answers={answers} onChange={setAnswers} />}
-      <Button onClick={register} disabled={busy || state === "unknown"} size="lg" className="w-full">{busy ? "Please wait…" : asking ? "Send registration" : needsRegistration ? "Register" : isFest ? "Get free fest pass" : "Register"}</Button>
+      <Button onClick={register} disabled={busy || state === "unknown" || needTier} size="lg" className="w-full">{busy ? "Please wait…" : asking ? `Send registration${price}` : needsRegistration ? `Register${price}` : isFest ? "Get free fest pass" : "Register"}</Button>
       {asking && <button onClick={() => setAsking(false)} className="w-full text-center text-sm font-semibold text-mute hover:text-ink">Back</button>}
       {isFest && !needsRegistration && <p className="text-center text-xs text-mute">No registration needed. The free fest pass covers entry.</p>}
       {needsRegistration && event.approval_mode === "manual" && <p className="text-center text-xs text-mute">The organisers approve each registration.</p>}
       {!event.is_free && event.price > 0 && <p className="text-center text-xs text-mute">Online payment is not available yet. The organisers will tell you how to pay.</p>}
+      {needsRegistration && event.waitlist_enabled && event.registration_limit && <p className="text-center text-xs text-mute">If this event fills up, you can join a waiting list.</p>}
     </div>
   );
 }

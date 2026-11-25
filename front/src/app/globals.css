@@ -130,3 +130,9 @@ body { background: var(--color-fog); color: var(--color-ink); font-family: var(-
   .sb-items { display: flex; }
   .sb-items a { white-space: nowrap; }
 }
+
+@media print {
+  body > header, header.fixed, footer { display: none !important; }
+  body { background: #fff !important; }
+  @page { size: A4 landscape; margin: 10mm; }
+}

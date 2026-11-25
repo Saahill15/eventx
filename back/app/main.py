@@ -5,7 +5,7 @@ from app import models  # noqa: F401  (registers the tables with Base.metadata)
 from app import dev_mode
 from app.migrate import run_migrations
 from app.seed import seed
-from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements, short_links, transfers, event_import, invites, dev_switch, fest_teams, fest_tasks, fest_meetings, fest_schedule, contingents, fest_sponsors, dashboard, competition, cl_meets, contingent_entries, accommodation, contingent_fees, finance
+from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements, short_links, transfers, event_import, invites, dev_switch, fest_teams, fest_tasks, fest_meetings, fest_schedule, contingents, fest_sponsors, dashboard, competition, cl_meets, contingent_entries, accommodation, contingent_fees, finance, ticketing, waitlist, certificates
 
 IS_PRODUCTION = os.getenv("APP_ENV", "development") == "production"
 
@@ -71,6 +71,14 @@ app.include_router(contingent_entries.router, prefix="/api/fests",  tags=["Conti
 app.include_router(accommodation.router, prefix="/api/fests",       tags=["Accommodation"])
 app.include_router(contingent_fees.router, prefix="/api/fests",     tags=["Contingent fees"])
 app.include_router(finance.router,       prefix="/api/fests",       tags=["Finance"])
+app.include_router(ticketing.tiers_router, prefix="/api",           tags=["Tickets"])
+app.include_router(ticketing.promo_router, prefix="/api/fests",     tags=["Promo codes"])
+app.include_router(ticketing.quote_router, prefix="/api/fest-events", tags=["Tickets"])
+app.include_router(waitlist.event_router, prefix="/api/fest-events", tags=["Waiting list"])
+app.include_router(waitlist.fest_router,  prefix="/api/fests",       tags=["Waiting list"])
+app.include_router(certificates.router,  prefix="/api/fests",       tags=["Certificates"])
+app.include_router(certificates.me_router, prefix="/api/users/me",  tags=["Certificates"])
+app.include_router(certificates.public_router, prefix="/api",       tags=["Certificates"])
 app.include_router(dashboard.router,     prefix="/api/dashboard",   tags=["Dashboard"])
 app.include_router(short_links.router,   prefix="/api/short-links", tags=["Short links"])
 app.include_router(gate.router,           prefix="/api/fests",       tags=["Gate"])

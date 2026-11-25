@@ -9,6 +9,7 @@ import { ErrorNote, Field, Notice } from "@/components/ui/bits";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { SectionsEditor } from "./SectionsEditor";
 import { QuestionsEditor, toDraft, toQuestionPayload, type QuestionDraft } from "./QuestionsEditor";
+import { TierEditor } from "./TierEditor";
 
 export const CATEGORIES = ["Cultural", "Technical", "Sports", "Music", "Business", "Gaming", "Fashion", "Literary", "Technology", "Finance", "Design", "Education"];
 
@@ -24,10 +25,11 @@ interface State {
   coordinator_name: string; coordinator_phone: string;
   scored: boolean; points: string[];   // a competition between colleges, and what each place earns
   entries: boolean; entries_per: string; entry_fee: string; entry_fee_per: "entry" | "participant"; entry_deadline: string;   // visiting colleges entering the event
+  waitlist: boolean; waitlist_limit: string;   // a queue for a full event
 }
 const empty: State = {
   title: "", description: "", date: "", span: "1", time: "", end_time: "", location: "", category: "", paid: false, price: "", students_only: false, student_price: "",
-  requires_registration: false, registration_limit: "", approval_mode: "auto", deadline: "", reg_mode: "not_set", opens_on: "", is_team_event: false, team_min: "2", team_max: "4", coordinator_name: "", coordinator_phone: "", scored: false, points: [], entries: false, entries_per: "1", entry_fee: "", entry_fee_per: "entry", entry_deadline: "",
+  requires_registration: false, registration_limit: "", approval_mode: "auto", deadline: "", reg_mode: "not_set", opens_on: "", is_team_event: false, team_min: "2", team_max: "4", coordinator_name: "", coordinator_phone: "", scored: false, points: [], entries: false, entries_per: "1", entry_fee: "", entry_fee_per: "entry", entry_deadline: "", waitlist: false, waitlist_limit: "",
 };
 const toState = (e: FestEvent): State => ({
   title: e.title, description: e.description ?? "", date: e.date.slice(0, 10), span: String(e.span_days ?? 1), time: e.time ?? "", end_time: e.end_time ?? "", location: e.location ?? "", category: e.category ?? "",
@@ -35,6 +37,7 @@ const toState = (e: FestEvent): State => ({
   requires_registration: e.requires_registration, registration_limit: e.registration_limit == null ? "" : String(e.registration_limit), approval_mode: e.approval_mode,
   deadline: e.registration_deadline ?? "", reg_mode: e.registration_mode ?? "open_now", opens_on: e.registration_opens_on ?? "", is_team_event: e.is_team_event, team_min: String(e.team_min ?? 2), team_max: String(e.team_max ?? 4),
   coordinator_name: e.coordinator_name ?? "", coordinator_phone: e.coordinator_phone ?? "",
+  waitlist: !!e.waitlist_enabled, waitlist_limit: e.waitlist_limit ? String(e.waitlist_limit) : "",
   entries: !!e.contingent_entries, entries_per: String(e.entries_per_contingent ?? 1), entry_fee: e.entry_fee ? String(e.entry_fee) : "", entry_fee_per: e.entry_fee_per ?? "entry", entry_deadline: e.entry_deadline ?? "",
   scored: !!e.points_scheme, points: e.points_scheme ? Object.keys(e.points_scheme).map(Number).sort((a, b) => a - b).map((p) => String(e.points_scheme?.[String(p)] ?? 0)) : [],
 });
@@ -51,6 +54,7 @@ const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fes
   is_team_event: fest && f.requires_registration && f.is_team_event,
   team_min: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_min, 10) || null : null,
   team_max: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_max, 10) || null : null,
+  ...(fest ? { waitlist_enabled: fest && f.requires_registration && !!f.registration_limit && f.waitlist, waitlist_limit: f.waitlist && f.waitlist_limit ? parseInt(f.waitlist_limit, 10) || null : null } : {}),
   ...(fest ? { contingent_entries: f.entries, entries_per_contingent: f.entries ? Math.max(1, parseInt(f.entries_per, 10) || 1) : 1, entry_fee: f.entries ? parseFloat(f.entry_fee) || 0 : 0, entry_fee_per: f.entry_fee_per, entry_deadline: f.entries && f.entry_deadline ? f.entry_deadline : null } : {}),
   ...(fest ? { points_scheme: f.scored && f.points.length > 0 ? Object.fromEntries(f.points.map((v, i) => [String(i + 1), Math.max(0, parseInt(v, 10) || 0)])) : null } : {}),
   ...(fest ? { span_days: parseInt(f.span, 10) || 1, coordinator_name: f.coordinator_name.trim() || null, coordinator_phone: f.coordinator_phone.trim() || null } : {}),
@@ -132,6 +136,7 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
   const [clashes, setClashes] = useState<{ id: number; title: string; time: string | null; end_time: string | null }[]>([]);
   const venues = Array.from(new Set(siblings.map((e) => e.location).filter(Boolean) as string[]));
   const set = <K extends keyof State>(k: K, v: State[K]) => setF((x) => ({ ...x, [k]: v }));
+  const [tierCount, setTierCount] = useState(0);
   const registered = event && "registration_count" in event ? event.registration_count : 0;
   const locked = registered > 0;
 
@@ -341,6 +346,12 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label={f.is_team_event ? "Most teams" : "Seat limit"} hint="Leave empty for no limit"><input className="field" type="number" min={1} value={f.registration_limit} onChange={(e) => set("registration_limit", e.target.value)} /></Field>
               </div>
+              {f.registration_limit && (
+                <div className="space-y-3 rounded-2xl bg-wash p-4">
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={f.waitlist} onChange={(e) => set("waitlist", e.target.checked)} /><span><strong>Let people join a waiting list when it is full</strong><span className="block text-mute">When someone cancels or you raise the limit, the person who has waited longest gets the seat automatically and is told.</span></span></label>
+                  {f.waitlist && <div className="max-w-xs"><Field label="Longest the list can get" hint="Leave empty for no limit"><input className="field" type="number" min={1} value={f.waitlist_limit} onChange={(e) => set("waitlist_limit", e.target.value)} /></Field></div>}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <p className="text-sm font-semibold">When can people register?</p>
@@ -381,16 +392,18 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
 
           <div className="space-y-2">
             <p className="text-sm font-semibold">Entry fee</p>
-            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Entry fee">
+            {tierCount > 0 && f.requires_registration && <Notice tone="info">This event sells different tickets (below), so its price comes from them.</Notice>}
+            <div className={`grid gap-2 sm:grid-cols-2 ${tierCount > 0 && f.requires_registration ? "hidden" : ""}`} role="radiogroup" aria-label="Entry fee">
               <Choice name="fee" checked={!f.paid} disabled={locked} onChange={() => set("paid", false)} title="Free" />
               <Choice name="fee" checked={f.paid} disabled={locked} onChange={() => set("paid", true)} title="Paid" body="Students pay to take part." />
             </div>
-            {f.paid && (
+            {f.paid && !(tierCount > 0 && f.requires_registration) && (
               <div className="grid gap-4 pt-2 sm:grid-cols-2">
                 <Field label="Price (₹)"><input className="field" type="number" min={1} required value={f.price} onChange={(e) => set("price", e.target.value)} /></Field>
                 <Field label="Student price (₹)" hint="Optional. Lower than the price, for verified students."><input className="field" type="number" min={0} disabled={locked} value={f.student_price} onChange={(e) => set("student_price", e.target.value)} /></Field>
               </div>
             )}
+            {f.requires_registration && <div className="pt-3"><TierEditor eventId={event?.id ?? null} onCount={setTierCount} /></div>}
             {f.paid && <Notice tone="warn">Online payment is not live yet. Students who register for a paid event are marked as paid without being charged, so collect the money yourselves for now.</Notice>}
           </div>
         </Section>

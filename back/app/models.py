@@ -185,6 +185,10 @@ class Event(Base):
     entry_fee_paise        = Column(Integer, nullable=False, default=0, server_default="0")
     entry_fee_per          = Column(String(12), nullable=False, default="entry", server_default="entry")   # entry | participant
     entry_deadline         = Column(Date, nullable=True)
+    # When an event is full, people can queue for a seat that opens up
+    waitlist_enabled       = Column(Boolean, nullable=False, default=False, server_default="0")
+    price_is_from          = Column(Boolean, nullable=False, default=False, server_default="0")  # tickets differ in price, so show "From"
+    waitlist_limit         = Column(Integer, nullable=True)   # longest the queue may get; None for no limit
     points_scheme         = Column(JSON(none_as_null=True), nullable=True)   # real NULL when not scored, so it can be filtered on
 
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
@@ -672,6 +676,9 @@ class EventRegistration(Base):
     payment_status  = Column(Enum(RegPaymentStatusEnum), default=RegPaymentStatusEnum.unpaid)
     amount_due      = Column(Float, nullable=True)   # what this student owes, after student pricing
     team_id         = Column(Integer, ForeignKey("teams.id", name="fk_event_registrations_team_id"), nullable=True, index=True)
+    ticket_tier_id  = Column(Integer, ForeignKey("ticket_tiers.id", name="fk_registration_tier"), nullable=True, index=True)
+    promo_code_id   = Column(Integer, ForeignKey("promo_codes.id", name="fk_registration_promo"), nullable=True, index=True)
+    discount_paise  = Column(Integer, nullable=False, default=0, server_default="0")   # what a promo code took off the price
     attended        = Column(Boolean, default=False, nullable=False, server_default="0")
     attended_at     = Column(DateTime, nullable=True)
     attended_by     = Column(Integer, ForeignKey("users.id", name="fk_event_registrations_attended_by"), nullable=True)
@@ -681,6 +688,21 @@ class EventRegistration(Base):
     event     = relationship("Event", back_populates="registrations")
     answers   = relationship("RegistrationAnswer", back_populates="registration", cascade="all, delete-orphan")
     team      = relationship("Team", back_populates="registrations")
+
+    tier       = relationship("TicketTier")
+    promo      = relationship("PromoCode")
+
+    @property
+    def discount(self):
+        return round((self.discount_paise or 0) / 100, 2)
+
+    @property
+    def tier_name(self):
+        return self.tier.name if self.tier else None
+
+    @property
+    def promo_code_text(self):
+        return self.promo.code if self.promo else None
 
     @property
     def team_name(self):
@@ -1283,3 +1305,98 @@ class FeePayment(Base):
     created_at    = Column(DateTime, nullable=False, server_default=func.now())
 
     contingent = relationship("Contingent")
+
+
+# ─── Ticketing: tiers, promo codes, waitlist and certificates ────────────────────────────────────────────────────────
+
+class TicketTier(Base):
+    """One kind of ticket for an event (Early bird, Regular, VIP) with its own price, seats and sale window."""
+    __tablename__ = "ticket_tiers"
+    id          = Column(Integer, primary_key=True, index=True)
+    fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    event_id    = Column(Integer, ForeignKey("events.id", name="fk_tier_event"), nullable=False, index=True)
+    name        = Column(String(80), nullable=False)
+    description = Column(String(300), nullable=True)
+    price_paise         = Column(Integer, nullable=False, default=0)
+    student_price_paise = Column(Integer, nullable=True)   # cheaper for verified students; None means the same price
+    quantity    = Column(Integer, nullable=True)           # how many of this ticket in all; None for no limit
+    sales_open_on  = Column(Date, nullable=True)
+    sales_close_on = Column(Date, nullable=True)
+    position    = Column(Integer, nullable=False, default=0)
+    active      = Column(Boolean, nullable=False, default=True, server_default="1")
+    created_at  = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class PromoCode(Base):
+    """A code that takes money off a paid ticket: a percentage or a fixed amount, for some events or all, with its own limits."""
+    __tablename__ = "promo_codes"
+    __table_args__ = (UniqueConstraint("fest_id", "code", name="uq_promo_fest_code"),)
+    id          = Column(Integer, primary_key=True, index=True)
+    fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    code        = Column(String(40), nullable=False)   # stored in capitals; people can type it in any case
+    description = Column(String(200), nullable=True)
+    kind        = Column(String(8), nullable=False)    # percent | flat
+    value       = Column(Integer, nullable=False)      # a percentage (1 to 100), or paise for a flat discount
+    event_ids   = Column(JSON(none_as_null=True), nullable=True)   # the events it works for; None means every event of the fest
+    max_uses    = Column(Integer, nullable=True)       # in all; None for no limit
+    per_user_limit = Column(Integer, nullable=False, default=1, server_default="1")
+    valid_from  = Column(Date, nullable=True)
+    valid_until = Column(Date, nullable=True)
+    students_only = Column(Boolean, nullable=False, default=False, server_default="0")
+    active      = Column(Boolean, nullable=False, default=True, server_default="1")
+    created_at  = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class WaitlistEntry(Base):
+    """Someone queuing for a seat in a full event. First in, first offered."""
+    __tablename__ = "waitlist_entries"
+    id             = Column(Integer, primary_key=True, index=True)
+    event_id       = Column(Integer, ForeignKey("events.id", name="fk_waitlist_event"), nullable=False, index=True)
+    user_id        = Column(Integer, ForeignKey("users.id", name="fk_waitlist_user"), nullable=False, index=True)
+    ticket_tier_id = Column(Integer, ForeignKey("ticket_tiers.id", name="fk_waitlist_tier"), nullable=True)
+    promo_code     = Column(String(40), nullable=True)   # the code they typed, checked again when a seat opens
+    team_name      = Column(String(80), nullable=True)   # a team event: the team this person will lead
+    answers        = Column(JSON(none_as_null=True), nullable=True)   # their answers to the event's questions
+    status         = Column(String(10), nullable=False, default="waiting", server_default="waiting")   # waiting | promoted | left | removed
+    note           = Column(String(300), nullable=True)
+    created_at     = Column(DateTime, nullable=False, server_default=func.now())
+    promoted_at    = Column(DateTime, nullable=True)
+
+    user  = relationship("User")
+    event = relationship("Event")
+
+
+class CertificateTemplate(Base):
+    """The wording and signatures of a kind of certificate, for the whole fest or one event."""
+    __tablename__ = "certificate_templates"
+    id        = Column(Integer, primary_key=True, index=True)
+    fest_id   = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    event_id  = Column(Integer, ForeignKey("events.id", name="fk_cert_template_event"), nullable=True)   # None: usable for any event
+    kind      = Column(String(16), nullable=False, default="participation")   # participation | winner | appreciation
+    title     = Column(String(120), nullable=False)
+    body      = Column(String(1000), nullable=False)   # may use {name}, {event}, {fest}, {college}, {date} and {award}
+    signatories = Column(JSON(none_as_null=True), nullable=True)   # [{"name": "...", "title": "..."}]
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class Certificate(Base):
+    """A certificate given to someone. It keeps its own copy of the wording, so editing a template later changes nothing already issued."""
+    __tablename__ = "certificates"
+    id          = Column(Integer, primary_key=True, index=True)
+    fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    event_id    = Column(Integer, ForeignKey("events.id", name="fk_certificate_event"), nullable=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", name="fk_certificate_user"), nullable=True, index=True)   # their HiveOut account, when they have one
+    kind        = Column(String(16), nullable=False)
+    code        = Column(String(12), nullable=False, unique=True, index=True)   # printed on it; anyone can check it
+    recipient_name = Column(String(120), nullable=False)
+    college_name   = Column(String(200), nullable=True)
+    award_text     = Column(String(120), nullable=True)   # for example "First place"
+    title       = Column(String(120), nullable=False)
+    body        = Column(String(1200), nullable=False)    # the wording with the names filled in
+    signatories = Column(JSON(none_as_null=True), nullable=True)
+    fest_name   = Column(String(255), nullable=False)
+    event_title = Column(String(255), nullable=True)
+    issued_at   = Column(DateTime, nullable=False, server_default=func.now())
+    issued_by_id = Column(Integer, ForeignKey("users.id", name="fk_certificate_issuer"), nullable=True)
+    revoked_at  = Column(DateTime, nullable=True)
+    revoked_reason = Column(String(200), nullable=True)

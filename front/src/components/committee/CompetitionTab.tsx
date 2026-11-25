@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Contingent, ContingentSettings, ScoredEvent } from "@/lib/types";
 import { Notice, Skeleton } from "@/components/ui/bits";
+import { SubTabs } from "@/components/ui/SubTabs";
 import { AwardsPanel, SettingsPanel, StandingsPanel } from "./CompetitionBoard";
 import { AuctionPanel, MeetsPanel } from "./CompetitionMeets";
 import { ResultsPanel, RulesPanel } from "./CompetitionRules";
@@ -39,11 +40,7 @@ export function CompetitionTab({ slug, goTo }: { slug: string; goTo?: (tab: "col
         <Notice tone="info">Visiting colleges are switched off for this fest, so nobody can take part yet.{" "}
           {goTo ? <button onClick={() => goTo("colleges")} className="font-semibold underline underline-offset-4">Switch them on</button> : <Link href="#colleges" className="font-semibold underline underline-offset-4">Switch them on</Link>}</Notice>
       )}
-      <nav role="tablist" aria-label="Competition sections" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
-        {SECTIONS.map((s) => (
-          <button key={s.id} role="tab" aria-selected={section === s.id} onClick={() => setSection(s.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${section === s.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>{s.label}</button>
-        ))}
-      </nav>
+      <SubTabs label="Competition sections" value={section} onChange={setSection} items={SECTIONS.map((x) => ({ id: x.id, label: x.label }))} />
       <p className="text-[13px] text-mute">{people.length} approved {term}{people.length === 1 ? "" : "s"} taking part.</p>
 
       {section === "standings" && <StandingsPanel slug={slug} people={people} />}

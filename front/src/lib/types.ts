@@ -80,6 +80,8 @@ export interface FestEvent {
   points_scheme?: Record<string, number> | null;
   /** Whether visiting colleges can enter this event, how many entries each may send, and what an entry costs (rupees). */
   contingent_entries?: boolean; entries_per_contingent?: number; entry_fee?: number; entry_fee_per?: "entry" | "participant"; entry_deadline?: string | null;
+  /** When the event is full, people can queue for a seat. */
+  waitlist_enabled?: boolean; waitlist_limit?: number | null; price_is_from?: boolean;
   event_type: "fest" | "city";
   title: string;
   description: string | null;
@@ -153,6 +155,9 @@ export interface Registration {
   team_id: number | null;
   approval_status: "pending" | "approved" | "rejected";
   payment_status: "unpaid" | "paid";
+  amount_due?: number | null;
+  ticket_tier_id?: number | null;
+  discount?: number;
   created_at: string;
 }
 
@@ -515,3 +520,27 @@ export interface FinanceSummary {
   expected_income: number; projected_net: number; pending_requests: number; over_budget_lines: number; unbudgeted: number;
   by_category: CategoryTotal[]; by_team: TeamTotal[]; owed_to_members: { member_id: number; name: string; amount: number; expenses: number }[];
 }
+
+/** Ticketing: kinds of ticket, promo codes, quotes, waiting lists and certificates. */
+export type TierStatus = "on_sale" | "not_yet" | "ended" | "sold_out" | "off";
+export interface Tier {
+  id: number; event_id: number; name: string; description: string | null; price: number; student_price: number | null; quantity: number | null; remaining: number | null; sold: number | null;
+  sales_open_on: string | null; sales_close_on: string | null; active: boolean; status: TierStatus; position: number;
+}
+export interface Quote { tier_id: number | null; tier_name: string | null; price: number; discount: number; total: number; promo_description: string | null; free: boolean }
+export interface PromoCode {
+  id: number; code: string; description: string | null; kind: "percent" | "flat"; value: number; event_ids: number[] | null; max_uses: number | null; per_user_limit: number;
+  valid_from: string | null; valid_until: string | null; students_only: boolean; active: boolean; used: number; discount_given: number; status: "live" | "not_yet" | "expired" | "used_up" | "off";
+}
+export interface WaitlistStatus { enabled: boolean; full: boolean; waiting: number; limit: number | null; open: boolean; mine: { position: number; status: "waiting" | "promoted" | "left" | "removed"; note: string | null } | null }
+export interface WaitlistRow {
+  id: number; event_id: number; event_title: string; user_name: string | null; user_email: string | null; position: number | null; status: "waiting" | "promoted" | "left" | "removed";
+  team_name: string | null; ticket_tier_name: string | null; promo_code: string | null; note: string | null; created_at: string; promoted_at: string | null;
+}
+export interface Signatory { name: string; title: string }
+export interface CertTemplate { id: number; event_id: number | null; event_title: string | null; kind: "participation" | "winner" | "appreciation"; title: string; body: string; signatories: Signatory[] }
+export interface Certificate {
+  id: number; code: string; kind: string; recipient_name: string; college_name: string | null; award_text: string | null; title: string; body: string; signatories: Signatory[];
+  fest_name: string; event_title: string | null; issued_at: string; revoked: boolean; revoked_reason: string | null; has_account: boolean;
+}
+export interface CertificateCheck { valid: boolean; revoked: boolean; certificate: Certificate | null }

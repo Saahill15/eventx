@@ -202,12 +202,20 @@ The Finance tab is for the director and core team. Everyone on the committee can
 - **Overview.** Cash so far (received less paid), what is still to come in, the budget against what is committed, requests waiting, what is approved but unpaid, and what the fest ends with if everything goes to plan (expected income less the larger of the budget and what is committed). Spending against budget by category and by team, income by category, and the members who are owed money. Warnings for lines over budget and for approved spending that is under no budget line. One click downloads every rupee in and out as a spreadsheet.
 - **On the dashboard.** The core team is shown spend requests waiting for a decision and budget lines that have gone over.
 
+## 12. Ticketing
+
+Everything here is set by the committee, per event or per fest. Paid events are still simulated: a registration is confirmed straight away and no money moves, but the amounts, discounts and seats are all real and recorded.
+
+- **Ticket types.** In an event's form, under the entry fee, add kinds of ticket: Early bird, Regular, VIP. Each has its own price, an optional cheaper price for verified students, an optional number of tickets, and an optional sale window. A ticket can be switched off, changed (never below what is already sold) or deleted if none were bought. Once an event has ticket types, its price comes from them: lists show the lowest, with "From" when they differ. Changing a price never changes what people already paid. Students choose a ticket when they register, and see the total before they confirm.
+- **Promo codes.** Under Guests, *Promo codes*. A code takes off a percentage or a fixed amount. You choose which events it works for (none ticked means all), the dates it works, how many uses in all, how many times each person can use it, and whether it is for verified students only. Each code shows how often it was used and how much it took off, and can be switched off at any time. Codes are typed in capitals or small letters, it makes no difference.
+- **Waiting lists.** Tick "Let students join a waiting list when it is full" in an event's form (and, if you like, cap the queue). When the event is full, students can join; the first in line gets a seat by itself when someone cancels or is turned down, or when you raise the seat limit, and is told straight away. Under Guests, *Waiting lists* shows every queue: you can let someone in now (even past the limit) or take them off with a reason they are told.
+- **Certificates.** Under Guests, *Certificates*. Write your own wording or "Add the usual wordings" (participation, winner, appreciation) and change them. Wording can use {name}, {event}, {fest}, {college}, {date} and {award}, and carry up to three signatures. Issue to everyone who attended an event (checked in), to the entries of visiting colleges, or to one person (for example the winner). Pressing a button twice never gives anyone two. Students see theirs under *My passes*; anyone can open a certificate by its link or ten-character code, see whether it is real, and print it as a PDF. A mistake can be withdrawn with a reason: it stays on record, marked withdrawn.
+
 ## Not built yet
 
 Already built, so not on this list: transferring a fest to a new director, and importing events from a spreadsheet.
 
 - **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
-- **Waitlists, ticket tiers, promo codes and certificates.**
 - **Finance, further on:** per-event profit and loss, sponsor deliverables, GST and invoices, and paying vendors online.
 - **Paying fees online:** colleges pay as the fest's instructions say and the committee records it. A payment gateway (Cashfree test keys are set up in `.env`) is still to wire in.
 - **Volunteers' own area:** today a volunteer sees check-in and their tasks; meetings and more are still to do.

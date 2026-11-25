@@ -7,6 +7,7 @@ import { formatDay } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Field, Notice, Pill, Skeleton } from "@/components/ui/bits";
 import { EntriesAdmin, FeesAdmin, StayAdmin } from "./ContingentServicesAdmin";
+import { SubTabs } from "@/components/ui/SubTabs";
 
 const PARTS = [{ id: "colleges", label: "Colleges" }, { id: "entries", label: "Event entries" }, { id: "stay", label: "Accommodation" }, { id: "fees", label: "Fees" }] as const;
 type PartId = (typeof PARTS)[number]["id"];
@@ -186,9 +187,7 @@ export function ContingentsTab({ slug }: { slug: string }) {
       )}
 
       {settings.enabled && !editing && (
-        <nav role="tablist" aria-label="Visiting colleges sections" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
-          {PARTS.map((p) => <button key={p.id} role="tab" aria-selected={part === p.id} onClick={() => setPart(p.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${part === p.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>{p.label}</button>)}
-        </nav>
+        <SubTabs label="Visiting colleges sections" value={part} onChange={setPart} items={PARTS.map((p) => ({ id: p.id, label: p.label }))} />
       )}
       {settings.enabled && !editing && part === "entries" && <EntriesAdmin slug={slug} people={(rows ?? []).filter((r) => r.status === "approved")} />}
       {settings.enabled && !editing && part === "stay" && <StayAdmin slug={slug} />}

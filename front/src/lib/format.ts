@@ -21,8 +21,8 @@ export function formatTime(time: string | null): string {
   return `${((h + 11) % 12) + 1}:${String(m ?? 0).padStart(2, "0")} ${suffix}`;
 }
 
-export const priceLabel = (e: Pick<FestEvent, "is_free" | "price">) =>
-  e.is_free || !e.price ? "Free" : `₹${Number(e.price).toLocaleString("en-IN")}`;
+export const priceLabel = (e: Pick<FestEvent, "is_free" | "price"> & { price_is_from?: boolean }) =>
+  e.is_free || !e.price ? (e.price_is_from && !e.is_free ? "Free or paid" : "Free") : `${e.price_is_from ? "From " : ""}₹${Number(e.price).toLocaleString("en-IN")}`;
 
 /** What to tell the public about registration, from the state the server worked out. Null when it is simply open or not needed. */
 export function registrationNote(e: Pick<FestEvent, "registration_state" | "registration_opens_on">): string | null {

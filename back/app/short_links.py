@@ -17,7 +17,7 @@ RESERVED_SHORT_NAMES = {
     # pages and routes of the site
     "admin", "dashboard", "events", "event", "fests", "fest", "login", "logout", "signup", "register", "forgot-password", "reset-password", "profile", "my-passes", "my-pass",
     "committee", "organiser", "organisers", "organizer", "organizers", "api", "all", "mine", "new", "search", "explore", "notifications",
-    "colleges", "college", "cities", "city", "passes", "pass", "tickets", "settings", "account", "robots", "sitemap", "favicon", "static", "assets",
+    "colleges", "college", "cities", "city", "passes", "pass", "tickets", "certificates", "certificate", "settings", "account", "robots", "sitemap", "favicon", "static", "assets",
     # names that could pass for the site or its team
     "hiveout", "eventx", "support", "help", "about", "terms", "privacy", "contact", "pricing", "careers", "blog", "press", "security",
     "status", "docs", "app", "www", "mail", "home", "index", "null", "undefined",
