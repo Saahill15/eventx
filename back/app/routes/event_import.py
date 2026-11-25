@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.fest_review import events_blocked_reason
 from app import models, schemas
+from app.money import to_paise
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.permissions import is_fest_staff
@@ -238,7 +239,9 @@ async def import_events(
         return result  # a preview, or something to fix first: nothing is saved
 
     for p in payloads:
-        db.add(models.Event(**p.model_dump(), status=models.StatusEnum.approved))
+        data = p.model_dump()
+        data["entry_fee_paise"] = to_paise(data.pop("entry_fee", 0))
+        db.add(models.Event(**data, status=models.StatusEnum.approved))
     db.commit()
     result.created = len(payloads)
     return result

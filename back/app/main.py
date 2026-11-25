@@ -5,7 +5,7 @@ from app import models  # noqa: F401  (registers the tables with Base.metadata)
 from app import dev_mode
 from app.migrate import run_migrations
 from app.seed import seed
-from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements, short_links, transfers, event_import, invites, dev_switch, fest_teams, fest_tasks, fest_meetings, fest_schedule, contingents, fest_sponsors, dashboard, competition, cl_meets
+from app.routes import auth, users, events, passes, admin, committees, colleges, fests, entry_passes, fest_events, gate, student, media, event_questions, announcements, short_links, transfers, event_import, invites, dev_switch, fest_teams, fest_tasks, fest_meetings, fest_schedule, contingents, fest_sponsors, dashboard, competition, cl_meets, contingent_entries, accommodation, contingent_fees
 
 IS_PRODUCTION = os.getenv("APP_ENV", "development") == "production"
 
@@ -67,6 +67,9 @@ app.include_router(contingents.router,   prefix="/api/fests",       tags=["Conti
 app.include_router(fest_sponsors.router, prefix="/api/fests",       tags=["Sponsors"])
 app.include_router(competition.router,   prefix="/api/fests",       tags=["Competition"])
 app.include_router(cl_meets.router,      prefix="/api/fests",       tags=["CL meets"])
+app.include_router(contingent_entries.router, prefix="/api/fests",  tags=["Contingent entries"])
+app.include_router(accommodation.router, prefix="/api/fests",       tags=["Accommodation"])
+app.include_router(contingent_fees.router, prefix="/api/fests",     tags=["Contingent fees"])
 app.include_router(dashboard.router,     prefix="/api/dashboard",   tags=["Dashboard"])
 app.include_router(short_links.router,   prefix="/api/short-links", tags=["Short links"])
 app.include_router(gate.router,           prefix="/api/fests",       tags=["Gate"])

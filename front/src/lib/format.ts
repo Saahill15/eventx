@@ -45,6 +45,9 @@ export function registrationBadge(e: Pick<FestEvent, "registration_state" | "reg
 }
 const formatMonthDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
+/** Rupees in the Indian way: ₹1,23,456 and ₹250.50. Whole amounts show no paise. */
+export const inr = (n: number) => `${n < 0 ? "−" : ""}₹${Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
+
 /** Calendar-day key used to group events by day */
 export const dayKey = (iso: string) => iso.slice(0, 10);
 

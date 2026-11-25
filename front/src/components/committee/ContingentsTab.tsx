@@ -6,6 +6,10 @@ import type { Contingent, ContingentDetail, ContingentSettings, ContingentStatus
 import { formatDay } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Field, Notice, Pill, Skeleton } from "@/components/ui/bits";
+import { EntriesAdmin, FeesAdmin, StayAdmin } from "./ContingentServicesAdmin";
+
+const PARTS = [{ id: "colleges", label: "Colleges" }, { id: "entries", label: "Event entries" }, { id: "stay", label: "Accommodation" }, { id: "fees", label: "Fees" }] as const;
+type PartId = (typeof PARTS)[number]["id"];
 
 const TONE: Record<ContingentStatus, "amber" | "green" | "red" | "neutral"> = { pending: "amber", approved: "green", rejected: "red", withdrawn: "neutral" };
 const FILTERS: { id: ContingentStatus | "all"; label: string }[] = [{ id: "pending", label: "Waiting" }, { id: "approved", label: "Approved" }, { id: "rejected", label: "Not approved" }, { id: "withdrawn", label: "Withdrawn" }, { id: "all", label: "All" }];
@@ -149,6 +153,7 @@ export function ContingentsTab({ slug }: { slug: string }) {
   const [rows, setRows] = useState<Contingent[] | null>(null);
   const [filter, setFilter] = useState<ContingentStatus | "all">("pending");
   const [editing, setEditing] = useState(false);
+  const [part, setPart] = useState<PartId>("colleges");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -181,6 +186,15 @@ export function ContingentsTab({ slug }: { slug: string }) {
       )}
 
       {settings.enabled && !editing && (
+        <nav role="tablist" aria-label="Visiting colleges sections" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
+          {PARTS.map((p) => <button key={p.id} role="tab" aria-selected={part === p.id} onClick={() => setPart(p.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${part === p.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>{p.label}</button>)}
+        </nav>
+      )}
+      {settings.enabled && !editing && part === "entries" && <EntriesAdmin slug={slug} people={(rows ?? []).filter((r) => r.status === "approved")} />}
+      {settings.enabled && !editing && part === "stay" && <StayAdmin slug={slug} />}
+      {settings.enabled && !editing && part === "fees" && <FeesAdmin slug={slug} />}
+
+      {settings.enabled && !editing && part === "colleges" && (
         <>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
             {FILTERS.map((x) => <button key={x.id} aria-pressed={filter === x.id} onClick={() => setFilter(x.id)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${filter === x.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>{x.label} <span className="font-normal opacity-70">({counts(x.id)})</span></button>)}

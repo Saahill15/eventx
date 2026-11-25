@@ -292,6 +292,12 @@ class EventCreate(BaseModel):
     registration_opens_on: Optional[date] = None
     points_scheme:         Optional[Dict[str, int]] = None   # what each place earns a contingent; None: not a scored competition
     _check_points = field_validator("points_scheme")(check_points_scheme)
+    # Visiting colleges entering the event, and what an entry costs (in rupees)
+    contingent_entries:     bool = False
+    entries_per_contingent: int = Field(default=1, ge=1, le=50)
+    entry_fee:              float = Field(default=0, ge=0, le=1000000)
+    entry_fee_per:          Literal["entry", "participant"] = "entry"
+    entry_deadline:         Optional[date] = None
 
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
@@ -311,6 +317,8 @@ class EventCreate(BaseModel):
             raise ValueError("registration_limit must be > 0")
         if self.registration_deadline is not None and self.registration_deadline > self.date.date() + timedelta(days=self.span_days - 1):
             raise ValueError("registration must close by the event's last day")
+        if self.entry_deadline is not None and self.entry_deadline > self.date.date() + timedelta(days=self.span_days - 1):
+            raise ValueError("entries must close by the event's last day")
         problem = check_registration_window(self.registration_mode, self.registration_opens_on, self.registration_deadline, self.date.date() + timedelta(days=self.span_days - 1))
         if problem:
             raise ValueError(problem)
@@ -373,6 +381,11 @@ class EventOut(BaseModel):
     registration_opens_on: Optional[date] = None
     registration_state: Optional[str] = None  # open | scheduled | not_open | closed; None when no registration is needed
     points_scheme: Optional[Dict[str, int]] = None
+    contingent_entries: bool = False
+    entries_per_contingent: int = 1
+    entry_fee: float = 0
+    entry_fee_per: str = "entry"
+    entry_deadline: Optional[date] = None
     cancelled: bool = False
     cancel_reason: Optional[str] = None
     reject_reason: Optional[str] = None
@@ -411,6 +424,11 @@ class EventUpdate(BaseModel):
     registration_opens_on: Optional[DateOnly] = None
     points_scheme:         Optional[Dict[str, int]] = None
     _check_points = field_validator("points_scheme")(check_points_scheme)
+    contingent_entries:     Optional[bool] = None
+    entries_per_contingent: Optional[int] = Field(default=None, ge=1, le=50)
+    entry_fee:              Optional[float] = Field(default=None, ge=0, le=1000000)
+    entry_fee_per:          Optional[Literal["entry", "participant"]] = None
+    entry_deadline:         Optional[DateOnly] = None
 
     _check_sections = field_validator("extra_sections")(check_sections)
     _clean_image = field_validator("image_url")(clean_url)
@@ -1984,3 +2002,252 @@ class CompetitionMine(BaseModel):
     meets: List[MyMeet] = []
     auctions: List[MyAuction] = []
     events: List[EventResultOut] = []   # where the contingent placed, with the event title in the label
+
+
+# ─── Visiting colleges: event entries, accommodation and fees ─────────────────────────────────────────────────────────
+Rupees = Annotated[float, Field(ge=0, le=10000000)]
+SignedRupees = Annotated[float, Field(ge=-10000000, le=10000000)]
+STAY_GROUPS = ("boys", "girls", "others")
+
+
+class EntryIn(BaseModel):
+    event_id: int
+    member_ids: List[int] = Field(min_length=1, max_length=100)
+    contingent_id: Optional[int] = None   # the committee enters on a contingent's behalf; a leader's own is assumed
+
+
+class EntryUpdate(BaseModel):
+    member_ids: List[int] = Field(min_length=1, max_length=100)
+
+
+class EntryMemberOut(BaseModel):
+    member_id: int
+    name: str
+    year: Optional[int] = None
+    phone: Optional[str] = None   # shown to the committee and the contingent's own leaders
+
+
+class EntryOut(BaseModel):
+    id: int
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    college_name: Optional[str] = None
+    event_id: int
+    event_title: str
+    event_date: datetime
+    event_time: Optional[str] = None
+    location: Optional[str] = None
+    status: str
+    note: Optional[str] = None
+    members: List[EntryMemberOut] = []
+    fee: float = 0
+    warnings: List[str] = []   # for example a person who is entered in two events at the same time
+
+
+class EnterableEvent(BaseModel):
+    event_id: int
+    title: str
+    date: datetime
+    time: Optional[str] = None
+    end_time: Optional[str] = None
+    location: Optional[str] = None
+    span_days: int = 1
+    is_team_event: bool = False
+    team_min: Optional[int] = None
+    team_max: Optional[int] = None
+    entries_per_contingent: int = 1
+    entry_fee: float = 0
+    entry_fee_per: str = "entry"
+    deadline: Optional[date] = None
+    open: bool = True
+    closed_reason: Optional[str] = None
+    my_entries: int = 0
+
+
+class MyEntries(BaseModel):
+    contingent_id: int
+    events: List[EnterableEvent] = []
+    entries: List[EntryOut] = []
+
+
+class AccomOptionIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    capacity: int = Field(ge=1, le=100000)
+    gender_policy: Literal["any", "boys", "girls"] = "any"
+    fee_per_night: Rupees = 0
+
+
+class AccomOptionUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    capacity: Optional[int] = Field(default=None, ge=1, le=100000)
+    gender_policy: Optional[Literal["any", "boys", "girls"]] = None
+    fee_per_night: Optional[Rupees] = None
+
+
+class AccomOptionOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    capacity: int
+    gender_policy: str
+    fee_per_night: float
+    allocated: int = 0
+    free: int = 0
+
+
+class AccomSettings(BaseModel):
+    enabled: bool = False
+    closes_on: Optional[date] = None
+    open: bool = False   # enabled, and the closing date has not passed
+
+
+class AccomSettingsIn(BaseModel):
+    enabled: Optional[bool] = None
+    closes_on: Optional[date] = None
+
+
+class StayRequestIn(BaseModel):
+    boys: int = Field(default=0, ge=0, le=1000)
+    girls: int = Field(default=0, ge=0, le=1000)
+    others: int = Field(default=0, ge=0, le=1000)
+    arrival_date: date
+    departure_date: date
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+    @model_validator(mode="after")
+    def sensible(self):
+        if self.boys + self.girls + self.others < 1:
+            raise ValueError("say how many people need a place to stay")
+        if self.departure_date <= self.arrival_date:
+            raise ValueError("the departure must be after the arrival")
+        if (self.departure_date - self.arrival_date).days > 30:
+            raise ValueError("a stay can be at most 30 nights")
+        return self
+
+
+class StayAllocationIn(BaseModel):
+    option_id: int
+    group: Literal["boys", "girls", "others"]
+    people: int = Field(ge=1, le=1000)
+
+
+class StayAllocationsIn(BaseModel):
+    allocations: List[StayAllocationIn] = Field(max_length=100)
+
+
+class StayDeclineIn(BaseModel):
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=300)]
+
+
+class StayAllocationOut(BaseModel):
+    option_id: int
+    option_name: str
+    group: str
+    people: int
+    nights: int
+    fee: float
+
+
+class StayRequestOut(BaseModel):
+    id: int
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    college_name: Optional[str] = None
+    boys: int
+    girls: int
+    others: int
+    people: int
+    arrival_date: date
+    departure_date: date
+    nights: int
+    notes: Optional[str] = None
+    status: str
+    decision_note: Optional[str] = None
+    allocations: List[StayAllocationOut] = []
+    unplaced: Dict[str, int] = {}   # how many of each group still have no place
+    fee: float = 0
+
+
+class FeeSettingsIn(BaseModel):
+    registration_fee: Optional[Rupees] = None
+    fee_per_member: Optional[Rupees] = None
+    fee_instructions: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]] = None
+    fees_due_on: Optional[date] = None
+
+
+class FeeSettingsOut(BaseModel):
+    registration_fee: float = 0
+    fee_per_member: float = 0
+    fee_instructions: Optional[str] = None
+    fees_due_on: Optional[date] = None
+
+
+class FeeLine(BaseModel):
+    kind: str   # registration | members | entry | stay | adjustment
+    label: str
+    quantity: int = 1
+    unit: float = 0
+    amount: float = 0
+    adjustment_id: Optional[int] = None
+
+
+class FeePaymentIn(BaseModel):
+    amount: float = Field(gt=0, le=10000000)
+    received_on: Optional[date] = None
+    method: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
+    reference: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]] = None
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+
+
+class FeePaymentOut(BaseModel):
+    id: int
+    amount: float
+    received_on: date
+    method: Optional[str] = None
+    reference: Optional[str] = None
+    note: Optional[str] = None
+
+
+class FeeAdjustmentIn(BaseModel):
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)]
+    amount: SignedRupees
+
+    @field_validator("amount")
+    @classmethod
+    def not_zero(cls, v):
+        if v == 0:
+            raise ValueError("the amount cannot be zero")
+        return v
+
+
+class FeeStatement(BaseModel):
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    college_name: str
+    lines: List[FeeLine] = []
+    total: float = 0
+    paid: float = 0
+    balance: float = 0
+    status: str = "no_fees"   # no_fees | unpaid | part | paid | overpaid
+    payments: List[FeePaymentOut] = []
+    due_on: Optional[date] = None
+    instructions: Optional[str] = None
+
+
+class FeeSummaryRow(BaseModel):
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    college_name: str
+    total: float
+    paid: float
+    balance: float
+    status: str
+
+
+class FeeSummary(BaseModel):
+    total: float = 0
+    paid: float = 0
+    balance: float = 0
+    rows: List[FeeSummaryRow] = []

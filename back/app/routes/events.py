@@ -5,6 +5,7 @@ from typing import List
 from app.fest_review import events_blocked_reason
 from app.database import get_db
 from app import models, schemas
+from app.money import to_paise
 from app.auth.dependencies import get_current_user, get_optional_user, require_organizer
 from app.permissions import can_host_city_events, can_view_event, fest_hosting_switched_off, is_fest_staff
 from app.routes.announcements import announce_cancellation
@@ -86,6 +87,7 @@ def create_event(data: schemas.EventCreate, db: Session = Depends(get_db), curre
     - event_type="fest":  fest_id required (enforced by schema); organizer_id stays NULL.
     """
     event_data = data.model_dump()
+    event_data["entry_fee_paise"] = to_paise(event_data.pop("entry_fee", 0))
 
     if data.event_type == "city" and not can_host_city_events(current_user):
         raise HTTPException(status_code=403, detail="City events are not switched on for your account. Ask HiveOut to enable them.")
@@ -180,9 +182,12 @@ def update_event(
     has_registrations = active_reg_count > 0
 
     updates = data.model_dump(exclude_unset=True)
-    for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode", "students_only", "is_team_event"):
+    for non_nullable in ("title", "date", "price", "requires_registration", "is_paid", "approval_mode", "students_only", "is_team_event",
+                         "contingent_entries", "entries_per_contingent", "entry_fee_per", "entry_fee"):
         if updates.get(non_nullable) is None:
             updates.pop(non_nullable, None)
+    if "entry_fee" in updates:
+        updates["entry_fee_paise"] = to_paise(updates.pop("entry_fee"))
 
     # Student price must stay below the normal price
     new_price = updates.get("price", event.price)
@@ -244,6 +249,9 @@ def update_event(
     if event.registration_deadline and event.registration_deadline > last_day:
         db.rollback()
         raise HTTPException(status_code=400, detail="Registration must close by the event's last day")
+    if event.entry_deadline and event.entry_deadline > last_day:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Entries must close by the event's last day")
     if event.registration_mode != "scheduled":
         event.registration_opens_on = None
     problem = schemas.check_registration_window(event.registration_mode, event.registration_opens_on, event.registration_deadline, last_day)

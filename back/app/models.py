@@ -179,6 +179,12 @@ class Event(Base):
     registration_mode     = Column(String(12), nullable=False, default="open_now", server_default="open_now")
     registration_opens_on = Column(Date, nullable=True)
     # Points a contingent earns for placing in this event, by place: {"1": 100, "2": 60, "3": 30}. None means it is not a scored competition.
+    # Visiting colleges entering this event: whether they can, how many entries each may send, what an entry costs, and until when
+    contingent_entries     = Column(Boolean, nullable=False, default=False, server_default="0")
+    entries_per_contingent = Column(Integer, nullable=False, default=1, server_default="1")
+    entry_fee_paise        = Column(Integer, nullable=False, default=0, server_default="0")
+    entry_fee_per          = Column(String(12), nullable=False, default="entry", server_default="entry")   # entry | participant
+    entry_deadline         = Column(Date, nullable=True)
     points_scheme         = Column(JSON(none_as_null=True), nullable=True)   # real NULL when not scored, so it can be filtered on
 
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
@@ -198,6 +204,10 @@ class Event(Base):
     @property
     def cancelled(self):
         return self.cancelled_at is not None
+
+    @property
+    def entry_fee(self):
+        return round((self.entry_fee_paise or 0) / 100, 2)
 
     @property
     def registration_state(self):
@@ -537,6 +547,14 @@ class ContingentSettings(Base):
     opens_on       = Column(Date, nullable=True)
     closes_on      = Column(Date, nullable=True)
     lock_roster_after_close    = Column(Boolean, nullable=False, default=True, server_default="1")
+    # What a visiting college pays. Every number is the fest's own; zero means free
+    registration_fee_paise = Column(Integer, nullable=False, default=0, server_default="0")   # once per contingent
+    fee_per_member_paise   = Column(Integer, nullable=False, default=0, server_default="0")   # for each person on its list
+    fee_instructions       = Column(String(1000), nullable=True)   # how to pay: bank details, a UPI id...
+    fees_due_on            = Column(Date, nullable=True)
+    # Whether visiting colleges can ask for a place to stay, and until when
+    accommodation_enabled      = Column(Boolean, nullable=False, default=False, server_default="0")
+    accommodation_closes_on    = Column(Date, nullable=True)
 
 
 class Contingent(Base):
@@ -1152,3 +1170,114 @@ class IncomePayment(Base):
     note         = Column(String(200), nullable=True)
     recorded_by_id = Column(Integer, ForeignKey("users.id", name="fk_income_payment_recorder"), nullable=True)
     created_at   = Column(DateTime, nullable=False, server_default=func.now())
+
+
+# ─── Contingents in events, accommodation and fees ───────────────────────────────────────────────────────────────────
+
+class ContingentEntry(Base):
+    """A contingent's entry into an event: which of its people take part."""
+    __tablename__ = "contingent_entries"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_entry_contingent"), nullable=False, index=True)
+    event_id      = Column(Integer, ForeignKey("events.id", name="fk_entry_event"), nullable=False, index=True)
+    status        = Column(String(10), nullable=False, default="confirmed", server_default="confirmed")   # confirmed | withdrawn | removed
+    note          = Column(String(300), nullable=True)   # why the committee removed it
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_entry_creator"), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    contingent = relationship("Contingent")
+    event      = relationship("Event")
+    members    = relationship("ContingentEntryMember", cascade="all, delete-orphan")
+
+
+class ContingentEntryMember(Base):
+    """One person from the contingent's list, taking part in an entry."""
+    __tablename__ = "contingent_entry_members"
+    entry_id  = Column(Integer, ForeignKey("contingent_entries.id"), primary_key=True)
+    member_id = Column(Integer, ForeignKey("contingent_members.id", name="fk_entry_member"), primary_key=True)
+
+    member = relationship("ContingentMember")
+
+
+class AccommodationOption(Base):
+    """A place visiting colleges can be put up: a hostel block, a guest house. The fest names and prices its own."""
+    __tablename__ = "accommodation_options"
+    id          = Column(Integer, primary_key=True, index=True)
+    fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    name        = Column(String(120), nullable=False)
+    description = Column(String(500), nullable=True)
+    capacity    = Column(Integer, nullable=False)   # how many people it holds
+    gender_policy = Column(String(8), nullable=False, default="any", server_default="any")   # any | boys | girls
+    fee_per_night_paise = Column(Integer, nullable=False, default=0, server_default="0")   # for each person, each night
+    position    = Column(Integer, nullable=False, default=0)
+
+
+class AccommodationRequest(Base):
+    """A contingent asking for somewhere to stay: how many people, and for which nights."""
+    __tablename__ = "accommodation_requests"
+    id             = Column(Integer, primary_key=True, index=True)
+    fest_id        = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    contingent_id  = Column(Integer, ForeignKey("contingents.id", name="fk_stay_contingent"), nullable=False, unique=True)
+    boys           = Column(Integer, nullable=False, default=0, server_default="0")
+    girls          = Column(Integer, nullable=False, default=0, server_default="0")
+    others         = Column(Integer, nullable=False, default=0, server_default="0")
+    arrival_date   = Column(Date, nullable=False)
+    departure_date = Column(Date, nullable=False)
+    notes          = Column(String(500), nullable=True)
+    status         = Column(String(10), nullable=False, default="requested", server_default="requested")   # requested | allocated | declined | cancelled
+    decision_note  = Column(String(300), nullable=True)
+    decided_by_id  = Column(Integer, ForeignKey("users.id", name="fk_stay_decider"), nullable=True)
+    decided_at     = Column(DateTime, nullable=True)
+    created_at     = Column(DateTime, nullable=False, server_default=func.now())
+
+    contingent  = relationship("Contingent")
+    allocations = relationship("AccommodationAllocation", cascade="all, delete-orphan")
+
+    @property
+    def nights(self):
+        return max((self.departure_date - self.arrival_date).days, 0)
+
+    @property
+    def people(self):
+        return (self.boys or 0) + (self.girls or 0) + (self.others or 0)
+
+
+class AccommodationAllocation(Base):
+    """Part of a request placed in one option: this many boys (or girls, or others) go here."""
+    __tablename__ = "accommodation_allocations"
+    __table_args__ = (UniqueConstraint("request_id", "option_id", "grp", name="uq_stay_allocation"),)
+    id         = Column(Integer, primary_key=True, index=True)
+    request_id = Column(Integer, ForeignKey("accommodation_requests.id"), nullable=False, index=True)
+    option_id  = Column(Integer, ForeignKey("accommodation_options.id", name="fk_stay_alloc_option"), nullable=False, index=True)
+    grp        = Column(String(8), nullable=False)   # boys | girls | others
+    people     = Column(Integer, nullable=False)
+
+    option = relationship("AccommodationOption")
+
+
+class FeeAdjustment(Base):
+    """A line the committee adds to a contingent's fees by hand: a late fee, a waiver, a discount (negative)."""
+    __tablename__ = "fee_adjustments"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_fee_adj_contingent"), nullable=False, index=True)
+    label         = Column(String(200), nullable=False)
+    amount_paise  = Column(Integer, nullable=False)   # positive adds to what is owed, negative takes off
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_fee_adj_creator"), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class FeePayment(Base):
+    """Money received from a contingent, recorded by the committee."""
+    __tablename__ = "fee_payments"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_fee_pay_contingent"), nullable=False, index=True)
+    amount_paise  = Column(Integer, nullable=False)
+    received_on   = Column(Date, nullable=False)
+    method        = Column(String(40), nullable=True)
+    reference     = Column(String(100), nullable=True)   # a transaction id or cheque number
+    note          = Column(String(200), nullable=True)
+    recorded_by_id = Column(Integer, ForeignKey("users.id", name="fk_fee_pay_recorder"), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())

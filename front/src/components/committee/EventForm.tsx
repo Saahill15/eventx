@@ -23,10 +23,11 @@ interface State {
   is_team_event: boolean; team_min: string; team_max: string;
   coordinator_name: string; coordinator_phone: string;
   scored: boolean; points: string[];   // a competition between colleges, and what each place earns
+  entries: boolean; entries_per: string; entry_fee: string; entry_fee_per: "entry" | "participant"; entry_deadline: string;   // visiting colleges entering the event
 }
 const empty: State = {
   title: "", description: "", date: "", span: "1", time: "", end_time: "", location: "", category: "", paid: false, price: "", students_only: false, student_price: "",
-  requires_registration: false, registration_limit: "", approval_mode: "auto", deadline: "", reg_mode: "not_set", opens_on: "", is_team_event: false, team_min: "2", team_max: "4", coordinator_name: "", coordinator_phone: "", scored: false, points: [],
+  requires_registration: false, registration_limit: "", approval_mode: "auto", deadline: "", reg_mode: "not_set", opens_on: "", is_team_event: false, team_min: "2", team_max: "4", coordinator_name: "", coordinator_phone: "", scored: false, points: [], entries: false, entries_per: "1", entry_fee: "", entry_fee_per: "entry", entry_deadline: "",
 };
 const toState = (e: FestEvent): State => ({
   title: e.title, description: e.description ?? "", date: e.date.slice(0, 10), span: String(e.span_days ?? 1), time: e.time ?? "", end_time: e.end_time ?? "", location: e.location ?? "", category: e.category ?? "",
@@ -34,6 +35,7 @@ const toState = (e: FestEvent): State => ({
   requires_registration: e.requires_registration, registration_limit: e.registration_limit == null ? "" : String(e.registration_limit), approval_mode: e.approval_mode,
   deadline: e.registration_deadline ?? "", reg_mode: e.registration_mode ?? "open_now", opens_on: e.registration_opens_on ?? "", is_team_event: e.is_team_event, team_min: String(e.team_min ?? 2), team_max: String(e.team_max ?? 4),
   coordinator_name: e.coordinator_name ?? "", coordinator_phone: e.coordinator_phone ?? "",
+  entries: !!e.contingent_entries, entries_per: String(e.entries_per_contingent ?? 1), entry_fee: e.entry_fee ? String(e.entry_fee) : "", entry_fee_per: e.entry_fee_per ?? "entry", entry_deadline: e.entry_deadline ?? "",
   scored: !!e.points_scheme, points: e.points_scheme ? Object.keys(e.points_scheme).map(Number).sort((a, b) => a - b).map((p) => String(e.points_scheme?.[String(p)] ?? 0)) : [],
 });
 
@@ -49,6 +51,7 @@ const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fes
   is_team_event: fest && f.requires_registration && f.is_team_event,
   team_min: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_min, 10) || null : null,
   team_max: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_max, 10) || null : null,
+  ...(fest ? { contingent_entries: f.entries, entries_per_contingent: f.entries ? Math.max(1, parseInt(f.entries_per, 10) || 1) : 1, entry_fee: f.entries ? parseFloat(f.entry_fee) || 0 : 0, entry_fee_per: f.entry_fee_per, entry_deadline: f.entries && f.entry_deadline ? f.entry_deadline : null } : {}),
   ...(fest ? { points_scheme: f.scored && f.points.length > 0 ? Object.fromEntries(f.points.map((v, i) => [String(i + 1), Math.max(0, parseInt(v, 10) || 0)])) : null } : {}),
   ...(fest ? { span_days: parseInt(f.span, 10) || 1, coordinator_name: f.coordinator_name.trim() || null, coordinator_phone: f.coordinator_phone.trim() || null } : {}),
 });
@@ -141,6 +144,9 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
     api<{ default_placing_points: number[] }>(`/api/fests/${fest.slug}/competition/settings`).then((s) => setUsualPoints(s.default_placing_points)).catch(() => {});
   }, [isFest, fest]);
   const showPoints = isFest && (competing || f.scored);
+  const showVisitors = isFest && (competing || f.entries);
+  // Section numbers follow what is shown, so there are never gaps
+  const nPoints = 6, nVisit = showPoints ? 7 : 6, nDetails = 6 + (showPoints ? 1 : 0) + (showVisitors ? 1 : 0);
   const turnScoring = (on: boolean) => setF((x) => ({ ...x, scored: on, points: on && x.points.length === 0 ? usualPoints.map(String) : x.points }));
 
   // Which days this event can start on, and how many days it can run from there (it cannot run past the end of the fest)
@@ -422,7 +428,7 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
 
       {/* 6. A competition between colleges */}
       {showPoints && (
-        <Section n={6} title="Is it part of the competition between colleges?" hint="Visiting colleges earn points for placing in an event. You set how many, for this event only.">
+        <Section n={nPoints} title="Is it part of the competition between colleges?" hint="Visiting colleges earn points for placing in an event. You set how many, for this event only.">
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={f.scored} onChange={(e) => turnScoring(e.target.checked)} />
             <span><strong>Yes, contingents earn points here</strong><span className="block text-mute">After the event you record who placed where, and the points go onto each contingent.</span></span></label>
           {f.scored && (
@@ -443,14 +449,30 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
         </Section>
       )}
 
-      {/* 7. Details */}
-      <Section n={isFest ? (showPoints ? 7 : 6) : 5} title="Rules, prizes and a picture" hint="Shown on the event page.">
+      {/* Visiting colleges entering the event */}
+      {showVisitors && (
+        <Section n={nVisit} title="Can visiting colleges enter it?" hint="Colleges send their own people, chosen from their list, from their own page.">
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={f.entries} onChange={(e) => set("entries", e.target.checked)} />
+            <span><strong>Yes, open it to visiting colleges</strong><span className="block text-mute">{f.is_team_event ? `Each entry is a team of ${f.team_min}–${f.team_max} people.` : "Each entry is one person."} You see every entry, and can enter or remove a college yourself.</span></span></label>
+          {f.entries && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Entries each college may send" hint="For example 2 teams, or 3 singers"><input className="field" type="number" min={1} max={50} value={f.entries_per} onChange={(e) => set("entries_per", e.target.value)} /></Field>
+              <Field label="Entries close on" hint={`Optional. Leave empty to keep them open until the event${lastDay ? ` (${formatDay(lastDay)})` : ""}.`}><input className="field" type="date" max={lastDay || undefined} value={f.entry_deadline} onChange={(e) => set("entry_deadline", e.target.value)} /></Field>
+              <Field label="Entry fee (₹)" hint="Leave empty if free. It is added to the college's fees."><input className="field" type="number" min={0} step="0.01" value={f.entry_fee} onChange={(e) => set("entry_fee", e.target.value)} /></Field>
+              <Field label="The fee is charged"><select className="field" value={f.entry_fee_per} onChange={(e) => set("entry_fee_per", e.target.value as "entry" | "participant")}><option value="entry">For each entry</option><option value="participant">For each person taking part</option></select></Field>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Details */}
+      <Section n={isFest ? nDetails : 5} title="Rules, prizes and a picture" hint="Shown on the event page.">
         <SectionsEditor value={sections} onChange={setSections} hint="Rules, prizes, eligibility: whatever people should know before they join." />
         <ImageUpload kind="cover" value={image} onChange={setImage} />
       </Section>
 
       {isFest && f.requires_registration && (
-        <Section n={showPoints ? 8 : 7} title="Questions for people who register" hint="Anything you need to know from each registration, such as their college or a team name."><QuestionsEditor value={questions} onChange={setQuestions} locked={locked} /></Section>
+        <Section n={nDetails + 1} title="Questions for people who register" hint="Anything you need to know from each registration, such as their college or a team name."><QuestionsEditor value={questions} onChange={setQuestions} locked={locked} /></Section>
       )}
 
       <div className="flex gap-3 border-t border-black/5 pt-6">

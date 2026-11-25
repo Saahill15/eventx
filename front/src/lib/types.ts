@@ -78,6 +78,8 @@ export interface FestEvent {
   id: number;
   /** What each place earns a visiting college, such as {"1": 100, "2": 60}. Null when the event is not a scored competition. */
   points_scheme?: Record<string, number> | null;
+  /** Whether visiting colleges can enter this event, how many entries each may send, and what an entry costs (rupees). */
+  contingent_entries?: boolean; entries_per_contingent?: number; entry_fee?: number; entry_fee_per?: "entry" | "participant"; entry_deadline?: string | null;
   event_type: "fest" | "city";
   title: string;
   description: string | null;
@@ -456,3 +458,32 @@ export interface CompetitionMine {
   contingent_id: number; name: string | null; code: string | null; college_name: string; balance: number; starting_points: number; breakdown: Breakdown;
   rank: number | null; disqualified: boolean; ledger: PointsEntry[]; penalties: Penalty[]; meets: MyMeet[]; auctions: MyAuction[]; events: EventResultRow[];
 }
+
+/** Visiting colleges: event entries, accommodation and fees. */
+export interface EntryMember { member_id: number; name: string; year: number | null; phone: string | null }
+export interface EventEntry {
+  id: number; contingent_id: number; contingent_label: string | null; college_name: string | null; event_id: number; event_title: string; event_date: string; event_time: string | null; location: string | null;
+  status: "confirmed" | "withdrawn" | "removed"; note: string | null; members: EntryMember[]; fee: number; warnings: string[];
+}
+export interface EnterableEvent {
+  event_id: number; title: string; date: string; time: string | null; end_time: string | null; location: string | null; span_days: number; is_team_event: boolean; team_min: number | null; team_max: number | null;
+  entries_per_contingent: number; entry_fee: number; entry_fee_per: "entry" | "participant"; deadline: string | null; open: boolean; closed_reason: string | null; my_entries: number;
+}
+export interface MyEntries { contingent_id: number; events: EnterableEvent[]; entries: EventEntry[] }
+export interface AccomOption { id: number; name: string; description: string | null; capacity: number; gender_policy: "any" | "boys" | "girls"; fee_per_night: number; allocated: number; free: number }
+export interface AccomSettings { enabled: boolean; closes_on: string | null; open: boolean }
+export interface StayAllocation { option_id: number; option_name: string; group: "boys" | "girls" | "others"; people: number; nights: number; fee: number }
+export interface StayRequest {
+  id: number; contingent_id: number; contingent_label: string | null; college_name: string | null; boys: number; girls: number; others: number; people: number; arrival_date: string; departure_date: string; nights: number;
+  notes: string | null; status: "requested" | "allocated" | "declined" | "cancelled"; decision_note: string | null; allocations: StayAllocation[]; unplaced: Record<string, number>; fee: number;
+}
+export interface MyStay { contingent_id: number; settings: AccomSettings; request: StayRequest | null }
+export interface FeeSettings { registration_fee: number; fee_per_member: number; fee_instructions: string | null; fees_due_on: string | null }
+export interface FeeLine { kind: "registration" | "members" | "entry" | "stay" | "adjustment"; label: string; quantity: number; unit: number; amount: number; adjustment_id: number | null }
+export interface FeePayment { id: number; amount: number; received_on: string; method: string | null; reference: string | null; note: string | null }
+export interface FeeStatement {
+  contingent_id: number; contingent_label: string | null; college_name: string; lines: FeeLine[]; total: number; paid: number; balance: number;
+  status: "no_fees" | "unpaid" | "part" | "paid" | "overpaid"; payments: FeePayment[]; due_on: string | null; instructions: string | null;
+}
+export interface FeeSummaryRow { contingent_id: number; contingent_label: string | null; college_name: string; total: number; paid: number; balance: number; status: FeeStatement["status"] }
+export interface FeeSummary { total: number; paid: number; balance: number; rows: FeeSummaryRow[] }

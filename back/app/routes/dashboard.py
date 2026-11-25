@@ -13,7 +13,7 @@ from typing import Dict, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import contingent_money, models, schemas
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.fest_review import fest_checklist_items
@@ -86,6 +86,19 @@ def organiser_dashboard(db: Session = Depends(get_db), user: models.User = Depen
                 attention.append(schemas.DashAttention(
                     kind="approvals", tone="amber", fest_slug=fest.slug, fest_name=fest.name,
                     title=f"{card.pending} registration{'s' if card.pending != 1 else ''} to approve", tab="registrations"))
+            # Visiting colleges waiting on the committee: accommodation to place, and fees past their due date
+            cs = db.query(models.ContingentSettings).filter(models.ContingentSettings.fest_id == fest.id, models.ContingentSettings.enabled.is_(True)).first()
+            if cs:
+                waiting = db.query(models.AccommodationRequest).filter(models.AccommodationRequest.fest_id == fest.id, models.AccommodationRequest.status == "requested").count()
+                if waiting:
+                    attention.append(schemas.DashAttention(kind="accommodation", tone="amber", fest_slug=fest.slug, fest_name=fest.name,
+                                                           title=f"{waiting} accommodation request{'s' if waiting != 1 else ''} to place", tab="colleges"))
+                if cs.fees_due_on and date.today() > cs.fees_due_on:
+                    late = [c for c in db.query(models.Contingent).filter(models.Contingent.fest_id == fest.id, models.Contingent.status == "approved").all()
+                            if contingent_money.statement(db, fest, c).balance > 0]
+                    if late:
+                        attention.append(schemas.DashAttention(kind="fees_overdue", tone="red", fest_slug=fest.slug, fest_name=fest.name,
+                                                               title=f"{len(late)} college{'s have' if len(late) != 1 else ' has'} not paid by the due date", detail=", ".join(c.name or c.college_name for c in late[:2]) + ("…" if len(late) > 2 else ""), tab="colleges"))
             for e in events:
                 if e.cancelled or not e.requires_registration or e.registration_state not in ("not_open", "closed"):
                     continue

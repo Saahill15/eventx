@@ -181,7 +181,15 @@ Visiting colleges compete for points. **Every number is the fest's own choice**:
 
 **What a leader sees** (on their contingent page, once approved): their points and where they came from, every change, open auctions to bid on, the CL meets with the points *they* earned (never anyone else's), where they placed in events, and their penalties. They see their rank only once the leaderboard is public. **The public fest page** shows the awards, college standings and contingent standings when the committee turns the leaderboard on.
 
-Still to build in this part: entering contingents into events, accommodation requests and fees.
+### Contingents in events, accommodation and fees
+
+Three more things a visiting college does, each with the fest's own numbers. All of it sits under **Visiting colleges** on the committee's side (Event entries, Accommodation, Fees) and on the leader's own page.
+
+**Entering events.** Open an event to visiting colleges in its form ("Can visiting colleges enter it?"): choose how many entries each college may send (2 teams, 3 singers), when entries close, and an entry fee (for each entry, or for each person taking part). A leader (or assistant) enters from their page and chooses who from their list takes part: one person for a solo event, a team within the event's team size for a team event. People must be on the contingent's own list; nobody can be in two entries of the same event; the limit per college is kept. A person entered in two events that overlap in time is only a *warning* (the committee may know better). A leader can change who takes part, or withdraw, until the entry deadline; the committee can enter a college itself at any time (even after the deadline) or remove an entry, and the leader is told why. Only approved contingents that are not disqualified can enter. The committee sees every entry with the people and their phone numbers.
+
+**Accommodation.** Switch it on (optionally with a closing date), list the places you can offer (a hostel block, a guest house) with how many each holds, who it is for (anyone, boys or girls) and the price per person per night (0 if free). A leader asks for a place: how many boys, girls and others, and the arrival and departure dates (nights are counted between them, at most 30). The committee **places** them, row by row (place, group, people). It will not place more than were asked, more than a place holds (counting every college), or against a place's policy; placing again replaces the earlier placing. Declining needs a reason. The leader is told either way. A leader can change a request until it is placed, then needs the committee; cancelling frees the places.
+
+**Fees.** The fest sets its charges (a registration fee for each team, a fee for each person on its list, both 0 by default), a due date and how to pay (bank details, a UPI id). Event entry fees are set on each event and accommodation prices on each place. A contingent's **statement is worked out from what it has actually done**: registration, people, the events it entered, the nights it was placed, plus lines the committee adds by hand (a late fee, a waiver as a minus), less the payments recorded. Nothing is a stored total, so withdrawing an entry or changing the list changes the bill. The committee records payments (amount, how, reference), sees every college's status (unpaid, part, paid, extra) with totals, and can download the lot as a CSV. The leader sees their statement and the payment instructions. Online payment is not part of this yet. The dashboard flags accommodation waiting to be placed and colleges that have not paid by the due date.
 
 ## Not built yet
 
@@ -190,6 +198,6 @@ Already built, so not on this list: transferring a fest to a new director, and i
 - **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
 - **Waitlists, ticket tiers, promo codes and certificates.**
 - **Budget and finance:** a budget, expenses with receipts and approvals, and sponsorship money coming in.
-- **Visiting colleges, beyond the competition:** entering contingents into events (who competes in what), accommodation requests and fees.
+- **Paying fees online:** colleges pay as the fest's instructions say and the committee records it. A payment gateway (Cashfree test keys are set up in `.env`) is still to wire in.
 - **Volunteers' own area:** today a volunteer sees check-in and their tasks; meetings and more are still to do.
 - **Sponsor deal tracking** (deliverables, follow-ups) is deliberately left out for now. Sponsors are listed with logos and tiers.
