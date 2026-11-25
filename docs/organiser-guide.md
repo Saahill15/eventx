@@ -89,6 +89,31 @@ These tools are for the committee itself. They sit in the fest's tabs and are av
 
 Volunteers and the committee scan pass QR codes: look up a pass, check in at the gate, check in at an event, undo a wrong scan (director and core only). Stats show passes issued and used, and per-event registered, waiting and attended.
 
+## 10. Visiting colleges (contingents)
+
+Many fests host other colleges. HiveOut lets each fest decide whether to, what to call them, and the rules. It is **off by default**; the committee turns it on in the **Visiting colleges** tab. Nothing about names or limits is fixed:
+
+| Setting | What it does |
+|---|---|
+| The words | What the fest calls a visiting college's team ("contingent", "delegation"...), its leader and the leader's helper. These words appear everywhere a college sees them |
+| Helpers | How many assistants a leader may add (0 to 10) |
+| Team size | The smallest and largest roster; colleges see a warning outside it, and cannot add past the largest |
+| Registration window | Optional open and close dates |
+| Approval | Either the committee approves each college, or colleges are approved the moment they register |
+| Several per college | Whether a college may send more than one team |
+| Roster lock | Whether colleges can still change their list of people once registration closes (the committee always can) |
+
+**For the college.** A "For other colleges" card appears on the live fest page. The visitor signs in (or signs up), registers their college, and becomes its **leader**. Registering is refused if the fest is not live, not taking colleges, or outside its window, if they already lead or help a team at this fest, or if the college already has one (unless the fest allows several; spelling and capitalisation are ignored). The leader can then:
+- correct the college's name,
+- add **helpers** by email (they need a HiveOut account and are told; up to the fest's limit; a helper can manage the roster and can leave, but cannot add helpers or withdraw),
+- keep the **roster**: name, optional email, phone, year and notes for each person, who need no accounts,
+- see the status, and the code and name the committee gives them,
+- withdraw, which releases the code and name.
+
+**For the committee.** The tab lists every college with filters (waiting, approved, not approved, withdrawn). Opening one shows its leader, helpers and roster. The committee can approve (a note is optional), decline (a reason is required, and any code and name are released), give it a **code** and a **name** (each unique in the fest, ignoring capitalisation), withdraw it, or delete it. The leader is told of every decision, and the committee is told when a college registers or withdraws.
+
+Not built yet in this part: the games and name bidding at a leaders' meet, entering contingents into events, accommodation requests and fees.
+
 ## Not built yet
 
 Waitlists, payments and refunds, transferring a fest to a new director, ticket tiers and promo codes, certificates, bulk import of events from a spreadsheet. Screens for most of the above are the next step.

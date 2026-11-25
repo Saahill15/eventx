@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, CalendarDays, MapPin, Ticket } from "lucide-react";
-import { getColleges, getFestBySlug, getFestEvents } from "@/lib/api";
+import { getColleges, getContingentInfo, getFestBySlug, getFestEvents } from "@/lib/api";
 import { mapsLink } from "@/lib/format";
 import { PosterArt } from "@/components/Poster";
 import { EntryPassPanel } from "@/components/EntryPassPanel";
@@ -31,7 +31,7 @@ const range = (dates: string[]) => {
 
 export default async function FestPage({ params }: Props) {
   const { slug } = await params;
-  const [fest, events, colleges] = await Promise.all([getFestBySlug(slug), getFestEvents(slug), getColleges()]);
+  const [fest, events, colleges, visiting] = await Promise.all([getFestBySlug(slug), getFestEvents(slug), getColleges(), getContingentInfo(slug)]);
   if (!fest) notFound();
   const college = colleges?.find((c) => c.id === fest.college_id);
   const eventDates = range((events ?? []).map((e) => e.date));
@@ -80,6 +80,19 @@ export default async function FestPage({ params }: Props) {
         )}
 
         <Reveal>{events === null ? <div className="card p-10 text-mute">We could not load the programme right now.</div> : events.length === 0 && comingSoon ? <div className="card p-10 text-center"><p className="font-display text-xl font-semibold tracking-tight">Dates coming soon</p><p className="mx-auto mt-2 max-w-md text-mute">The committee has not fixed the dates yet. The programme will appear here once they do. Get your free entry pass below and you will see it first.</p></div> : <Programme events={events} />}</Reveal>
+
+        {visiting?.enabled && (
+          <Reveal>
+            <section className="card flex flex-wrap items-center justify-between gap-5 p-7 sm:p-9" aria-label="For other colleges">
+              <div className="max-w-xl">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-chip-ink">For other colleges</p>
+                <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">Bring your college to {fest.name}</h2>
+                <p className="mt-2 text-mute">{visiting.registration_open ? `Lead your college's ${visiting.term.toLowerCase()}: register it, add your people and get your code.` : `Registration for ${visiting.term.toLowerCase()}s is not open right now.`}</p>
+              </div>
+              {visiting.registration_open && <Link href={`/fests/${fest.slug}/contingent`} className="inline-flex h-12 items-center rounded-full bg-ink px-6 text-sm font-semibold text-white hover:bg-neutral-700">Register your college</Link>}
+            </section>
+          </Reveal>
+        )}
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Reveal><EntryPassPanel slug={fest.slug} name={fest.name} isLive={fest.status === "live"} /></Reveal>

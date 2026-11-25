@@ -483,6 +483,96 @@ class FestTask(Base):
         return bool(self.due_date and self.status != "done" and self.due_date < date.today())
 
 
+class ContingentSettings(Base):
+    """How a fest runs its visiting colleges. Every fest names the thing and sets the rules itself."""
+    __tablename__ = "contingent_settings"
+    fest_id        = Column(Integer, ForeignKey("fests.id"), primary_key=True)
+    enabled        = Column(Boolean, nullable=False, default=False, server_default="0")
+    # The fest's own words for things (one fest says "contingent", another "delegation")
+    term           = Column(String(40), nullable=False, default="Contingent", server_default="Contingent")
+    leader_term    = Column(String(60), nullable=False, default="Contingent Leader", server_default="Contingent Leader")
+    assistant_term = Column(String(60), nullable=False, default="Assistant Contingent Leader", server_default="Assistant Contingent Leader")
+    max_assistants = Column(Integer, nullable=False, default=2, server_default="2")
+    min_members    = Column(Integer, nullable=False, default=1, server_default="1")
+    max_members    = Column(Integer, nullable=True)
+    allow_multiple_per_college = Column(Boolean, nullable=False, default=False, server_default="0")
+    requires_approval          = Column(Boolean, nullable=False, default=True, server_default="1")
+    opens_on       = Column(Date, nullable=True)
+    closes_on      = Column(Date, nullable=True)
+    lock_roster_after_close    = Column(Boolean, nullable=False, default=True, server_default="1")
+
+
+class Contingent(Base):
+    """A visiting college's team at a fest, led by one person and optionally helped by assistants."""
+    __tablename__ = "contingents"
+    __table_args__ = (
+        UniqueConstraint("fest_id", "code", name="uq_contingents_fest_code"),
+        UniqueConstraint("fest_id", "name", name="uq_contingents_fest_name"),
+    )
+    id             = Column(Integer, primary_key=True, index=True)
+    fest_id        = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    college_name   = Column(String(200), nullable=False)
+    college_id     = Column(Integer, ForeignKey("colleges.id", name="fk_contingents_college"), nullable=True)
+    code           = Column(String(30), nullable=True)    # set by the committee
+    name           = Column(String(120), nullable=True)   # the contingent's name for this fest, set by the committee (or won at a name meet)
+    status         = Column(String(12), nullable=False, default="pending", server_default="pending")   # pending | approved | rejected | withdrawn
+    note           = Column(String(500), nullable=True)   # the committee's note with its decision
+    leader_user_id = Column(Integer, ForeignKey("users.id", name="fk_contingents_leader"), nullable=False, index=True)
+    created_at     = Column(DateTime, nullable=False, server_default=func.now())
+    decided_at     = Column(DateTime, nullable=True)
+
+    leader     = relationship("User", foreign_keys=[leader_user_id])
+    assistants = relationship("ContingentAssistant", cascade="all, delete-orphan")
+    members    = relationship("ContingentMember", cascade="all, delete-orphan", order_by="ContingentMember.id")
+
+    @property
+    def leader_name(self):
+        return self.leader.name if self.leader else None
+
+    @property
+    def leader_email(self):
+        return self.leader.email if self.leader else None
+
+    @property
+    def assistant_count(self):
+        return len(self.assistants)
+
+    @property
+    def member_count(self):
+        return len(self.members)
+
+
+class ContingentAssistant(Base):
+    """Someone who helps the leader run the contingent: they can manage the roster."""
+    __tablename__ = "contingent_assistants"
+    contingent_id = Column(Integer, ForeignKey("contingents.id"), primary_key=True)
+    user_id       = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    added_at      = Column(DateTime, nullable=False, server_default=func.now())
+
+    user = relationship("User")
+
+    @property
+    def user_name(self):
+        return self.user.name if self.user else None
+
+    @property
+    def user_email(self):
+        return self.user.email if self.user else None
+
+
+class ContingentMember(Base):
+    """A person in a contingent's delegation. They do not need a HiveOut account."""
+    __tablename__ = "contingent_members"
+    id            = Column(Integer, primary_key=True, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id"), nullable=False, index=True)
+    name          = Column(String(120), nullable=False)
+    email         = Column(String(255), nullable=True)
+    phone         = Column(String(30), nullable=True)
+    year          = Column(Integer, nullable=True)
+    notes         = Column(String(300), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+
 class FestPass(Base):
     """Entry pass granting a user access to a Fest."""
     __tablename__ = "fest_passes"

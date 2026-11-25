@@ -364,3 +364,20 @@ export interface Schedule {
   days: { date: string; items: ScheduleItem[] }[]; venues: string[];
   clashes: { date: string; venue: string; first_id: number; second_id: number }[]; unscheduled: ScheduleItem[];
 }
+
+/** Visiting colleges: how a fest runs them, and what it calls them. */
+export interface ContingentInfo { enabled: boolean; registration_open: boolean; term: string; leader_term: string; opens_on: string | null; closes_on: string | null }
+export interface ContingentSettings {
+  enabled: boolean; term: string; leader_term: string; assistant_term: string; max_assistants: number; min_members: number; max_members: number | null;
+  allow_multiple_per_college: boolean; requires_approval: boolean; opens_on: string | null; closes_on: string | null; lock_roster_after_close: boolean; registration_open: boolean;
+}
+export type ContingentStatus = "pending" | "approved" | "rejected" | "withdrawn";
+export interface Contingent {
+  id: number; fest_id: number; college_name: string; college_id: number | null; code: string | null; name: string | null; status: ContingentStatus; note: string | null;
+  leader_user_id: number; leader_name: string | null; leader_email: string | null; assistant_count: number; member_count: number; created_at: string; decided_at: string | null;
+}
+export interface ContingentMember { id: number; contingent_id: number; name: string; email: string | null; phone: string | null; year: number | null; notes: string | null }
+export interface ContingentAssistant { user_id: number; user_name: string | null; user_email: string | null }
+export interface ContingentDetail extends Contingent {
+  assistants: ContingentAssistant[]; members: ContingentMember[]; my_role: "leader" | "assistant" | "staff" | null; roster_open: boolean; roster_ok: boolean;
+}

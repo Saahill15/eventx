@@ -664,6 +664,138 @@ class ClashCheckOut(BaseModel):
     clashes: List[ScheduleItem] = []
 
 
+# Contingents: visiting colleges at a fest
+Term = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+
+
+class ContingentSettingsIn(BaseModel):
+    """How this fest runs its visiting colleges. Sending it replaces the settings."""
+    enabled: bool = False
+    term: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)] = "Contingent"
+    leader_term: Term = "Contingent Leader"
+    assistant_term: Term = "Assistant Contingent Leader"
+    max_assistants: int = Field(default=2, ge=0, le=10)
+    min_members: int = Field(default=1, ge=1, le=500)
+    max_members: Optional[int] = Field(default=None, ge=1, le=1000)
+    allow_multiple_per_college: bool = False
+    requires_approval: bool = True
+    opens_on: Optional[date] = None
+    closes_on: Optional[date] = None
+    lock_roster_after_close: bool = True
+
+    @model_validator(mode="after")
+    def sensible(self):
+        if self.max_members is not None and self.max_members < self.min_members:
+            raise ValueError("the largest contingent cannot be smaller than the smallest")
+        if self.opens_on and self.closes_on and self.closes_on < self.opens_on:
+            raise ValueError("registration cannot close before it opens")
+        return self
+
+
+class ContingentSettingsOut(ContingentSettingsIn):
+    registration_open: bool = False   # enabled, and today is inside the window
+    class Config:
+        from_attributes = True
+
+
+class ContingentInfo(BaseModel):
+    """The public part of a fest's contingent rules, so its page can invite visiting colleges to register."""
+    enabled: bool = False
+    registration_open: bool = False
+    term: str = "Contingent"
+    leader_term: str = "Contingent Leader"
+    opens_on: Optional[date] = None
+    closes_on: Optional[date] = None
+
+
+class ContingentCreate(BaseModel):
+    college_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)]
+    college_id: Optional[int] = None
+
+
+class ContingentUpdate(BaseModel):
+    college_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)]] = None
+    college_id: Optional[int] = None
+
+
+class ContingentDecision(BaseModel):
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+
+class ContingentAssign(BaseModel):
+    """Send only what changes; an empty value clears it."""
+    code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]] = None
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+
+
+class ContingentMemberIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    email: Optional[EmailStr] = None
+    phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    year: Optional[int] = Field(default=None, ge=1, le=10)
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+
+
+class ContingentMemberUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    year: Optional[int] = Field(default=None, ge=1, le=10)
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+
+
+class ContingentMemberOut(BaseModel):
+    id: int
+    contingent_id: int
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    year: Optional[int] = None
+    notes: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
+class ContingentAssistantIn(BaseModel):
+    email: EmailStr
+
+
+class ContingentAssistantOut(BaseModel):
+    user_id: int
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
+class ContingentOut(BaseModel):
+    id: int
+    fest_id: int
+    college_name: str
+    college_id: Optional[int] = None
+    code: Optional[str] = None
+    name: Optional[str] = None
+    status: str
+    note: Optional[str] = None
+    leader_user_id: int
+    leader_name: Optional[str] = None
+    leader_email: Optional[str] = None
+    assistant_count: int = 0
+    member_count: int = 0
+    created_at: datetime
+    decided_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+
+class ContingentDetail(ContingentOut):
+    assistants: List[ContingentAssistantOut] = []
+    members: List[ContingentMemberOut] = []
+    my_role: Optional[str] = None     # leader | assistant | staff
+    roster_open: bool = True          # whether the leader and assistants may still change the roster
+    roster_ok: bool = True            # whether the roster size is within the fest's limits
+
+
 class OrgOut(BaseModel):
     teams: List[CommitteeTeamOut] = []
     members: List[FestMemberOut] = []

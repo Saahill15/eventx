@@ -142,7 +142,7 @@ The order follows what unblocks the most committees soonest, and what the curren
 | **Done** | Organiser onboarding, event templates, "dates coming soon", field-level review notes | Gets a fest listed with less friction | Current build |
 | **1, built** | **Committee structure:** custom teams, titles and reporting lines, with an org chart. Access stays three tiers; the fest's own words sit on top | Everything else needs "who does what" | Fest members (owner, core, volunteer) |
 | **1, built** | **Tasks, meetings and a master schedule with clash detection** | Every committee needs them, and they are the daily habit that keeps people on the platform | Events, announcements |
-| **2** | **Contingent portal**: CL and ACL accounts, contingent registration, member lists, event entries, fees, accommodation requests | The visiting-college side, and what makes HiveOut a platform and not a website | Registrations, teams, payments |
+| **2, first part built** | **Contingent portal:** leader and helper accounts, registration, approval, codes and names, rosters, all with the fest's own words and rules. Still to come: event entries, fees, accommodation requests | The visiting-college side, and what makes HiveOut a platform and not a website | Registrations, teams, payments |
 | **2** | **Payments** (Razorpay) | Contingent fees and paid events both need it | Not built |
 | **3** | **CL meet and name allotment engine** | The most distinctive feature, but it depends on contingents existing first | Contingent portal |
 | **3** | **Results and leaderboard**, overall championship | Needs events, entries and contingents | Events, contingents |

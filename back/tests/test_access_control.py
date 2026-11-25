@@ -20,6 +20,7 @@ PUBLIC = {
     ("GET", "/api/fests/"), ("GET", "/api/fests/{slug}"), ("GET", "/api/fests/{slug}/events"),
     ("GET", "/api/fests/{slug}/announcements"), ("GET", "/api/users/interests/all"), ("GET", "/api/events/{event_id}/questions"),
     ("GET", "/api/media/{media_id}"), ("GET", "/api/short-links/resolve/{name}"),
+    ("GET", "/api/fests/{slug}/contingents/info"),  # whether a live fest takes visiting colleges, and its word for them; nothing private
 }
 
 

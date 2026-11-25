@@ -1,4 +1,4 @@
-import type { College, Fest, FestEvent } from "./types";
+import type { College, ContingentInfo, Fest, FestEvent } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -160,3 +160,6 @@ export async function resolveShortLink(name: string): Promise<string | null> {
     return null;
   }
 }
+
+/** Whether a live fest is taking visiting colleges, and what it calls them. Null when the API cannot say. */
+export const getContingentInfo = (slug: string) => publicGet<ContingentInfo>(`/api/fests/${slug}/contingents/info`, 30);

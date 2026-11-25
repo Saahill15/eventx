@@ -17,11 +17,12 @@ import { TeamTab } from "./TeamTab";
 import { TasksTab } from "./TasksTab";
 import { MeetingsTab } from "./MeetingsTab";
 import { ScheduleTab } from "./ScheduleTab";
+import { ContingentsTab } from "./ContingentsTab";
 import { HandOverCard } from "./HandOverCard";
 
 const TABS = [
   { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true }, { id: "schedule", label: "Schedule", staff: true },
-  { id: "registrations", label: "Registrations", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
+  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -114,6 +115,7 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "details" && <FestDetailsTab key={f.review_status + f.name} fest={f} frozen={frozen} onSaved={loadFest} />}
       {tab === "events" && <EventsTab fest={f} events={events} frozen={frozen} goTo={go} reload={() => { loadEvents(); loadFest(); }} />}
       {tab === "registrations" && <RegistrationsTab events={events} reload={loadEvents} />}
+      {tab === "colleges" && <ContingentsTab slug={slug} />}
       {tab === "schedule" && <ScheduleTab slug={slug} goTo={go} />}
       {tab === "tasks" && <TasksTab slug={slug} canManage />}
       {tab === "meetings" && <MeetingsTab slug={slug} />}
