@@ -1052,3 +1052,103 @@ class Award(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     winner = relationship("Contingent", foreign_keys=[winner_contingent_id])
+
+
+# ─── Finance: budget, spending with approvals, income and sponsorship money ──────────────────────────────────────────
+# Money is kept in paise (whole numbers), so adding it up is always exact. The API speaks in rupees.
+
+class FinanceSettings(Base):
+    """A fest's own rules for money. Every fest chooses what needs approval and what needs a receipt."""
+    __tablename__ = "finance_settings"
+    fest_id = Column(Integer, ForeignKey("fests.id"), primary_key=True)
+    auto_approve_below_paise      = Column(Integer, nullable=False, default=0, server_default="0")   # a request smaller than this is approved on the spot; 0 means every request is decided by the committee
+    receipt_required_above_paise  = Column(Integer, nullable=True, default=100000)                   # a request above this must have a receipt; NULL means receipts are never required
+
+
+class FinanceCategory(Base):
+    """A kind of money in or out, named by the fest (Sponsorship, Venue, Prizes...)."""
+    __tablename__ = "finance_categories"
+    __table_args__ = (UniqueConstraint("fest_id", "name", name="uq_finance_category_fest_name"),)
+    id       = Column(Integer, primary_key=True, index=True)
+    fest_id  = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    name     = Column(String(80), nullable=False)
+    kind     = Column(String(8), nullable=False)   # income | expense
+    position = Column(Integer, nullable=False, default=0)
+
+
+class BudgetLine(Base):
+    """Money planned for something, in a category, optionally owned by a committee team."""
+    __tablename__ = "budget_lines"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    category_id   = Column(Integer, ForeignKey("finance_categories.id", name="fk_budget_line_category"), nullable=False)
+    title         = Column(String(200), nullable=False)
+    planned_paise = Column(Integer, nullable=False, default=0)
+    committee_team_id = Column(Integer, ForeignKey("committee_teams.id", name="fk_budget_line_team"), nullable=True)
+    notes         = Column(String(500), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    category = relationship("FinanceCategory")
+    team     = relationship("CommitteeTeam")
+
+
+class Expense(Base):
+    """A request to spend money, and what became of it: pending, approved or rejected, then paid."""
+    __tablename__ = "expenses"
+    id             = Column(Integer, primary_key=True, index=True)
+    fest_id        = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    budget_line_id = Column(Integer, ForeignKey("budget_lines.id", name="fk_expense_budget_line"), nullable=True, index=True)
+    category_id    = Column(Integer, ForeignKey("finance_categories.id", name="fk_expense_category"), nullable=False)
+    title          = Column(String(200), nullable=False)
+    amount_paise   = Column(Integer, nullable=False)
+    spent_on       = Column(Date, nullable=False)
+    vendor         = Column(String(120), nullable=True)
+    notes          = Column(String(500), nullable=True)
+    receipts       = Column(JSON, nullable=True)   # up to five links to uploaded receipts
+    status         = Column(String(10), nullable=False, default="pending", server_default="pending")   # pending | approved | rejected | paid | cancelled
+    requested_by_id = Column(Integer, ForeignKey("users.id", name="fk_expense_requester"), nullable=False)
+    paid_by_member_id = Column(Integer, ForeignKey("fest_members.id", name="fk_expense_paid_by"), nullable=True)   # a member who paid out of their own pocket and is owed it back
+    decided_by_id  = Column(Integer, ForeignKey("users.id", name="fk_expense_decider"), nullable=True)
+    decided_at     = Column(DateTime, nullable=True)
+    decision_note  = Column(String(300), nullable=True)
+    paid_on        = Column(Date, nullable=True)
+    paid_note      = Column(String(200), nullable=True)   # how it was paid, or the reference
+    created_at     = Column(DateTime, nullable=False, server_default=func.now())
+
+    budget_line = relationship("BudgetLine")
+    category    = relationship("FinanceCategory")
+    requested_by = relationship("User", foreign_keys=[requested_by_id])
+    decided_by   = relationship("User", foreign_keys=[decided_by_id])
+    paid_by      = relationship("FestMember", foreign_keys=[paid_by_member_id])
+
+
+class IncomeItem(Base):
+    """Money the fest expects to receive: a sponsor's pledge, a college grant, a stall fee. Payments come in against it."""
+    __tablename__ = "income_items"
+    id             = Column(Integer, primary_key=True, index=True)
+    fest_id        = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    category_id    = Column(Integer, ForeignKey("finance_categories.id", name="fk_income_category"), nullable=False)
+    title          = Column(String(200), nullable=False)
+    source         = Column(String(120), nullable=True)   # who it comes from
+    sponsor_id     = Column(Integer, ForeignKey("fest_sponsors.id", name="fk_income_sponsor"), nullable=True)
+    expected_paise = Column(Integer, nullable=False, default=0)
+    due_on         = Column(Date, nullable=True)
+    notes          = Column(String(500), nullable=True)
+    created_at     = Column(DateTime, nullable=False, server_default=func.now())
+
+    category = relationship("FinanceCategory")
+    sponsor  = relationship("FestSponsor")
+    payments = relationship("IncomePayment", cascade="all, delete-orphan", order_by="IncomePayment.received_on")
+
+
+class IncomePayment(Base):
+    """One payment received against an income item."""
+    __tablename__ = "income_payments"
+    id           = Column(Integer, primary_key=True, index=True)
+    income_id    = Column(Integer, ForeignKey("income_items.id"), nullable=False, index=True)
+    amount_paise = Column(Integer, nullable=False)
+    received_on  = Column(Date, nullable=False)
+    method       = Column(String(40), nullable=True)   # cash, UPI, cheque, bank transfer...
+    note         = Column(String(200), nullable=True)
+    recorded_by_id = Column(Integer, ForeignKey("users.id", name="fk_income_payment_recorder"), nullable=True)
+    created_at   = Column(DateTime, nullable=False, server_default=func.now())
