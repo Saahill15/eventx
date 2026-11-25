@@ -449,6 +449,70 @@ class SponsorMove(BaseModel):
     direction: Literal["up", "down"]
 
 
+# The organiser's home page: everything across their fests in one call
+class DashSetup(BaseModel):
+    done: int
+    total: int
+    next_label: Optional[str] = None   # the first thing still to do
+    next_tab: Optional[str] = None     # the tab of the fest manager that does it
+
+class DashFest(BaseModel):
+    id: int
+    slug: str
+    name: str
+    tagline: Optional[str] = None
+    banner_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    college_name: Optional[str] = None
+    status: str
+    review_status: str
+    my_role: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    days_count: Optional[int] = None
+    dates_tba: bool = False
+    events: int = 0
+    registered: Optional[int] = None       # approved registrations, for committee who can see them
+    pending: Optional[int] = None          # registrations waiting for approval
+    passes_issued: Optional[int] = None
+    passes_checked_in: Optional[int] = None
+    setup: Optional[DashSetup] = None      # only until the fest is live
+
+class DashAttention(BaseModel):
+    kind: str            # changes_requested | rejected | approved | approvals | registration_closed | overdue
+    tone: str            # red | amber | green
+    fest_slug: str
+    fest_name: str
+    title: str
+    detail: Optional[str] = None
+    tab: str             # where to go in that fest
+
+class DashTask(BaseModel):
+    id: int
+    fest_slug: str
+    fest_name: str
+    title: str
+    status: str
+    due_date: Optional[date] = None
+    overdue: bool = False
+
+class DashUpcoming(BaseModel):
+    kind: str            # event | meeting
+    fest_slug: str
+    fest_name: str
+    title: str
+    when: datetime
+    time: Optional[str] = None   # "18:30", the start time of the event or meeting
+    detail: Optional[str] = None
+    tab: str
+
+class DashboardOut(BaseModel):
+    fests: List[DashFest] = []
+    attention: List[DashAttention] = []
+    my_tasks: List[DashTask] = []
+    coming_up: List[DashUpcoming] = []
+
+
 class RegistrationControl(BaseModel):
     """Open or close registration by hand, without touching the rest of the event."""
     action: Literal["open", "close"]

@@ -6,7 +6,7 @@ import { getColleges, getContingentInfo, getFestBySlug, getFestEvents, getFestSp
 import { mapsLink } from "@/lib/format";
 import { PosterArt } from "@/components/Poster";
 import { EntryPassPanel } from "@/components/EntryPassPanel";
-import { Programme } from "@/components/Programme";
+import { FestProgramme } from "@/components/FestProgramme";
 import { Sponsors } from "@/components/Sponsors";
 import { ShareButtons } from "@/components/ShareButtons";
 import { FadeUp, Reveal } from "@/components/motion";
@@ -80,7 +80,7 @@ export default async function FestPage({ params }: Props) {
           </Reveal>
         )}
 
-        <Reveal>{events === null ? <div className="card p-10 text-mute">We could not load the programme right now.</div> : events.length === 0 && comingSoon ? <div className="card p-10 text-center"><p className="font-display text-xl font-semibold tracking-tight">Dates coming soon</p><p className="mx-auto mt-2 max-w-md text-mute">The committee has not fixed the dates yet. The programme will appear here once they do. Get your free entry pass below and you will see it first.</p></div> : <Programme events={events} />}</Reveal>
+        <Reveal>{events === null ? <div className="card p-10 text-mute">We could not load the programme right now.</div> : events.length === 0 && comingSoon ? <div className="card p-10 text-center"><p className="font-display text-xl font-semibold tracking-tight">Dates coming soon</p><p className="mx-auto mt-2 max-w-md text-mute">The committee has not fixed the dates yet. The programme will appear here once they do. Get your free entry pass below and you will see it first.</p></div> : <FestProgramme events={events} startDate={fest.start_date} daysCount={fest.days_count} />}</Reveal>
 
         {sponsors && sponsors.length > 0 && <Reveal><Sponsors sponsors={sponsors} festName={fest.name} /></Reveal>}
 

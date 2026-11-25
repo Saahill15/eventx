@@ -10,6 +10,25 @@ import { EmptyState } from "./ui/bits";
 
 const dayLabel = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 
+/** One event in a programme. Shows its time, place and what it costs or how to join. `note` marks a multi-day event ("Day 2 of 3"). */
+export function ProgrammeCard({ e, note }: { e: FestEvent; note?: string }) {
+  return (
+    <Link href={`/events/${e.id}`} className="group flex flex-col gap-4 rounded-3xl bg-wash p-5 transition hover:bg-chip sm:flex-row sm:items-center sm:justify-between sm:p-6">
+              <div className="min-w-0">
+                {e.fest_name && <p className="mb-1 text-sm font-medium text-chip-ink">{e.fest_name}</p>}
+                <h3 className="font-display text-xl font-semibold leading-snug tracking-tight sm:text-2xl">{e.title}</h3>
+        {note && <p className="mt-1 text-sm font-semibold text-chip-ink">{note}</p>}
+                {e.description && <p className="mt-2 line-clamp-2 max-w-2xl text-mute">{e.description}</p>}
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2 sm:max-w-[14rem] sm:justify-end">
+                {e.time && <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-chip-ink shadow-[var(--shadow-card)]"><Clock className="h-3.5 w-3.5" />{formatTime(e.time)}</span>}
+                {e.location && <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-chip-ink shadow-[var(--shadow-card)]"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{e.location}</span></span>}
+                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-semibold ${e.is_free || !e.price ? "bg-mint text-emerald-800" : "bg-chip text-chip-ink"}`}>{e.requires_registration ? (registrationBadge(e) ?? ((e.is_free || !e.price) ? "Register free" : priceLabel(e))) : priceLabel(e)}</span>
+              </div>
+    </Link>
+  );
+}
+
 /** A programme: pick a day, then see each session with its time and place. */
 export function Programme({ events, title = "Programme" }: { events: FestEvent[]; title?: string }) {
   const sorted = useMemo(() => [...events].sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? "")), [events]);
@@ -38,18 +57,7 @@ export function Programme({ events, title = "Programme" }: { events: FestEvent[]
       <ul className="mt-6 space-y-4">
         {shown.map((e, i) => (
           <motion.li key={e.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.4 }}>
-            <Link href={`/events/${e.id}`} className="group flex flex-col gap-4 rounded-3xl bg-wash p-5 transition hover:bg-chip sm:flex-row sm:items-center sm:justify-between sm:p-6">
-              <div className="min-w-0">
-                {e.fest_name && <p className="mb-1 text-sm font-medium text-chip-ink">{e.fest_name}</p>}
-                <h3 className="font-display text-xl font-semibold leading-snug tracking-tight sm:text-2xl">{e.title}</h3>
-                {e.description && <p className="mt-2 line-clamp-2 max-w-2xl text-mute">{e.description}</p>}
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2 sm:max-w-[14rem] sm:justify-end">
-                {e.time && <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-chip-ink shadow-[var(--shadow-card)]"><Clock className="h-3.5 w-3.5" />{formatTime(e.time)}</span>}
-                {e.location && <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-chip-ink shadow-[var(--shadow-card)]"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{e.location}</span></span>}
-                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-semibold ${e.is_free || !e.price ? "bg-mint text-emerald-800" : "bg-chip text-chip-ink"}`}>{e.requires_registration ? (registrationBadge(e) ?? ((e.is_free || !e.price) ? "Register free" : priceLabel(e))) : priceLabel(e)}</span>
-              </div>
-            </Link>
+            <ProgrammeCard e={e} />
           </motion.li>
         ))}
       </ul>

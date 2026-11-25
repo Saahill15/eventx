@@ -412,3 +412,18 @@ export interface ContingentAssistant { user_id: number; user_name: string | null
 export interface ContingentDetail extends Contingent {
   assistants: ContingentAssistant[]; members: ContingentMember[]; my_role: "leader" | "assistant" | "staff" | null; roster_open: boolean; roster_ok: boolean;
 }
+
+/** The organiser's home page, from GET /api/dashboard. */
+export interface DashFest {
+  id: number; slug: string; name: string; tagline: string | null; banner_url: string | null; logo_url: string | null; college_name: string | null;
+  status: "draft" | "live"; review_status: ReviewStatus; my_role: FestRole;
+  start_date: string | null; end_date: string | null; days_count: number | null; dates_tba: boolean;
+  events: number;
+  /** Null when the person is not on the director or core team, who are the only ones who see these. */
+  registered: number | null; pending: number | null; passes_issued: number | null; passes_checked_in: number | null;
+  setup: { done: number; total: number; next_label: string | null; next_tab: string | null } | null;
+}
+export interface DashAttention { kind: string; tone: "red" | "amber" | "green"; fest_slug: string; fest_name: string; title: string; detail: string | null; tab: string }
+export interface DashTask { id: number; fest_slug: string; fest_name: string; title: string; status: "todo" | "doing" | "done"; due_date: string | null; overdue: boolean }
+export interface DashUpcoming { kind: "event" | "meeting"; fest_slug: string; fest_name: string; title: string; when: string; time: string | null; detail: string | null; tab: string }
+export interface Dashboard { fests: DashFest[]; attention: DashAttention[]; my_tasks: DashTask[]; coming_up: DashUpcoming[] }

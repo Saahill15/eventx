@@ -12,6 +12,15 @@ This is the working logic for committees. It matches what the backend does today
 
 When an admin makes someone an organiser, their next page load shows "You are now an organiser" with two choices: **Take a 1-minute tour** or **Skip the tour**. The tour dims the page and lights up the Fests list, the + that starts a fest, and the account menu, then explains the four steps to going live; its last step has a "Create my first fest" button. It can be skipped at any point (the Skip button is always on screen, and Esc skips) and taken again from the account menu ("Take the tour again"). The first time an organiser opens one of their fests, a second short tour walks through that page's tabs; it runs once per browser and can be replayed with "Take a tour of this page".
 
+### The dashboard home
+
+The page an organiser lands on is a working page, not a set of totals. It is built from one call (`GET /api/dashboard`) and shows, across all the fests the person is on:
+
+- **Needs you:** the things waiting on them, most urgent first, each one click from where it gets done. Changes asked for (or a refusal) by HiveOut with its note; an approved fest waiting to go live; registrations to approve; an event starting within two weeks whose registration is not open yet or was closed by hand (one that closed itself at its deadline is not flagged); and their own overdue tasks. Volunteers only see their own overdue tasks.
+- **Your fests:** one card each, with the banner, status, the person's role, the dates and number of days. A fest that is not live yet shows setup progress ("4 of 7 done") and the next step; a live one shows events, registered, to approve and entry passes. Those numbers are only for the director and core team.
+- **Next two weeks:** events (every day of a multi-day event, "day 2 of 3") and meetings together, grouped by day. The core team sees all meetings; others only those they are invited to.
+- **Your tasks:** what is assigned to them and not done, soonest first, overdue ones marked.
+
 ## 2. Listing a fest
 
 Starting a fest needs only a **name**. The college is chosen for you when the organiser has just one, and the web address is built from the name (it can be edited, and cannot change afterwards). **Dates are optional** at this point, since many colleges have not fixed them. Pick the first and last day and the page says "Your fest runs for 3 days" on the spot: **nobody types in the number of days**, it is worked out from the two dates (at most 15 days) and shown, read-only, in Fest details and on the Overview. The fest begins as a **draft**, visible only to the committee, and the person who started it becomes the **director** (owner). The committee contact starts as the director's own name and email, so they only need to add a phone number.
@@ -55,6 +64,7 @@ A fest can only go **live** once approved, and the director (or an admin) switch
 - Changing the fest's **name or college** sends it back to review and takes it offline until approved again.
 - The team: the director and core members add people by email as core or volunteer. Volunteers can work the gate but cannot manage anything.
 - Events can be added, edited and removed at any time with no further review.
+- The public fest page shows the **programme day by day**: a chip for each day plus "All days", every day of the fest numbered from the first (even an empty one, which says nothing is scheduled yet), and within a day the events grouped into morning, afternoon and evening. An event that runs for several days appears on each of them, marked "Day 2 of 3". Sponsors have their own section below it.
 
 ## 5. Events
 
@@ -159,4 +169,11 @@ Not built yet in this part: the games and name bidding at a leaders' meet, enter
 
 ## Not built yet
 
-Waitlists, payments and refunds, transferring a fest to a new director, ticket tiers and promo codes, certificates, bulk import of events from a spreadsheet. Screens for most of the above are the next step.
+Already built, so not on this list: transferring a fest to a new director, and importing events from a spreadsheet.
+
+- **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
+- **Waitlists, ticket tiers, promo codes and certificates.**
+- **Budget and finance:** a budget, expenses with receipts and approvals, and sponsorship money coming in.
+- **Visiting colleges, beyond registering:** the CL meets (points, tasks, name bidding), events entered per contingent, the competition scoring with rules, penalties and awards, accommodation and fees.
+- **Volunteers' own area:** today a volunteer sees check-in and their tasks; meetings and more are still to do.
+- **Sponsor deal tracking** (deliverables, follow-ups) is deliberately left out for now. Sponsors are listed with logos and tiers.
