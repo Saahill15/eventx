@@ -1,6 +1,6 @@
 import re
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator, model_validator
-from typing import Annotated, Optional, List, Literal
+from typing import Annotated, Dict, Optional, List, Literal
 from datetime import date, datetime, timedelta
 
 MAX_FEST_DAYS = 15
@@ -208,6 +208,26 @@ class SetInterests(BaseModel):
         return list(dict.fromkeys(v))
 
 # Events
+def check_points_scheme(v):
+    """Points by place for a scored event: {"1": 100, "2": 60}. None means the event is not scored."""
+    if v is None:
+        return None
+    if not isinstance(v, dict) or not v:
+        raise ValueError("points must list what at least one place earns, or be left out")
+    if len(v) > 10:
+        raise ValueError("points can be set for at most ten places")
+    out = {}
+    for place, pts in v.items():
+        try:
+            n, p = int(place), int(pts)
+        except (TypeError, ValueError):
+            raise ValueError("places and points must be whole numbers")
+        if not 1 <= n <= 20 or not 0 <= p <= 10000:
+            raise ValueError("a place is 1 to 20 and points are 0 to 10000")
+        out[str(n)] = p
+    return out
+
+
 def check_registration_window(mode, opens_on, deadline, last_day):
     """Why these registration dates cannot work together, or None when they can."""
     if mode == "scheduled":
@@ -270,6 +290,8 @@ class EventCreate(BaseModel):
     # When registration opens. "open_now" is the default so a client that says nothing keeps working as before.
     registration_mode:     Literal["open_now", "scheduled", "not_set", "closed"] = "open_now"
     registration_opens_on: Optional[date] = None
+    points_scheme:         Optional[Dict[str, int]] = None   # what each place earns a contingent; None: not a scored competition
+    _check_points = field_validator("points_scheme")(check_points_scheme)
 
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
@@ -350,6 +372,7 @@ class EventOut(BaseModel):
     registration_mode: str = "open_now"
     registration_opens_on: Optional[date] = None
     registration_state: Optional[str] = None  # open | scheduled | not_open | closed; None when no registration is needed
+    points_scheme: Optional[Dict[str, int]] = None
     cancelled: bool = False
     cancel_reason: Optional[str] = None
     reject_reason: Optional[str] = None
@@ -386,6 +409,8 @@ class EventUpdate(BaseModel):
     registration_deadline: Optional[DateOnly] = None
     registration_mode:     Optional[Literal["open_now", "scheduled", "not_set", "closed"]] = None
     registration_opens_on: Optional[DateOnly] = None
+    points_scheme:         Optional[Dict[str, int]] = None
+    _check_points = field_validator("points_scheme")(check_points_scheme)
 
     _check_sections = field_validator("extra_sections")(check_sections)
     _clean_image = field_validator("image_url")(clean_url)
@@ -1596,3 +1621,366 @@ class ImportResult(BaseModel):
     file_errors: List[str] = []
     valid: int = 0
     created: int = 0
+
+
+# ─── Competition between colleges ────────────────────────────────────────────────────────────────────────────────────
+PointsInt = Annotated[int, Field(ge=-100000, le=100000)]
+
+
+class CompetitionSettingsIn(BaseModel):
+    starting_points: Optional[int] = Field(default=None, ge=0, le=100000)
+    ranking_basis: Optional[Literal["total", "events"]] = None
+    public_leaderboard: Optional[bool] = None
+    default_placing_points: Optional[List[Annotated[int, Field(ge=0, le=10000)]]] = Field(default=None, max_length=10)
+    default_task_points: Optional[List[Annotated[int, Field(ge=0, le=10000)]]] = Field(default=None, max_length=10)
+
+
+class CompetitionSettingsOut(BaseModel):
+    starting_points: int = 500
+    ranking_basis: str = "total"
+    public_leaderboard: bool = False
+    default_placing_points: List[int] = [100, 60, 30]
+    default_task_points: List[int] = [200, 100, 50]
+
+
+class Breakdown(BaseModel):
+    meet_tasks: int = 0
+    auction: int = 0
+    event_points: int = 0
+    penalties: int = 0
+    adjustments: int = 0
+
+
+class ContingentStanding(BaseModel):
+    contingent_id: int
+    name: Optional[str] = None
+    code: Optional[str] = None
+    college_name: str
+    rank: Optional[int] = None   # None for a contingent disqualified from the whole competition
+    score: int                   # what the ranking uses (the balance, or only event points, by the fest's setting)
+    balance: int                 # the points it holds now
+    starting_points: int
+    breakdown: Breakdown
+    disqualified: bool = False
+
+
+class CollegeStanding(BaseModel):
+    college_name: str
+    rank: Optional[int] = None
+    score: int
+    contingents: int
+    contingent_names: List[str] = []
+
+
+class AwardWinner(BaseModel):
+    contingent_id: Optional[int] = None
+    name: str
+    college_name: Optional[str] = None
+
+
+class AwardIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    basis: Literal["college", "contingent", "event", "custom"]
+    rank: int = Field(default=1, ge=1, le=20)
+    event_id: Optional[int] = None
+    winner_contingent_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def basis_needs(self):
+        if self.basis == "event" and self.event_id is None:
+            raise ValueError("choose the event for this award")
+        if self.basis != "event":
+            self.event_id = None
+        if self.basis != "custom":
+            self.winner_contingent_id = None
+        return self
+
+
+class AwardUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]] = None
+    rank: Optional[int] = Field(default=None, ge=1, le=20)
+    event_id: Optional[int] = None
+    winner_contingent_id: Optional[int] = None
+
+
+class AwardOut(BaseModel):
+    id: int
+    title: str
+    basis: str
+    rank: int
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    winner_contingent_id: Optional[int] = None
+    winners: List[AwardWinner] = []
+
+
+class LeaderboardOut(BaseModel):
+    ranking_basis: str
+    contingents: List[ContingentStanding] = []
+    colleges: List[CollegeStanding] = []
+    awards: List[AwardOut] = []
+
+
+class PointsEntryOut(BaseModel):
+    id: int
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    points: int
+    kind: str
+    reason: str
+    created_at: datetime
+
+
+class AdjustIn(BaseModel):
+    contingent_id: int
+    points: PointsInt
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=300)]
+
+    @field_validator("points")
+    @classmethod
+    def not_zero(cls, v):
+        if v == 0:
+            raise ValueError("points cannot be zero")
+        return v
+
+
+class TaskAward(BaseModel):
+    contingent_id: int
+    points: PointsInt
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+
+
+class TaskResultIn(BaseModel):
+    awards: List[TaskAward] = Field(max_length=200)
+
+
+class ClMeetTaskIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
+    placing_points: Optional[List[Annotated[int, Field(ge=0, le=10000)]]] = Field(default=None, max_length=10)
+
+
+class ClMeetTaskUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
+    placing_points: Optional[List[Annotated[int, Field(ge=0, le=10000)]]] = Field(default=None, max_length=10)
+
+
+class TaskResultOut(BaseModel):
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    points: int
+    note: Optional[str] = None
+
+
+class ClMeetTaskOut(BaseModel):
+    id: int
+    meet_id: int
+    title: str
+    description: Optional[str] = None
+    position: int
+    placing_points: Optional[List[int]] = None
+    results: List[TaskResultOut] = []   # what each contingent got (a leader sees only their own)
+
+
+class ClMeetIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    starts_at: datetime
+    location: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]] = None
+
+
+class ClMeetUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    starts_at: Optional[datetime] = None
+    location: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]] = None
+
+
+class ClMeetOut(BaseModel):
+    id: int
+    fest_id: int
+    title: str
+    starts_at: datetime
+    location: Optional[str] = None
+    notes: Optional[str] = None
+    tasks: List[ClMeetTaskOut] = []
+    attended: List[int] = []   # contingent ids
+
+
+class AttendanceIn(BaseModel):
+    contingent_ids: List[int] = Field(max_length=500)
+
+
+class AuctionIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    meet_id: Optional[int] = None
+    min_bid: int = Field(default=1, ge=0, le=100000)
+    show_highest_bid: bool = False
+
+
+class AuctionUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    meet_id: Optional[int] = None
+    min_bid: Optional[int] = Field(default=None, ge=0, le=100000)
+    show_highest_bid: Optional[bool] = None
+
+
+class AuctionNameIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    code: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]] = None
+
+
+class BidIn(BaseModel):
+    contingent_id: Optional[int] = None   # the committee bids for a contingent; a leader's own is assumed
+    amount: int = Field(ge=0, le=1000000)
+
+
+class BidOut(BaseModel):
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    amount: int
+
+
+class AuctionNameOut(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    winner_contingent_id: Optional[int] = None
+    winner_label: Optional[str] = None
+    winning_bid: Optional[int] = None
+    bids: List[BidOut] = []          # the committee sees every bid; a leader sees only their own
+    top_bid: Optional[int] = None    # shown to leaders only when the auction is not sealed
+
+
+class AuctionOut(BaseModel):
+    id: int
+    fest_id: int
+    meet_id: Optional[int] = None
+    title: str
+    status: str
+    min_bid: int
+    show_highest_bid: bool
+    names: List[AuctionNameOut] = []
+
+
+class EventResultIn(BaseModel):
+    contingent_id: int
+    place: int = Field(ge=1, le=20)
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+
+
+class EventResultsIn(BaseModel):
+    results: List[EventResultIn] = Field(max_length=100)
+
+
+class EventResultOut(BaseModel):
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    place: int
+    points: int = 0
+    note: Optional[str] = None
+    disqualified: bool = False
+
+
+class EventResultsOut(BaseModel):
+    event_id: int
+    title: str
+    points_scheme: Optional[Dict[str, int]] = None
+    results: List[EventResultOut] = []
+
+
+class RuleIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
+    event_id: Optional[int] = None
+    penalty_points: int = Field(default=0, ge=0, le=100000)
+    disqualifies: bool = False
+
+
+class RuleUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]] = None
+    event_id: Optional[int] = None
+    penalty_points: Optional[int] = Field(default=None, ge=0, le=100000)
+    disqualifies: Optional[bool] = None
+
+
+class RuleOut(BaseModel):
+    id: int
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    title: str
+    description: Optional[str] = None
+    penalty_points: int
+    disqualifies: bool
+
+
+class PenaltyIn(BaseModel):
+    contingent_id: int
+    rule_id: Optional[int] = None
+    event_id: Optional[int] = None
+    points: Optional[int] = Field(default=None, ge=0, le=100000)   # taken from the rule when left out
+    disqualified: Optional[bool] = None
+    reason: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+
+class PenaltyOut(BaseModel):
+    id: int
+    contingent_id: int
+    contingent_label: Optional[str] = None
+    rule_id: Optional[int] = None
+    rule_title: Optional[str] = None
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    points: int
+    disqualified: bool
+    reason: str
+    created_at: datetime
+    revoked: bool = False
+
+
+class MyAuctionName(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    my_bid: Optional[int] = None
+    top_bid: Optional[int] = None
+    winner_label: Optional[str] = None
+    i_won: bool = False
+
+
+class MyAuction(BaseModel):
+    id: int
+    title: str
+    status: str
+    min_bid: int
+    show_highest_bid: bool
+    names: List[MyAuctionName] = []
+
+
+class MyMeet(BaseModel):
+    id: int
+    title: str
+    starts_at: datetime
+    location: Optional[str] = None
+    notes: Optional[str] = None
+    tasks: List[ClMeetTaskOut] = []
+    attended: bool = False
+
+
+class CompetitionMine(BaseModel):
+    contingent_id: int
+    name: Optional[str] = None
+    code: Optional[str] = None
+    college_name: str
+    balance: int
+    starting_points: int
+    breakdown: Breakdown
+    rank: Optional[int] = None          # only once the leaderboard is public
+    disqualified: bool = False
+    ledger: List[PointsEntryOut] = []
+    penalties: List[PenaltyOut] = []
+    meets: List[MyMeet] = []
+    auctions: List[MyAuction] = []
+    events: List[EventResultOut] = []   # where the contingent placed, with the event title in the label

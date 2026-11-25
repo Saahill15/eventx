@@ -178,6 +178,8 @@ class Event(Base):
     # When registration opens: "open_now" (instant), "scheduled" (on registration_opens_on), "not_set" (organisers have not decided) or "closed" (shut by hand)
     registration_mode     = Column(String(12), nullable=False, default="open_now", server_default="open_now")
     registration_opens_on = Column(Date, nullable=True)
+    # Points a contingent earns for placing in this event, by place: {"1": 100, "2": 60, "3": 30}. None means it is not a scored competition.
+    points_scheme         = Column(JSON(none_as_null=True), nullable=True)   # real NULL when not scored, so it can be filtered on
 
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
     cancelled_at  = Column(DateTime, nullable=True)
@@ -874,3 +876,179 @@ class FestSponsor(Base):
     blurb       = Column(String(200), nullable=True)    # a line about them or what they gave
     position    = Column(Integer, nullable=False, default=0)   # order inside a level
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─── Competition between colleges: points, CL meets, name auction, results, penalties, awards ───────────────────────────
+
+class CompetitionSettings(Base):
+    """How a fest scores its visiting colleges. Everything is the fest's own choice."""
+    __tablename__ = "competition_settings"
+    fest_id               = Column(Integer, ForeignKey("fests.id"), primary_key=True)
+    starting_points       = Column(Integer, nullable=False, default=500, server_default="500")   # what every contingent begins with
+    ranking_basis         = Column(String(10), nullable=False, default="total", server_default="total")   # total (the whole balance) | events (only what events earned)
+    public_leaderboard    = Column(Boolean, nullable=False, default=False, server_default="0")
+    default_placing_points = Column(JSON, nullable=True)   # [100, 60, 30]: the usual points for 1st, 2nd, 3rd, offered when an event is made a competition
+    default_task_points    = Column(JSON, nullable=True)   # [200, 100, 50]: the usual points for 1st, 2nd, 3rd at a CL meet task
+
+
+class PointsEntry(Base):
+    """One change to a contingent's points. A contingent's balance is the fest's starting points plus all of its entries."""
+    __tablename__ = "points_entries"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_points_contingent"), nullable=False, index=True)
+    points        = Column(Integer, nullable=False)   # positive earns, negative spends or loses
+    kind          = Column(String(16), nullable=False)   # meet_task | auction | event_result | penalty | adjustment
+    reason        = Column(String(300), nullable=False)
+    meet_task_id  = Column(Integer, ForeignKey("cl_meet_tasks.id", name="fk_points_meet_task"), nullable=True, index=True)
+    auction_name_id = Column(Integer, ForeignKey("auction_names.id", name="fk_points_auction_name"), nullable=True, index=True)
+    event_id      = Column(Integer, ForeignKey("events.id", name="fk_points_event"), nullable=True, index=True)
+    penalty_id    = Column(Integer, ForeignKey("contingent_penalties.id", name="fk_points_penalty"), nullable=True, index=True)
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_points_creator"), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    contingent = relationship("Contingent")
+
+
+class ClMeet(Base):
+    """A meeting of the contingent leaders before the fest, where the committee runs tasks and auctions names."""
+    __tablename__ = "cl_meets"
+    id        = Column(Integer, primary_key=True, index=True)
+    fest_id   = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    title     = Column(String(200), nullable=False)
+    starts_at = Column(DateTime, nullable=False)   # a wall-clock time, like event times
+    location  = Column(String(255), nullable=True)
+    notes     = Column(Text, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_cl_meets_creator"), nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    tasks      = relationship("ClMeetTask", cascade="all, delete-orphan", order_by="ClMeetTask.position")
+    attendance = relationship("ClMeetAttendance", cascade="all, delete-orphan")
+
+
+class ClMeetAttendance(Base):
+    """A contingent that came to a CL meet."""
+    __tablename__ = "cl_meet_attendance"
+    meet_id       = Column(Integer, ForeignKey("cl_meets.id"), primary_key=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_cl_attendance_contingent"), primary_key=True)
+
+
+class ClMeetTask(Base):
+    """A game or challenge at a CL meet. Contingents that do well earn points."""
+    __tablename__ = "cl_meet_tasks"
+    id          = Column(Integer, primary_key=True, index=True)
+    meet_id     = Column(Integer, ForeignKey("cl_meets.id"), nullable=False, index=True)
+    title       = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    position    = Column(Integer, nullable=False, default=0)
+    placing_points = Column(JSON, nullable=True)   # [200, 100, 50]: what 1st, 2nd and 3rd earn; the committee can still award any amount
+    created_at  = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class NameAuction(Base):
+    """An auction where contingents bid points for the names (and codes) the committee has put up."""
+    __tablename__ = "name_auctions"
+    id       = Column(Integer, primary_key=True, index=True)
+    fest_id  = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    meet_id  = Column(Integer, ForeignKey("cl_meets.id", name="fk_name_auctions_meet"), nullable=True)
+    title    = Column(String(200), nullable=False)
+    status   = Column(String(8), nullable=False, default="draft", server_default="draft")   # draft | open | closed
+    min_bid  = Column(Integer, nullable=False, default=1, server_default="1")
+    show_highest_bid = Column(Boolean, nullable=False, default=False, server_default="0")   # leaders see the top bid on each name; otherwise bids are sealed
+    opened_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    names = relationship("AuctionName", cascade="all, delete-orphan", order_by="AuctionName.position")
+
+
+class AuctionName(Base):
+    """One name (with an optional code) up for bidding."""
+    __tablename__ = "auction_names"
+    id         = Column(Integer, primary_key=True, index=True)
+    auction_id = Column(Integer, ForeignKey("name_auctions.id"), nullable=False, index=True)
+    name       = Column(String(120), nullable=False)
+    code       = Column(String(30), nullable=True)
+    position   = Column(Integer, nullable=False, default=0)
+    winner_contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_auction_name_winner"), nullable=True)
+    winning_bid = Column(Integer, nullable=True)
+
+    bids   = relationship("AuctionBid", cascade="all, delete-orphan")
+    winner = relationship("Contingent", foreign_keys=[winner_contingent_id])
+
+
+class AuctionBid(Base):
+    """A contingent's bid on a name. It can be raised while the auction is open. Only the winning bid is ever paid."""
+    __tablename__ = "auction_bids"
+    __table_args__ = (UniqueConstraint("auction_name_id", "contingent_id", name="uq_auction_bid_name_contingent"),)
+    id              = Column(Integer, primary_key=True, index=True)
+    auction_name_id = Column(Integer, ForeignKey("auction_names.id"), nullable=False, index=True)
+    contingent_id   = Column(Integer, ForeignKey("contingents.id", name="fk_auction_bid_contingent"), nullable=False, index=True)
+    amount          = Column(Integer, nullable=False)
+    placed_by_id    = Column(Integer, ForeignKey("users.id", name="fk_auction_bid_user"), nullable=True)
+    created_at      = Column(DateTime, nullable=False, server_default=func.now())   # when the first bid on this name was placed: it settles ties
+    updated_at      = Column(DateTime, nullable=False, server_default=func.now())
+
+    contingent = relationship("Contingent")
+
+
+class EventResult(Base):
+    """Who placed where in a scored event."""
+    __tablename__ = "event_results"
+    __table_args__ = (UniqueConstraint("event_id", "contingent_id", name="uq_event_result_contingent"),)
+    id            = Column(Integer, primary_key=True, index=True)
+    event_id      = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_event_result_contingent"), nullable=False, index=True)
+    place         = Column(Integer, nullable=False)   # 1 is first. Equal places are ties
+    note          = Column(String(300), nullable=True)   # the winners' names, for the record
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    contingent = relationship("Contingent")
+
+
+class CompetitionRule(Base):
+    """A rule of the competition and what breaking it costs. It may apply to one event or to all of them."""
+    __tablename__ = "competition_rules"
+    id             = Column(Integer, primary_key=True, index=True)
+    fest_id        = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    event_id       = Column(Integer, ForeignKey("events.id", name="fk_competition_rule_event"), nullable=True)   # None: applies to every event
+    title          = Column(String(200), nullable=False)
+    description    = Column(Text, nullable=True)
+    penalty_points = Column(Integer, nullable=False, default=0, server_default="0")   # taken off when applied; 0 for none
+    disqualifies   = Column(Boolean, nullable=False, default=False, server_default="0")
+    created_at     = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class ContingentPenalty(Base):
+    """A penalty applied to a contingent: points off, and/or disqualification from one event or from the whole competition."""
+    __tablename__ = "contingent_penalties"
+    id            = Column(Integer, primary_key=True, index=True)
+    fest_id       = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_penalty_contingent"), nullable=False, index=True)
+    rule_id       = Column(Integer, ForeignKey("competition_rules.id", name="fk_penalty_rule"), nullable=True)
+    event_id      = Column(Integer, ForeignKey("events.id", name="fk_penalty_event"), nullable=True)   # None: not tied to one event
+    points        = Column(Integer, nullable=False, default=0)   # how many points were taken off (a positive number)
+    disqualified  = Column(Boolean, nullable=False, default=False)   # from event_id, or from the whole competition when event_id is None
+    reason        = Column(String(500), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_penalty_creator"), nullable=True)
+    created_at    = Column(DateTime, nullable=False, server_default=func.now())
+    revoked_at    = Column(DateTime, nullable=True)   # an appeal succeeded: the penalty no longer counts
+
+    contingent = relationship("Contingent")
+    rule       = relationship("CompetitionRule")
+
+
+class Award(Base):
+    """A prize of the fest. Most are worked out from the standings; a custom one is given to a contingent by hand."""
+    __tablename__ = "awards"
+    id        = Column(Integer, primary_key=True, index=True)
+    fest_id   = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    title     = Column(String(120), nullable=False)
+    basis     = Column(String(12), nullable=False)   # college (rank among colleges) | contingent (rank among contingents) | event (place in one event) | custom
+    rank      = Column(Integer, nullable=False, default=1)
+    event_id  = Column(Integer, ForeignKey("events.id", name="fk_award_event"), nullable=True)
+    winner_contingent_id = Column(Integer, ForeignKey("contingents.id", name="fk_award_winner"), nullable=True)   # custom awards only
+    position  = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    winner = relationship("Contingent", foreign_keys=[winner_contingent_id])

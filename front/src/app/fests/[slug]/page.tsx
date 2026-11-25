@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, CalendarDays, MapPin, Ticket } from "lucide-react";
-import { getColleges, getContingentInfo, getFestBySlug, getFestEvents, getFestSponsors } from "@/lib/api";
+import { getColleges, getContingentInfo, getFestBySlug, getFestEvents, getFestSponsors, getLeaderboard } from "@/lib/api";
 import { mapsLink } from "@/lib/format";
 import { PosterArt } from "@/components/Poster";
 import { EntryPassPanel } from "@/components/EntryPassPanel";
 import { FestProgramme } from "@/components/FestProgramme";
 import { Sponsors } from "@/components/Sponsors";
+import { Leaderboard } from "@/components/Leaderboard";
 import { ShareButtons } from "@/components/ShareButtons";
 import { FadeUp, Reveal } from "@/components/motion";
 import { InfoChip } from "@/components/ui/bits";
@@ -32,7 +33,7 @@ const range = (dates: string[]) => {
 
 export default async function FestPage({ params }: Props) {
   const { slug } = await params;
-  const [fest, events, colleges, visiting, sponsors] = await Promise.all([getFestBySlug(slug), getFestEvents(slug), getColleges(), getContingentInfo(slug), getFestSponsors(slug)]);
+  const [fest, events, colleges, visiting, sponsors, board] = await Promise.all([getFestBySlug(slug), getFestEvents(slug), getColleges(), getContingentInfo(slug), getFestSponsors(slug), getLeaderboard(slug)]);
   if (!fest) notFound();
   const college = colleges?.find((c) => c.id === fest.college_id);
   const eventDates = range((events ?? []).map((e) => e.date));
@@ -81,6 +82,8 @@ export default async function FestPage({ params }: Props) {
         )}
 
         <Reveal>{events === null ? <div className="card p-10 text-mute">We could not load the programme right now.</div> : events.length === 0 && comingSoon ? <div className="card p-10 text-center"><p className="font-display text-xl font-semibold tracking-tight">Dates coming soon</p><p className="mx-auto mt-2 max-w-md text-mute">The committee has not fixed the dates yet. The programme will appear here once they do. Get your free entry pass below and you will see it first.</p></div> : <FestProgramme events={events} startDate={fest.start_date} daysCount={fest.days_count} />}</Reveal>
+
+        {board && <Reveal><Leaderboard board={board} festName={fest.name} /></Reveal>}
 
         {sponsors && sponsors.length > 0 && <Reveal><Sponsors sponsors={sponsors} festName={fest.name} /></Reveal>}
 

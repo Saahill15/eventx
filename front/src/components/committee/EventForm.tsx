@@ -22,10 +22,11 @@ interface State {
   reg_mode: RegMode; opens_on: string;
   is_team_event: boolean; team_min: string; team_max: string;
   coordinator_name: string; coordinator_phone: string;
+  scored: boolean; points: string[];   // a competition between colleges, and what each place earns
 }
 const empty: State = {
   title: "", description: "", date: "", span: "1", time: "", end_time: "", location: "", category: "", paid: false, price: "", students_only: false, student_price: "",
-  requires_registration: false, registration_limit: "", approval_mode: "auto", deadline: "", reg_mode: "not_set", opens_on: "", is_team_event: false, team_min: "2", team_max: "4", coordinator_name: "", coordinator_phone: "",
+  requires_registration: false, registration_limit: "", approval_mode: "auto", deadline: "", reg_mode: "not_set", opens_on: "", is_team_event: false, team_min: "2", team_max: "4", coordinator_name: "", coordinator_phone: "", scored: false, points: [],
 };
 const toState = (e: FestEvent): State => ({
   title: e.title, description: e.description ?? "", date: e.date.slice(0, 10), span: String(e.span_days ?? 1), time: e.time ?? "", end_time: e.end_time ?? "", location: e.location ?? "", category: e.category ?? "",
@@ -33,6 +34,7 @@ const toState = (e: FestEvent): State => ({
   requires_registration: e.requires_registration, registration_limit: e.registration_limit == null ? "" : String(e.registration_limit), approval_mode: e.approval_mode,
   deadline: e.registration_deadline ?? "", reg_mode: e.registration_mode ?? "open_now", opens_on: e.registration_opens_on ?? "", is_team_event: e.is_team_event, team_min: String(e.team_min ?? 2), team_max: String(e.team_max ?? 4),
   coordinator_name: e.coordinator_name ?? "", coordinator_phone: e.coordinator_phone ?? "",
+  scored: !!e.points_scheme, points: e.points_scheme ? Object.keys(e.points_scheme).map(Number).sort((a, b) => a - b).map((p) => String(e.points_scheme?.[String(p)] ?? 0)) : [],
 });
 
 const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fest: boolean) => ({
@@ -47,6 +49,7 @@ const payloadOf = (f: State, image: string | null, sections: ExtraSection[], fes
   is_team_event: fest && f.requires_registration && f.is_team_event,
   team_min: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_min, 10) || null : null,
   team_max: fest && f.requires_registration && f.is_team_event ? parseInt(f.team_max, 10) || null : null,
+  ...(fest ? { points_scheme: f.scored && f.points.length > 0 ? Object.fromEntries(f.points.map((v, i) => [String(i + 1), Math.max(0, parseInt(v, 10) || 0)])) : null } : {}),
   ...(fest ? { span_days: parseInt(f.span, 10) || 1, coordinator_name: f.coordinator_name.trim() || null, coordinator_phone: f.coordinator_phone.trim() || null } : {}),
 });
 
@@ -128,6 +131,17 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
   const set = <K extends keyof State>(k: K, v: State[K]) => setF((x) => ({ ...x, [k]: v }));
   const registered = event && "registration_count" in event ? event.registration_count : 0;
   const locked = registered > 0;
+
+  // Whether this fest has visiting colleges competing, and its usual points for 1st, 2nd, 3rd (only suggestions)
+  const [competing, setCompeting] = useState(false);
+  const [usualPoints, setUsualPoints] = useState<number[]>([100, 60, 30]);
+  useEffect(() => {
+    if (!isFest || !fest) return;
+    api<{ enabled: boolean }>(`/api/fests/${fest.slug}/contingents/settings`).then((s) => setCompeting(s.enabled)).catch(() => {});
+    api<{ default_placing_points: number[] }>(`/api/fests/${fest.slug}/competition/settings`).then((s) => setUsualPoints(s.default_placing_points)).catch(() => {});
+  }, [isFest, fest]);
+  const showPoints = isFest && (competing || f.scored);
+  const turnScoring = (on: boolean) => setF((x) => ({ ...x, scored: on, points: on && x.points.length === 0 ? usualPoints.map(String) : x.points }));
 
   // Which days this event can start on, and how many days it can run from there (it cannot run past the end of the fest)
   const startIndex = days.findIndex((d) => d.iso === f.date);
@@ -406,14 +420,37 @@ export function EventForm({ kind, fest, event, copyOf = null, siblings = [], onS
         </Section>
       )}
 
-      {/* 6. Details */}
-      <Section n={isFest ? 6 : 5} title="Rules, prizes and a picture" hint="Shown on the event page.">
+      {/* 6. A competition between colleges */}
+      {showPoints && (
+        <Section n={6} title="Is it part of the competition between colleges?" hint="Visiting colleges earn points for placing in an event. You set how many, for this event only.">
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={f.scored} onChange={(e) => turnScoring(e.target.checked)} />
+            <span><strong>Yes, contingents earn points here</strong><span className="block text-mute">After the event you record who placed where, and the points go onto each contingent.</span></span></label>
+          {f.scored && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Points for each place</p>
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {f.points.map((v, i) => (
+                  <Field key={i} label={`${i + 1}${["st", "nd", "rd"][i] ?? "th"} place`}><input className="field" type="number" min={0} max={10000} value={v} onChange={(e) => set("points", f.points.map((x, j) => (j === i ? e.target.value : x)))} /></Field>
+                ))}
+              </div>
+              <div className="flex gap-3 text-sm font-semibold">
+                {f.points.length < 10 && <button type="button" onClick={() => set("points", [...f.points, "0"])} className="underline underline-offset-4">Add a place</button>}
+                {f.points.length > 1 && <button type="button" onClick={() => set("points", f.points.slice(0, -1))} className="text-red-600 underline underline-offset-4">Remove the last</button>}
+                <button type="button" onClick={() => set("points", usualPoints.map(String))} className="text-mute underline underline-offset-4">Use the usual points</button>
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* 7. Details */}
+      <Section n={isFest ? (showPoints ? 7 : 6) : 5} title="Rules, prizes and a picture" hint="Shown on the event page.">
         <SectionsEditor value={sections} onChange={setSections} hint="Rules, prizes, eligibility: whatever people should know before they join." />
         <ImageUpload kind="cover" value={image} onChange={setImage} />
       </Section>
 
       {isFest && f.requires_registration && (
-        <Section n={7} title="Questions for people who register" hint="Anything you need to know from each registration, such as their college or a team name."><QuestionsEditor value={questions} onChange={setQuestions} locked={locked} /></Section>
+        <Section n={showPoints ? 8 : 7} title="Questions for people who register" hint="Anything you need to know from each registration, such as their college or a team name."><QuestionsEditor value={questions} onChange={setQuestions} locked={locked} /></Section>
       )}
 
       <div className="flex gap-3 border-t border-black/5 pt-6">

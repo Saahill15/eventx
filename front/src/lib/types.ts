@@ -76,6 +76,8 @@ export interface Fest {
 
 export interface FestEvent {
   id: number;
+  /** What each place earns a visiting college, such as {"1": 100, "2": 60}. Null when the event is not a scored competition. */
+  points_scheme?: Record<string, number> | null;
   event_type: "fest" | "city";
   title: string;
   description: string | null;
@@ -427,3 +429,30 @@ export interface DashAttention { kind: string; tone: "red" | "amber" | "green"; 
 export interface DashTask { id: number; fest_slug: string; fest_name: string; title: string; status: "todo" | "doing" | "done"; due_date: string | null; overdue: boolean }
 export interface DashUpcoming { kind: "event" | "meeting"; fest_slug: string; fest_name: string; title: string; when: string; time: string | null; detail: string | null; tab: string }
 export interface Dashboard { fests: DashFest[]; attention: DashAttention[]; my_tasks: DashTask[]; coming_up: DashUpcoming[] }
+
+/** The competition between colleges: points, CL meets, name auction, results, penalties and awards. */
+export interface CompetitionSettings { starting_points: number; ranking_basis: "total" | "events"; public_leaderboard: boolean; default_placing_points: number[]; default_task_points: number[] }
+export interface Breakdown { meet_tasks: number; auction: number; event_points: number; penalties: number; adjustments: number }
+export interface ContingentStanding { contingent_id: number; name: string | null; code: string | null; college_name: string; rank: number | null; score: number; balance: number; starting_points: number; breakdown: Breakdown; disqualified: boolean }
+export interface CollegeStanding { college_name: string; rank: number | null; score: number; contingents: number; contingent_names: string[] }
+export interface AwardWinner { contingent_id: number | null; name: string; college_name: string | null }
+export interface Award { id: number; title: string; basis: "college" | "contingent" | "event" | "custom"; rank: number; event_id: number | null; event_title: string | null; winner_contingent_id: number | null; winners: AwardWinner[] }
+export interface Leaderboard { ranking_basis: string; contingents: ContingentStanding[]; colleges: CollegeStanding[]; awards: Award[] }
+export interface PointsEntry { id: number; contingent_id: number; contingent_label: string | null; points: number; kind: string; reason: string; created_at: string }
+export interface TaskResult { contingent_id: number; contingent_label: string | null; points: number }
+export interface ClMeetTask { id: number; meet_id: number; title: string; description: string | null; position: number; placing_points: number[] | null; results: TaskResult[] }
+export interface ClMeet { id: number; fest_id: number; title: string; starts_at: string; location: string | null; notes: string | null; tasks: ClMeetTask[]; attended: number[] }
+export interface AuctionBid { contingent_id: number; contingent_label: string | null; amount: number }
+export interface AuctionName { id: number; name: string; code: string | null; winner_contingent_id: number | null; winner_label: string | null; winning_bid: number | null; bids: AuctionBid[]; top_bid: number | null }
+export interface Auction { id: number; fest_id: number; meet_id: number | null; title: string; status: "draft" | "open" | "closed"; min_bid: number; show_highest_bid: boolean; names: AuctionName[] }
+export interface EventResultRow { contingent_id: number; contingent_label: string | null; place: number; points: number; note: string | null; disqualified: boolean }
+export interface ScoredEvent { event_id: number; title: string; points_scheme: Record<string, number> | null; results: EventResultRow[] }
+export interface CompetitionRule { id: number; event_id: number | null; event_title: string | null; title: string; description: string | null; penalty_points: number; disqualifies: boolean }
+export interface Penalty { id: number; contingent_id: number; contingent_label: string | null; rule_id: number | null; rule_title: string | null; event_id: number | null; event_title: string | null; points: number; disqualified: boolean; reason: string; created_at: string; revoked: boolean }
+export interface MyAuctionName { id: number; name: string; code: string | null; my_bid: number | null; top_bid: number | null; winner_label: string | null; i_won: boolean }
+export interface MyAuction { id: number; title: string; status: "open" | "closed"; min_bid: number; show_highest_bid: boolean; names: MyAuctionName[] }
+export interface MyMeet { id: number; title: string; starts_at: string; location: string | null; notes: string | null; tasks: ClMeetTask[]; attended: boolean }
+export interface CompetitionMine {
+  contingent_id: number; name: string | null; code: string | null; college_name: string; balance: number; starting_points: number; breakdown: Breakdown;
+  rank: number | null; disqualified: boolean; ledger: PointsEntry[]; penalties: Penalty[]; meets: MyMeet[]; auctions: MyAuction[]; events: EventResultRow[];
+}

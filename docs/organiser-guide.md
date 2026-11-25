@@ -165,7 +165,23 @@ Many fests host other colleges. HiveOut lets each fest decide whether to, what t
 
 **For the committee.** The tab lists every college with filters (waiting, approved, not approved, withdrawn). Opening one shows its leader, helpers and roster. The committee can approve (a note is optional), decline (a reason is required, and any code and name are released), give it a **code** and a **name** (each unique in the fest, ignoring capitalisation), withdraw it, or delete it. The leader is told of every decision, and the committee is told when a college registers or withdraws.
 
-Not built yet in this part: the games and name bidding at a leaders' meet, entering contingents into events, accommodation requests and fees.
+### The competition between colleges
+
+Visiting colleges compete for points. **Every number is the fest's own choice**: the values below are only a usual starting point, nothing is fixed, and each task, event, rule and award can use its own. The Competition tab (director and core team) has seven parts.
+
+**How points work.** Each approved contingent has a balance: the fest's **starting points** (500 by default) plus a ledger of everything that moved it. Nothing is a stored total, so any balance can be explained entry by entry and undone by removing its entries. A college can send several contingents (turn on "allow several per college"); each has its own points and its own CC name and code.
+
+- **Standings.** Every contingent with its balance and a breakdown (CL meet tasks, name auction, event wins, penalties, adjustments), and every college (the total of its contingents). *Adjust* adds or takes off points by hand with a reason; *History* shows every change. Equal scores share a rank.
+- **CL meets** (as many as you like, usually one or two before the fest). Schedule a meet, record who came, and add **tasks** (games and challenges). Record a task's result by picking 1st, 2nd and 3rd (which fills the usual points) or typing any amount per contingent, including minus. Sending a result again replaces it. Deleting a task or meet takes its points back.
+- **Name auction.** The committee lists the names (and optional codes) up for bidding, sets the smallest bid, and chooses whether bids are sealed (leaders see only their own) or show the top bid. Leaders bid from their page (a bid can be raised or withdrawn, never above their balance); the committee can also enter bids at the meet. **Close and settle** gives each name to its highest bidder: the biggest bid overall is settled first, an earlier bid wins a tie, a contingent wins at most one name, and **only the winning bid is paid**. Everyone else keeps their points. Winners get the name and code on their contingent. *Reopen* undoes a close (points come back, names come off). A bid a contingent can no longer afford at the close is ignored.
+- **Event results.** Make an event a competition in its form ("Is it part of the competition between colleges?") and set the points for each place, for that event only (offered from the fest's usual points). After the event, record who placed where; points follow. Places can tie, and a result can be corrected by sending it again.
+- **Rules and penalties.** Write the rules of the competition with what breaking each costs (points off, disqualification, or both), for every event or one event. "Add the usual rules" gives a starter set (late arrival, unsporting behaviour, damage, unfair means, violence); edit or delete any. **Give a penalty** to a contingent, from a rule or with your own reason: points come off, and/or the contingent is disqualified from one event (its points there stop counting) or from the whole competition (it leaves the rankings and awards). **Lifting** a penalty after an appeal brings the points and a disqualified result back.
+- **Awards.** "Add the usual awards" gives best college, runner-up and third place; or add your own: a college by rank, a contingent by rank, the winner of one event, or one you give by hand. Winners are worked out live. A college award adds up all of that college's contingents; tied contingents share the award.
+- **Settings.** Starting points; whether the ranking counts the whole balance (after bidding) or only what events earned; the usual points for events and for CL tasks; and whether the leaderboard and awards are public.
+
+**What a leader sees** (on their contingent page, once approved): their points and where they came from, every change, open auctions to bid on, the CL meets with the points *they* earned (never anyone else's), where they placed in events, and their penalties. They see their rank only once the leaderboard is public. **The public fest page** shows the awards, college standings and contingent standings when the committee turns the leaderboard on.
+
+Still to build in this part: entering contingents into events, accommodation requests and fees.
 
 ## Not built yet
 
@@ -174,6 +190,6 @@ Already built, so not on this list: transferring a fest to a new director, and i
 - **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
 - **Waitlists, ticket tiers, promo codes and certificates.**
 - **Budget and finance:** a budget, expenses with receipts and approvals, and sponsorship money coming in.
-- **Visiting colleges, beyond registering:** the CL meets (points, tasks, name bidding), events entered per contingent, the competition scoring with rules, penalties and awards, accommodation and fees.
+- **Visiting colleges, beyond the competition:** entering contingents into events (who competes in what), accommodation requests and fees.
 - **Volunteers' own area:** today a volunteer sees check-in and their tasks; meetings and more are still to do.
 - **Sponsor deal tracking** (deliverables, follow-ups) is deliberately left out for now. Sponsors are listed with logos and tiers.

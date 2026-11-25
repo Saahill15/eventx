@@ -8,6 +8,7 @@ import type { College, ContingentDetail, ContingentMember, ContingentSettings, C
 import { formatDay } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Field, Notice, Pill, Skeleton } from "@/components/ui/bits";
+import { CompetitionPortal } from "./CompetitionPortal";
 
 const TONE: Record<ContingentStatus, "amber" | "green" | "red" | "neutral"> = { pending: "amber", approved: "green", rejected: "red", withdrawn: "neutral" };
 
@@ -122,6 +123,8 @@ function Dashboard({ slug, fest, s, c, reload, onRegisterAgain }: { slug: string
           )}
         </section>
       )}
+
+      {c.status === "approved" && <CompetitionPortal slug={slug} term={term} />}
 
       <section className="card space-y-4 p-6 sm:p-8" aria-label="Your people">
         <div><h3 className="font-display text-xl font-bold tracking-tight">Your people <span className="font-normal text-mute">({c.member_count}{s.max_members ? ` of ${s.max_members}` : ""})</span></h3>

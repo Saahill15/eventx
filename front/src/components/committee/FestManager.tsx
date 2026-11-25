@@ -17,6 +17,7 @@ import { TeamTab } from "./TeamTab";
 import { TasksTab } from "./TasksTab";
 import { MyTeamPanel } from "./MyTeamPanel";
 import { SponsorsTab } from "./SponsorsTab";
+import { CompetitionTab } from "./CompetitionTab";
 import { MeetingsTab } from "./MeetingsTab";
 import { ScheduleTab } from "./ScheduleTab";
 import { ContingentsTab } from "./ContingentsTab";
@@ -25,7 +26,7 @@ import { GuidedTour, type TourStep } from "@/components/GuidedTour";
 
 const TABS = [
   { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true }, { id: "schedule", label: "Schedule", staff: true },
-  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "sponsors", label: "Sponsors", staff: true }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
+  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "competition", label: "Competition", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "sponsors", label: "Sponsors", staff: true }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -143,6 +144,7 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "events" && <EventsTab fest={f} events={events} frozen={frozen} goTo={go} reload={() => { loadEvents(); loadFest(); }} />}
       {tab === "registrations" && <RegistrationsTab events={events} reload={loadEvents} />}
       {tab === "colleges" && <ContingentsTab slug={slug} />}
+      {tab === "competition" && <CompetitionTab slug={slug} goTo={go} />}
       {tab === "schedule" && <ScheduleTab slug={slug} goTo={go} />}
       {tab === "tasks" && <TasksTab slug={slug} canManage />}
       {tab === "meetings" && <MeetingsTab slug={slug} />}
