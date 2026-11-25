@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { canHostFests } from "@/lib/permissions";
+import { daysBetween, daysLabel } from "@/lib/format";
 import type { College, Fest, MyFest } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Pill, Skeleton } from "@/components/ui/bits";
@@ -71,6 +72,7 @@ function CreateFest({ colleges, onCancel }: { colleges: College[]; onCancel: () 
           <label className="block"><span className="sr-only">Starts</span><input className="field" type="date" aria-label="Starts" value={startDate} onChange={(e) => { setStartDate(e.target.value); if (!endDate || endDate < e.target.value) setEndDate(e.target.value); }} /></label>
           <label className="block"><span className="sr-only">Ends</span><input className="field" type="date" aria-label="Ends" value={endDate} min={startDate || undefined} disabled={!startDate} onChange={(e) => setEndDate(e.target.value)} /></label>
         </div>
+        {daysBetween(startDate, endDate || startDate) !== null && <p className="mt-2 text-sm font-semibold" aria-live="polite">Your fest runs for {daysLabel(daysBetween(startDate, endDate || startDate) ?? 1)}.</p>}
         <p className="mt-1.5 text-xs text-mute">Not decided yet? Skip this and add them when you know. You will need them before you send the fest for review.</p>
       </fieldset>
 

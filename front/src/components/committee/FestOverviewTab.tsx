@@ -6,10 +6,10 @@ import { api } from "@/lib/api";
 import type { ChecklistItem, FestManage, FestStats } from "@/lib/types";
 import { REVIEW_FIELDS, reviewFieldLabel } from "@/lib/reviewFields";
 import { Button } from "@/components/ui/Button";
-import { ErrorNote, Notice, Skeleton } from "@/components/ui/bits";
-import { Stat } from "@/components/admin/shared";
+import { ErrorNote, Notice } from "@/components/ui/bits";
 import { ReviewPill } from "./CommitteeShell";
 import { ShortLinkCard } from "./ShortLinkCard";
+import { FestGlance } from "./FestGlance";
 
 const STEPS = [
   { id: "draft", label: "Build your fest" }, { id: "in_review", label: "HiveOut reviews it" }, { id: "approved", label: "Approved" }, { id: "live", label: "Live for students" },
@@ -46,11 +46,12 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
   const sentBack = status === "changes_requested" || status === "rejected";
 
   const stage = fest.status === "live" ? 3 : status === "approved" ? 2 : status === "in_review" ? 1 : 0;
-  const pending = stats?.events.reduce((n, e) => n + e.pending, 0) ?? 0;
 
   return (
     <div className="max-w-4xl space-y-6">
-      <ol className="card flex flex-wrap gap-x-8 gap-y-3 p-6">
+      <FestGlance fest={fest} stats={stats} goTo={goTo} />
+
+      <ol className="card flex flex-wrap gap-x-8 gap-y-3 p-6" data-tour="status">
         {STEPS.map((s, i) => (
           <li key={s.id} className={`flex items-center gap-2.5 text-sm font-semibold ${i <= stage ? "text-ink" : "text-mute"}`}>
             <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${i < stage ? "bg-emerald-500 text-white" : i === stage ? "bg-ink text-white" : "bg-wash"}`}>{i < stage ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
@@ -97,7 +98,7 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
           {canSubmit && <Button variant="outline" disabled={busy} onClick={() => post("withdraw")}>Withdraw to edit</Button>}
         </section>
       ) : (
-        <section className="card space-y-5 p-6">
+        <section className="card space-y-5 p-6" data-tour="checklist">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <ReviewPill status={status} />
@@ -146,13 +147,7 @@ export function FestOverviewTab({ fest, role, reload, goTo }: { fest: FestManage
 
       {canSubmit && <ShortLinkCard slug={fest.slug} live={fest.status === "live"} />}
 
-      {stats ? (
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">
-          <Stat label="Entry passes" value={stats.passes_issued} hint={`${stats.passes_checked_in} checked in`} />
-          <Stat label="Events" value={stats.events.length} />
-          <Stat label="Registrations to approve" value={pending} tone="alert" onClick={pending ? () => goTo("registrations") : undefined} />
-        </div>
-      ) : <Skeleton className="h-24" />}
+
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Copy, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import type { FestManage, ManagedEvent } from "@/lib/types";
-import { formatDay, formatTime, priceLabel } from "@/lib/format";
+import { formatDay, formatTime, priceLabel, registrationNote } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorNote, Notice, Pill } from "@/components/ui/bits";
 import { EventForm } from "./EventForm";
@@ -56,10 +56,18 @@ export function EventsTab({ fest, events, frozen, reload, goTo }: { fest: FestMa
                   <p className="flex flex-wrap items-center gap-2 font-semibold">{e.title}{e.cancelled && <Pill tone="red">Cancelled</Pill>}{e.students_only && <Pill tone="neutral">Students only</Pill>}</p>
                   <p className="mt-0.5 text-sm text-mute">{formatDay(e.date)}{e.time ? ` · ${formatTime(e.time)}${e.end_time ? `–${formatTime(e.end_time)}` : ""}` : ""}{e.location ? ` · ${e.location}` : ""} · {priceLabel(e)}</p>
                   <p className="mt-1 text-sm text-neutral-700">{e.requires_registration ? `${e.registration_count} registered${e.is_team_event ? ` · teams of ${e.team_min}–${e.team_max}${e.registration_limit ? `, up to ${e.registration_limit} teams` : ""}` : e.registration_limit ? ` of ${e.registration_limit}` : ""}${e.pending_count ? ` · ${e.pending_count} waiting` : ""}` : "No registration needed"}</p>
+                  {e.requires_registration && !e.cancelled && (
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                      <Pill tone={e.registration_state === "open" ? "green" : e.registration_state === "closed" ? "red" : "amber"}>{e.registration_state === "open" ? "Registration open" : e.registration_state === "closed" ? "Registration closed" : e.registration_state === "scheduled" ? "Opens on a date" : "Not open yet"}</Pill>
+                      <span className="text-mute">{registrationNote(e) ?? (e.registration_deadline ? `Closes on ${formatDay(e.registration_deadline)}` : "Until the event ends")}</span>
+                    </p>
+                  )}
                   {e.cancelled && e.cancel_reason && <p className="mt-1 text-sm text-mute">Reason: {e.cancel_reason}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button href={`/events/${e.id}`} variant="ghost" size="sm">View</Button>
+                  {!frozen && !e.cancelled && e.requires_registration && e.registration_state === "open" && <Button variant="outline" size="sm" disabled={busy} onClick={() => act(() => api(`/api/events/${e.id}/registration`, { method: "POST", body: { action: "close" } }))}>Close registrations</Button>}
+                  {!frozen && !e.cancelled && e.requires_registration && (e.registration_state === "not_open" || e.registration_state === "scheduled" || (e.registration_state === "closed" && e.registration_mode === "closed")) && <Button size="sm" disabled={busy} onClick={() => act(() => api(`/api/events/${e.id}/registration`, { method: "POST", body: { action: "open" } }))}>{e.registration_state === "closed" ? "Reopen registrations" : "Open registrations now"}</Button>}
                   {!frozen && !e.cancelled && <Button variant="outline" size="sm" onClick={() => setEditing(e)}>Edit</Button>}
                   {!frozen && !e.cancelled && <Button variant="ghost" size="sm" onClick={() => setEditing({ copy: e })} title="Start a new event from this one"><Copy className="h-3.5 w-3.5" /> Duplicate</Button>}
                   {!frozen && !e.cancelled && <Button variant="outline" size="sm" onClick={() => { setCancelling(e.id); setReason(""); }}>Cancel event</Button>}

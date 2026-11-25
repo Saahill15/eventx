@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -240,6 +240,17 @@ def update_event(
     else:
         event.team_min = event.team_max = None
 
+    last_day = event.date.date() + timedelta(days=(event.span_days or 1) - 1)
+    if event.registration_deadline and event.registration_deadline > last_day:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Registration must close by the event's last day")
+    if event.registration_mode != "scheduled":
+        event.registration_opens_on = None
+    problem = schemas.check_registration_window(event.registration_mode, event.registration_opens_on, event.registration_deadline, last_day)
+    if problem:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=problem.capitalize())
+
     if event.event_type == models.EventTypeEnum.fest:
         gaps = [label for label, value in (("venue", event.location), ("start time", event.time), ("end time", event.end_time), ("description", event.description)) if not (value or "").strip()]
         if gaps:
@@ -249,6 +260,27 @@ def update_event(
             db.rollback()
             raise HTTPException(status_code=400, detail="The end time must be after the start time")
 
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@router.post("/{event_id}/registration", response_model=schemas.EventOut)
+def control_registration(event_id: int, data: schemas.RegistrationControl, db: Session = Depends(get_db), current_user=Depends(require_organizer)):
+    """Open registration right now, or close it, whatever dates were planned."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event or event.event_type != models.EventTypeEnum.fest:
+        raise HTTPException(status_code=404, detail="Event not found")
+    _require_event_manager(db, event, current_user)
+    _assert_fest_editable(db, event.fest_id, current_user)
+    if not event.requires_registration:
+        raise HTTPException(status_code=400, detail="This event does not take registrations")
+    if data.action == "open":
+        if event.registration_deadline and date.today() > event.registration_deadline:
+            raise HTTPException(status_code=400, detail="The closing date has passed. Change it to a later day first.")
+        event.registration_mode, event.registration_opens_on = "open_now", None
+    else:
+        event.registration_mode, event.registration_opens_on = "closed", None
     db.commit()
     db.refresh(event)
     return event

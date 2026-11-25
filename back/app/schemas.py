@@ -1,7 +1,10 @@
 import re
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator, model_validator
 from typing import Annotated, Optional, List, Literal
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+
+MAX_FEST_DAYS = 15
+DateOnly = date  # for models that have a field called `date`, which would otherwise hide the type
 
 MIN_PASSWORD_LENGTH = 8
 MIN_AGE = 13
@@ -205,6 +208,18 @@ class SetInterests(BaseModel):
         return list(dict.fromkeys(v))
 
 # Events
+def check_registration_window(mode, opens_on, deadline, last_day):
+    """Why these registration dates cannot work together, or None when they can."""
+    if mode == "scheduled":
+        if opens_on is None:
+            return "choose the day registration opens, or pick another option"
+        if opens_on > last_day:
+            return "registration must open by the event's last day"
+        if deadline is not None and opens_on > deadline:
+            return "registration cannot open after it closes"
+    return None
+
+
 class EventCreate(BaseModel):
     # event_type MUST be declared first so model_validator has access to it
     event_type: Literal["fest", "city"]
@@ -247,6 +262,15 @@ class EventCreate(BaseModel):
     team_min:              Optional[int] = Field(default=None, ge=1, le=MAX_TEAM_SIZE)
     team_max:              Optional[int] = Field(default=None, ge=2, le=MAX_TEAM_SIZE)
 
+    # How many days it runs from `date`, who runs it, and the last day to register
+    span_days:             int = Field(default=1, ge=1, le=15)
+    coordinator_name:      Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    coordinator_phone:     Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    registration_deadline: Optional[date] = None
+    # When registration opens. "open_now" is the default so a client that says nothing keeps working as before.
+    registration_mode:     Literal["open_now", "scheduled", "not_set", "closed"] = "open_now"
+    registration_opens_on: Optional[date] = None
+
     @model_validator(mode="after")
     def validate_branch_constraints(self) -> "EventCreate":
         check_team_settings(self.is_team_event, self.team_min, self.team_max, self.event_type == "fest", bool(self.requires_registration))
@@ -263,6 +287,13 @@ class EventCreate(BaseModel):
             raise ValueError("price must be > 0 for a paid event")
         if self.registration_limit is not None and self.registration_limit <= 0:
             raise ValueError("registration_limit must be > 0")
+        if self.registration_deadline is not None and self.registration_deadline > self.date.date() + timedelta(days=self.span_days - 1):
+            raise ValueError("registration must close by the event's last day")
+        problem = check_registration_window(self.registration_mode, self.registration_opens_on, self.registration_deadline, self.date.date() + timedelta(days=self.span_days - 1))
+        if problem:
+            raise ValueError(problem)
+        if self.registration_mode != "scheduled":
+            self.registration_opens_on = None
         if self.event_type == "fest" and self.fest_id is None:
             raise ValueError("fest_id is required when event_type is 'fest'")
         if self.event_type == "city" and self.fest_id is not None:
@@ -312,6 +343,13 @@ class EventOut(BaseModel):
     is_team_event: bool = False
     team_min: Optional[int] = None
     team_max: Optional[int] = None
+    span_days: int = 1
+    coordinator_name: Optional[str] = None
+    coordinator_phone: Optional[str] = None
+    registration_deadline: Optional[date] = None
+    registration_mode: str = "open_now"
+    registration_opens_on: Optional[date] = None
+    registration_state: Optional[str] = None  # open | scheduled | not_open | closed; None when no registration is needed
     cancelled: bool = False
     cancel_reason: Optional[str] = None
     reject_reason: Optional[str] = None
@@ -342,9 +380,79 @@ class EventUpdate(BaseModel):
     is_team_event:         Optional[bool] = None
     team_min:              Optional[int] = Field(default=None, ge=1, le=MAX_TEAM_SIZE)
     team_max:              Optional[int] = Field(default=None, ge=2, le=MAX_TEAM_SIZE)
+    span_days:             Optional[int] = Field(default=None, ge=1, le=15)
+    coordinator_name:      Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    coordinator_phone:     Optional[Annotated[str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)]] = None
+    registration_deadline: Optional[DateOnly] = None
+    registration_mode:     Optional[Literal["open_now", "scheduled", "not_set", "closed"]] = None
+    registration_opens_on: Optional[DateOnly] = None
 
     _check_sections = field_validator("extra_sections")(check_sections)
     _clean_image = field_validator("image_url")(clean_url)
+
+SPONSOR_LEVELS = {1: "Title Sponsor", 2: "Powered by", 3: "Associate Sponsors", 4: "Partners"}
+MAX_SPONSORS = 40
+
+
+def clean_web_address(v):
+    """A link to a sponsor's site: http or https only."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if re.fullmatch(r"https?://[^\s]{3,490}", v):
+        return v
+    raise ValueError("must be a web address starting with http:// or https://")
+
+
+class SponsorIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    level: int = Field(default=3, ge=1, le=4)
+    tier_label: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)]] = None   # empty means the usual name for the level
+    logo_url: Optional[str] = None
+    website_url: Optional[str] = None
+    blurb: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+
+    _clean_logo = field_validator("logo_url")(clean_url)
+    _clean_site = field_validator("website_url")(clean_web_address)
+
+
+class SponsorUpdate(BaseModel):
+    """Send only what changes; null clears the logo, link and line."""
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]] = None
+    level: Optional[int] = Field(default=None, ge=1, le=4)
+    tier_label: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)]] = None
+    logo_url: Optional[str] = None
+    website_url: Optional[str] = None
+    blurb: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+
+    _clean_logo = field_validator("logo_url")(clean_url)
+    _clean_site = field_validator("website_url")(clean_web_address)
+
+
+class SponsorOut(BaseModel):
+    id: int
+    fest_id: int
+    name: str
+    level: int
+    tier_label: str
+    logo_url: Optional[str] = None
+    website_url: Optional[str] = None
+    blurb: Optional[str] = None
+    position: int = 0
+    class Config:
+        from_attributes = True
+
+
+class SponsorMove(BaseModel):
+    direction: Literal["up", "down"]
+
+
+class RegistrationControl(BaseModel):
+    """Open or close registration by hand, without touching the rest of the event."""
+    action: Literal["open", "close"]
+
 
 # Fest
 # Words the API itself uses after /fests/, so a fest may not take them as its address
@@ -370,6 +478,8 @@ class FestCreate(BaseModel):
             raise ValueError("add a start date as well, or leave both dates empty")
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("the end date cannot be before the start date")
+        if self.start_date and (self.end_date - self.start_date).days + 1 > MAX_FEST_DAYS:
+            raise ValueError(f"a fest can run for at most {MAX_FEST_DAYS} days")
         return self
 
     @field_validator("slug")
@@ -393,6 +503,7 @@ class FestOut(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     dates_tba: bool = False   # the dates are not fixed yet: shown as "Dates coming soon"
+    days_count: Optional[int] = None   # worked out from the dates; read only
     campus_address: Optional[str] = None
     map_url: Optional[str] = None
     instagram_url: Optional[str] = None
@@ -468,6 +579,10 @@ class FestInviteOut(BaseModel):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
     role: str
+    committee_team_id: Optional[int] = None
+    team_name: Optional[str] = None
+    team_role: str = "member"
+    title: Optional[str] = None
     status: str
     invited_by_name: Optional[str] = None
     created_at: datetime
@@ -505,6 +620,7 @@ class FestMemberOut(BaseModel):
     team_name: Optional[str] = None
     reports_to_id: Optional[int] = None   # the fest-member id of their lead
     reports_to_name: Optional[str] = None
+    team_role: str = "member"             # head | co_head | member, inside their team
     class Config:
         from_attributes = True
 
@@ -514,9 +630,23 @@ class CommitteeTeamIn(BaseModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
     description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
 
+TEAM_ROLES = ("head", "co_head", "member")
+MAX_CO_HEADS = 3
+
 class CommitteeTeamUpdate(BaseModel):
+    """Send only what changes. head_member_id null clears the head; co_head_member_ids is the whole list of co-heads."""
     name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]] = None
     description: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+    leaders_manage_team: Optional[bool] = None
+    head_member_id: Optional[int] = None
+    co_head_member_ids: Optional[List[int]] = Field(default=None, max_length=MAX_CO_HEADS)
+    give_core_access: bool = False   # also give the head the Core team access level (the director only)
+
+class TeamLeader(BaseModel):
+    member_id: int
+    user_id: int
+    name: Optional[str] = None
+    role: str   # their access level
 
 class CommitteeTeamOut(BaseModel):
     id: int
@@ -524,12 +654,16 @@ class CommitteeTeamOut(BaseModel):
     name: str
     description: Optional[str] = None
     member_count: int = 0
+    leaders_manage_team: bool = True
+    head: Optional[TeamLeader] = None
+    co_heads: List[TeamLeader] = []
 
 class MemberPlacement(BaseModel):
     """Change where someone sits. Send only what changes; null clears a field."""
     title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)]] = None
     committee_team_id: Optional[int] = None
     reports_to_id: Optional[int] = None
+    team_role: Optional[Literal["head", "co_head", "member"]] = None
 
 TASK_STATUSES = ("todo", "doing", "done")
 
@@ -639,6 +773,8 @@ class ScheduleItem(BaseModel):
     category: Optional[str] = None
     cancelled: bool = False
     clash_ids: List[int] = []
+    span_days: int = 1
+    day_of_event: int = 1     # which of its days this entry is, from 1
 
 
 class ScheduleClash(BaseModel):
@@ -650,6 +786,7 @@ class ScheduleClash(BaseModel):
 
 class ScheduleDay(BaseModel):
     date: date
+    day_number: Optional[int] = None   # which day of the fest, from 1, when the fest's dates are set
     items: List[ScheduleItem] = []
 
 
@@ -804,9 +941,14 @@ class AddFestMember(BaseModel):
     user_id: Optional[int] = None
     email: Optional[EmailStr] = None   # invite by email instead of by id
     role: Optional[str] = "volunteer"  # owner | core | volunteer
+    committee_team_id: Optional[int] = None   # the team they will sit in
+    team_role: Literal["head", "co_head", "member"] = "member"
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)]] = None   # "Chairperson", "Vice Chairperson"...
 
     @model_validator(mode="after")
     def need_user_or_email(self):
+        if self.team_role != "member" and self.committee_team_id is None:
+            raise ValueError("pick a team for a head or co-head")
         if self.user_id is None and self.email is None:
             raise ValueError("user_id or email is required")
         return self

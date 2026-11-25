@@ -39,6 +39,15 @@ def _open_fest_event(db: Session, event_id: int, user: models.User) -> models.Ev
         raise HTTPException(status_code=400, detail="This event has been cancelled")
     if not event.requires_registration:
         raise HTTPException(status_code=400, detail="This event does not require registration")
+    state = event.registration_state
+    if state == "closed":
+        if event.registration_mode != "closed" and event.registration_deadline:
+            raise HTTPException(status_code=400, detail=f"Registration for this event closed on {event.registration_deadline.strftime('%d %b %Y').lstrip('0')}")
+        raise HTTPException(status_code=400, detail="Registration for this event is closed")
+    if state == "scheduled":
+        raise HTTPException(status_code=400, detail=f"Registration opens on {event.registration_opens_on.strftime('%d %b %Y').lstrip('0')}")
+    if state == "not_open":
+        raise HTTPException(status_code=400, detail="Registration is not open yet")
     if event.students_only and not user.is_student_verified:
         raise HTTPException(status_code=403, detail="This event is for verified students. Verify your student status in your profile first.")
     return event

@@ -41,10 +41,19 @@ def send_invite_email(to: str, name: str, fest_name: str, role: str, inviter: st
         return False
 
 
+def position_phrase(team_name, team_role, title=None) -> str:
+    """", Vice Chairperson, head of Sponsorship" for an invitation that names a title, a team and a position."""
+    parts = [title] if title else []
+    if team_name:
+        parts.append({"head": f"head of {team_name}", "co_head": f"co-head of {team_name}"}.get(team_role or "", f"in the {team_name} team"))
+    return "".join(f", {p}" for p in parts)
+
+
 def invite_out(inv: models.FestInvite) -> "schemas.FestInviteOut":
     return schemas.FestInviteOut(
         id=inv.id, fest_id=inv.fest_id, fest_slug=inv.fest.slug if inv.fest else None, fest_name=inv.fest.name if inv.fest else None,
         user_id=inv.user_id, user_name=inv.user.name if inv.user else None, user_email=inv.user.email if inv.user else None,
-        role=inv.role, status=inv.status, invited_by_name=inv.inviter.name if inv.inviter else None,
+        role=inv.role, committee_team_id=inv.committee_team_id, team_name=inv.committee_team.name if inv.committee_team else None, team_role=inv.team_role or "member", title=inv.title,
+        status=inv.status, invited_by_name=inv.inviter.name if inv.inviter else None,
         created_at=inv.created_at, decided_at=inv.decided_at,
     )

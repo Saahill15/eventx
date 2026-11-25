@@ -49,18 +49,19 @@ export function ScheduleTab({ slug, goTo }: { slug: string; goTo: (tab: string) 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Days">
         {data.days.map((d) => (
           <button key={d.date} role="tab" aria-selected={d.date === current.date} onClick={() => setDay(d.date)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${d.date === current.date ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>
-            {formatDay(d.date)} <span className="font-normal opacity-70">({d.items.length})</span>{d.items.some((i) => i.clash_ids.length > 0) ? <span className="ml-1.5 text-red-500" aria-label="has a clash">●</span> : null}
+            {d.day_number ? `Day ${d.day_number} · ` : ""}{formatDay(d.date)} <span className="font-normal opacity-70">({d.items.length})</span>{d.items.some((i) => i.clash_ids.length > 0) ? <span className="ml-1.5 text-red-500" aria-label="has a clash">●</span> : null}
           </button>
         ))}
       </div>
 
+      {current.items.length === 0 && <div className="rounded-3xl bg-wash px-5 py-8 text-center text-sm text-mute">Nothing is planned for {current.day_number ? `day ${current.day_number}` : "this day"} yet. <button onClick={() => goTo("events")} className="font-semibold text-ink underline underline-offset-4">Add an event</button></div>}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(15rem, 1fr))" }}>
         {venues.map((v) => (
           <section key={v} aria-label={v} className="space-y-3 rounded-3xl bg-wash p-3">
             <h3 className="px-2 pt-1 text-sm font-semibold">{v}</h3>
             {current.items.filter((i) => same(venueOf(i), v)).map((e) => (
               <div key={e.id} className={`rounded-2xl bg-white p-4 shadow-[var(--shadow-card)] ${e.clash_ids.length ? "ring-2 ring-red-400" : ""} ${e.cancelled ? "opacity-60" : ""}`}>
-                <p className="text-xs font-semibold text-mute">{range(e)}</p>
+                <p className="text-xs font-semibold text-mute">{range(e)}{e.span_days > 1 ? ` · day ${e.day_of_event} of ${e.span_days}` : ""}</p>
                 <p className="mt-0.5 font-semibold">{e.title}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">{e.category && <Pill tone="neutral">{e.category}</Pill>}{e.cancelled && <Pill tone="red">Cancelled</Pill>}</div>
                 {e.clash_ids.length > 0 && <p className="mt-2 text-xs font-semibold text-red-600">Clashes with {e.clash_ids.map((id) => byId.get(id)?.title).filter(Boolean).join(", ")}</p>}

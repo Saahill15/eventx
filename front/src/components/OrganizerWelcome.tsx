@@ -22,10 +22,10 @@ export function OrganizerWelcome() {
   if (!show || !user) return null;
 
   const names = user.college_ids.map((id) => colleges.find((c) => c.id === id)?.name).filter(Boolean) as string[];
-  const done = async (go: boolean) => {
+  const done = async (tour: boolean) => {
     await api("/api/users/me/organizer-welcome/seen", { method: "POST" }).catch(() => {});
     await refresh();
-    if (go) router.push("/dashboard");
+    router.push(tour ? "/dashboard?tour=1" : "/dashboard");
   };
 
   return (
@@ -40,8 +40,8 @@ export function OrganizerWelcome() {
           <li className="flex gap-3"><span className="font-bold text-tint-ink">3</span> Once approved, go live and let students register.</li>
         </ul>
         <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <Button size="lg" onClick={() => done(true)}>See organiser tools</Button>
-          <Button size="lg" variant="ghost" onClick={() => done(false)}>Maybe later</Button>
+          <Button size="lg" onClick={() => done(true)}>Take a 1-minute tour</Button>
+          <Button size="lg" variant="ghost" onClick={() => done(false)}>Skip the tour</Button>
         </div>
       </div>
     </div>

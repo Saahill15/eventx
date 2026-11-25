@@ -170,6 +170,14 @@ class Event(Base):
     is_team_event         = Column(Boolean, default=False, nullable=False, server_default="0")
     team_min              = Column(Integer, nullable=True)
     team_max              = Column(Integer, nullable=True)
+    # An event can run over several days of the fest (an exhibition, a long competition): it starts on `date` and repeats daily at the same times
+    span_days             = Column(Integer, nullable=False, default=1, server_default="1")
+    coordinator_name      = Column(String(120), nullable=True)   # the student who runs this event
+    coordinator_phone     = Column(String(30), nullable=True)
+    registration_deadline = Column(Date, nullable=True)          # the last day people can register
+    # When registration opens: "open_now" (instant), "scheduled" (on registration_opens_on), "not_set" (organisers have not decided) or "closed" (shut by hand)
+    registration_mode     = Column(String(12), nullable=False, default="open_now", server_default="open_now")
+    registration_opens_on = Column(Date, nullable=True)
 
     # A cancelled event stays visible (so registered students see why) but cannot be registered for
     cancelled_at  = Column(DateTime, nullable=True)
@@ -188,6 +196,22 @@ class Event(Base):
     @property
     def cancelled(self):
         return self.cancelled_at is not None
+
+    @property
+    def registration_state(self):
+        """None when nobody registers; otherwise "open", "scheduled" (opens on a known day), "not_open" (no date yet) or "closed"."""
+        if not self.requires_registration:
+            return None
+        from datetime import date as _date
+        today = _date.today()
+        mode = self.registration_mode or "open_now"
+        if mode == "closed" or (self.registration_deadline and today > self.registration_deadline):
+            return "closed"
+        if mode == "open_now":
+            return "open"
+        if mode == "scheduled" and self.registration_opens_on:
+            return "open" if today >= self.registration_opens_on else "scheduled"
+        return "not_open"
 
     @property
     def college_name(self):
@@ -339,6 +363,13 @@ class Fest(Base):
     def event_count(self):
         return len([e for e in self.events if e.status == "approved"])
 
+    @property
+    def days_count(self):
+        """How many days the fest runs, worked out from its dates. Nobody types it in; it is None until both dates are set."""
+        if self.start_date and self.end_date and self.end_date >= self.start_date:
+            return (self.end_date - self.start_date).days + 1
+        return None
+
 
 class CommitteeTeam(Base):
     """A function inside a fest's committee, such as Sponsorship, PR or Logistics. Each fest names its own."""
@@ -349,6 +380,8 @@ class CommitteeTeam(Base):
     fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
     name        = Column(String(80), nullable=False)
     description = Column(String(300), nullable=True)
+    # Whether the team's head and co-heads may place people in their team and run its tasks, even without Core team access
+    leaders_manage_team = Column(Boolean, nullable=False, default=True, server_default="1")
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -370,6 +403,8 @@ class FestMember(Base):
     title             = Column(String(80), nullable=True)   # for example "Sponsorship Head" or "Event Coordinator, Dance"
     committee_team_id = Column(Integer, ForeignKey("committee_teams.id", name="fk_fest_members_team"), nullable=True)
     reports_to_id     = Column(Integer, ForeignKey("fest_members.id", name="fk_fest_members_reports_to"), nullable=True)
+    # Their position inside the team: "head", "co_head" or "member". Only means something while committee_team_id is set
+    team_role         = Column(String(10), nullable=False, default="member", server_default="member")
 
     fest = relationship("Fest", back_populates="members")
     user = relationship("User", back_populates="fest_memberships")
@@ -688,6 +723,10 @@ class FestInvite(Base):
     user_id       = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     invited_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     role          = Column(String(12), nullable=False, default="volunteer")
+    # Where they will sit once they accept
+    committee_team_id = Column(Integer, ForeignKey("committee_teams.id", name="fk_fest_invites_team"), nullable=True)
+    team_role     = Column(String(10), nullable=False, default="member", server_default="member")
+    title         = Column(String(80), nullable=True)   # for example "Vice Chairperson"
     status        = Column(String(12), nullable=False, default="pending")   # pending | accepted | declined | cancelled
     created_at    = Column(DateTime, nullable=False)
     decided_at    = Column(DateTime, nullable=True)
@@ -695,6 +734,7 @@ class FestInvite(Base):
     fest    = relationship("Fest")
     user    = relationship("User", foreign_keys=[user_id])
     inviter = relationship("User", foreign_keys=[invited_by_id])
+    committee_team = relationship("CommitteeTeam")
 
 
 class AccountNotice(Base):
@@ -819,3 +859,18 @@ class Announcement(Base):
     fest   = relationship("Fest")
     event  = relationship("Event")
     author = relationship("User")
+
+
+class FestSponsor(Base):
+    """A sponsor or partner of a fest, shown on its public page with a logo. The tier's label is the fest's own wording."""
+    __tablename__ = "fest_sponsors"
+    id          = Column(Integer, primary_key=True, index=True)
+    fest_id     = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    name        = Column(String(120), nullable=False)
+    tier_label  = Column(String(60), nullable=False)    # "Title Sponsor", "Powered by", "Food Partner"...
+    level       = Column(Integer, nullable=False, default=3)   # 1 largest ... 4 smallest: how big the logo is shown and where it comes in the order
+    logo_url    = Column(String(500), nullable=True)
+    website_url = Column(String(500), nullable=True)
+    blurb       = Column(String(200), nullable=True)    # a line about them or what they gave
+    position    = Column(Integer, nullable=False, default=0)   # order inside a level
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())

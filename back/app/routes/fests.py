@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Union
@@ -8,7 +8,7 @@ from app import models, schemas
 from app.auth.dependencies import get_current_user, get_optional_user
 from app.permissions import can_host_fests, can_view_fest, fest_hosting_switched_off
 from app.fest_review import fest_checklist_items, fest_missing
-from app import notices
+from app import committee, notices
 
 router = APIRouter()
 
@@ -287,6 +287,8 @@ def update_fest(
     new_end = updates.get("end_date", fest.end_date)
     if new_start and new_end and new_end < new_start:
         raise HTTPException(status_code=400, detail="The fest cannot end before it starts")
+    if new_start and new_end and (new_end - new_start).days + 1 > schemas.MAX_FEST_DAYS:
+        raise HTTPException(status_code=400, detail=f"A fest can run for at most {schemas.MAX_FEST_DAYS} days")
 
     sensitive_changed = [
         f for f in ("name", "college_id") if f in updates and updates[f] != getattr(fest, f)
@@ -455,6 +457,12 @@ def add_fest_member(
         raise HTTPException(status_code=400, detail="You can't add this user to a fest team.")
     target_id = target.id
 
+    team = None
+    if payload.committee_team_id is not None:
+        team = db.query(models.CommitteeTeam).filter(models.CommitteeTeam.id == payload.committee_team_id, models.CommitteeTeam.fest_id == fest.id).first()
+        if not team:
+            raise HTTPException(status_code=400, detail="That team is not part of this fest")
+
     # Upsert: if already a member, update their role
     existing = (
         db.query(models.FestMember)
@@ -472,6 +480,16 @@ def add_fest_member(
             raise HTTPException(status_code=403, detail="Only the fest owner can add or change core members")
     if existing:
         existing.role = role
+        if payload.title is not None:
+            existing.title = payload.title or None
+        if team is not None:
+            committee.drop_old_team_lead(db, existing, team.id)
+            if payload.team_role == committee.HEAD:
+                committee.demote_other_heads(db, team.id, existing.id)
+            committee.place(existing, team, payload.team_role)
+            db.flush()
+            committee.wire_reports(db, fest.id, team.id)
+        committee.seat_office_bearer(db, existing)
         db.commit()
         db.refresh(existing)
         return existing
@@ -485,18 +503,22 @@ def add_fest_member(
     )
     if pending:
         pending.role = role.value
+        pending.committee_team_id = team.id if team else None
+        pending.team_role = payload.team_role if team else committee.MEMBER
+        pending.title = payload.title or None
         pending.invited_by_id = current_user.id
         db.commit()
         db.refresh(pending)
         return notices.invite_out(pending)
 
-    invite = models.FestInvite(fest_id=fest.id, user_id=target_id, invited_by_id=current_user.id, role=role.value, status="pending", created_at=datetime.utcnow())
+    invite = models.FestInvite(fest_id=fest.id, user_id=target_id, invited_by_id=current_user.id, role=role.value, status="pending", created_at=datetime.utcnow(),
+                                committee_team_id=team.id if team else None, team_role=payload.team_role if team else committee.MEMBER, title=payload.title or None)
     db.add(invite)
     db.flush()
     notices.notify(
         db, target_id, "fest_invite",
         title=f"Invitation to join {fest.name}",
-        body=f"{current_user.name} has invited you to join the team as {notices.ROLE_NAMES.get(role.value, role.value)}. Accept or decline below. Joining needs a verified student status.",
+        body=f"{current_user.name} has invited you to join the team as {notices.ROLE_NAMES.get(role.value, role.value)}{notices.position_phrase(team.name if team else None, payload.team_role if team else None, payload.title)}. Accept or decline below. Joining needs a verified student status.",
         invite_id=invite.id,
     )
     db.commit()

@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { MapPin } from "lucide-react";
 import type { FestEvent } from "@/lib/types";
-import { dayKey, formatDayNumber, formatLongDay, formatMonthShort, formatTime, priceLabel } from "@/lib/format";
+import { dayKey, formatDayNumber, formatLongDay, formatMonthShort, formatTime, priceLabel, registrationBadge } from "@/lib/format";
 import { tintFor } from "./Poster";
 import { Chip } from "./ui/Chip";
 import { EmptyState } from "./ui/bits";
@@ -57,7 +57,7 @@ export function FestTimeline({ events }: { events: FestEvent[] }) {
                     <h3 className="font-display text-xl font-bold leading-tight tracking-tight">{e.title}</h3>
                     {e.location && <p className="mt-1 flex items-center gap-1.5 text-sm opacity-75"><MapPin className="h-3.5 w-3.5" />{e.location}</p>}
                   </div>
-                  <span className="shrink-0 rounded-full bg-white/80 px-3 py-1 text-xs font-bold">{e.requires_registration ? "Register" : priceLabel(e)}</span>
+                  <span className="shrink-0 rounded-full bg-white/80 px-3 py-1 text-xs font-bold">{e.requires_registration ? (registrationBadge(e) ?? "Register") : priceLabel(e)}</span>
                 </Link>
               </motion.li>
             );

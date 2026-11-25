@@ -65,6 +65,8 @@ export interface Fest {
   end_date?: string | null;
   /** The dates are not fixed yet: show "Dates coming soon". */
   dates_tba?: boolean;
+  /** How many days the fest runs, worked out from its dates by the server. */
+  days_count?: number | null;
   campus_address?: string | null;
   map_url?: string | null;
   instagram_url?: string | null;
@@ -97,6 +99,14 @@ export interface FestEvent {
   is_team_event: boolean;
   team_min: number | null;
   team_max: number | null;
+  span_days?: number;
+  coordinator_name?: string | null;
+  coordinator_phone?: string | null;
+  registration_deadline?: string | null;
+  registration_mode?: "open_now" | "scheduled" | "not_set" | "closed";
+  registration_opens_on?: string | null;
+  /** open, scheduled (opens on a known day), not_open (no date yet) or closed; null when nobody registers */
+  registration_state?: "open" | "scheduled" | "not_open" | "closed" | null;
   end_time: string | null;
   extra_sections: ExtraSection[] | null;
   students_only: boolean;
@@ -216,6 +226,10 @@ export interface FestInvite {
   user_name: string | null;
   user_email: string | null;
   role: "owner" | "core" | "volunteer";
+  committee_team_id?: number | null;
+  team_name?: string | null;
+  team_role?: TeamRole;
+  title?: string | null;
   status: "pending" | "accepted" | "declined" | "cancelled";
   invited_by_name: string | null;
   created_at: string;
@@ -249,10 +263,27 @@ export interface Member {
   /** The fest-member id of their lead (not a user id). */
   reports_to_id?: number | null;
   reports_to_name?: string | null;
+  /** Their position inside their team. */
+  team_role?: TeamRole;
 }
 
 /** A function inside a fest's committee, such as Sponsorship or PR. */
-export interface CommitteeTeam { id: number; fest_id: number; name: string; description: string | null; member_count: number }
+export interface Sponsor {
+  id: number; fest_id: number; name: string;
+  /** 1 is the biggest tier (the title sponsor) and 4 the smallest. */
+  level: 1 | 2 | 3 | 4;
+  /** The fest's own wording for the tier, such as "Powered by" or "Food Partner". */
+  tier_label: string;
+  logo_url: string | null; website_url: string | null; blurb: string | null; position: number;
+}
+
+export type TeamRole = "head" | "co_head" | "member";
+export interface TeamLeader { member_id: number; user_id: number; name: string | null; role: "owner" | "core" | "volunteer" }
+export interface CommitteeTeam {
+  id: number; fest_id: number; name: string; description: string | null; member_count: number;
+  /** Whether the head and co-heads may place people in the team and run its tasks, even without Core access. */
+  leaders_manage_team: boolean; head: TeamLeader | null; co_heads: TeamLeader[];
+}
 export interface Org { teams: CommitteeTeam[]; members: Member[] }
 
 export interface AdminUser {
@@ -359,9 +390,9 @@ export interface MeetingAttendee { member_id: number; user_name: string | null; 
 export interface FestMeetingDetail extends FestMeetingSummary { attendees: MeetingAttendee[]; actions: FestTask[] }
 
 /** The master schedule of a fest, with clashes marked. */
-export interface ScheduleItem { id: number; title: string; date: string; time: string | null; end_time: string | null; location: string | null; category: string | null; cancelled: boolean; clash_ids: number[] }
+export interface ScheduleItem { id: number; title: string; date: string; time: string | null; end_time: string | null; location: string | null; category: string | null; cancelled: boolean; clash_ids: number[]; span_days: number; day_of_event: number }
 export interface Schedule {
-  days: { date: string; items: ScheduleItem[] }[]; venues: string[];
+  days: { date: string; day_number: number | null; items: ScheduleItem[] }[]; venues: string[];
   clashes: { date: string; venue: string; first_id: number; second_id: number }[]; unscheduled: ScheduleItem[];
 }
 

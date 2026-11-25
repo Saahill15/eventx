@@ -1,4 +1,4 @@
-import type { College, ContingentInfo, Fest, FestEvent } from "./types";
+import type { College, ContingentInfo, Fest, FestEvent, Sponsor } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -76,6 +76,7 @@ async function publicGet<T>(path: string, revalidate = 30): Promise<T | null> {
 
 export const getLiveFests = () => publicGet<Fest[]>("/api/fests/");
 export const getFestBySlug = (slug: string) => publicGet<Fest>(`/api/fests/${encodeURIComponent(slug)}`, 0);
+export const getFestSponsors = (slug: string) => publicGet<Sponsor[]>(`/api/fests/${encodeURIComponent(slug)}/sponsors`, 30);
 export const getFestEvents = (slug: string) => publicGet<FestEvent[]>(`/api/fests/${encodeURIComponent(slug)}/events`, 0);
 export const getAllEvents = () => publicGet<FestEvent[]>("/api/events/");
 export const getCityEvents = () => publicGet<FestEvent[]>("/api/events/city");

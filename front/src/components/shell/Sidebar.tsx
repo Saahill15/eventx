@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 // `dot`, `exact`, `add`, `empty` and `loading` are small additions for this site; the rest is the standalone sidebar.
 export type SidebarItem = { href: string; label: string; icon?: React.ReactNode; badge?: number; external?: boolean; dot?: "live" | "off"; exact?: boolean };
-export type SidebarGroup = { id: string; label?: string; items: SidebarItem[]; add?: { href: string; label: string }; empty?: string; loading?: boolean };
+export type SidebarGroup = { id: string; label?: string; items: SidebarItem[]; add?: { href: string; label: string }; empty?: string; loading?: boolean; tour?: string };
 
 /** Sidebar with folding categories. Pass `groups` (your menu) and `brand` (name or logo). */
 export function Sidebar({ groups, brand = "Admin", storageKey = "sidebar:collapsed" }: {
@@ -51,11 +51,11 @@ export function Sidebar({ groups, brand = "Admin", storageKey = "sidebar:collaps
             <div key={g.id} className="sb-group">
               {g.label ? (
                 <div className="sb-head">
-                  <button type="button" className="sb-label" aria-expanded={!folded} onClick={() => toggle(g.id)}>
+                  <button type="button" className="sb-label" aria-expanded={!folded} onClick={() => toggle(g.id)} data-tour={g.tour}>
                     {g.label}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
                   </button>
-                  {g.add ? <Link href={g.add.href} className="sb-add" aria-label={g.add.label} title={g.add.label}>+</Link> : null}
+                  {g.add ? <Link href={g.add.href} className="sb-add" aria-label={g.add.label} title={g.add.label} data-tour={g.tour ? `${g.tour}-add` : undefined}>+</Link> : null}
                 </div>
               ) : null}
               {!folded ? (

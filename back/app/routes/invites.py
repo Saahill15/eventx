@@ -16,7 +16,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app import models, notices, schemas
+from app import committee, models, notices, schemas
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.permissions import is_fest_staff
@@ -43,7 +43,17 @@ def _answer(db: Session, invite: models.FestInvite, user: models.User, accept: b
             raise HTTPException(status_code=403, detail="Only verified students can join a fest team. Verify your student status, then accept again. Your invitation stays open.")
         already = db.query(models.FestMember).filter(models.FestMember.fest_id == invite.fest_id, models.FestMember.user_id == user.id).first()
         if not already:
-            db.add(models.FestMember(fest_id=invite.fest_id, user_id=user.id, role=models.FestMemberRoleEnum(invite.role)))
+            member = models.FestMember(fest_id=invite.fest_id, user_id=user.id, role=models.FestMemberRoleEnum(invite.role), title=invite.title)
+            team = invite.committee_team  # may have been deleted since; then they simply join without a team
+            if team is not None:
+                committee.place(member, team, invite.team_role or committee.MEMBER)
+            db.add(member)
+            db.flush()
+            committee.seat_office_bearer(db, member)
+            if team is not None:
+                if member.team_role == committee.HEAD:
+                    committee.demote_other_heads(db, team.id, member.id)
+                committee.wire_reports(db, invite.fest_id, team.id)
     invite.status = "accepted" if accept else "declined"
     invite.decided_at = now
     for n in db.query(models.AccountNotice).filter(models.AccountNotice.invite_id == invite.id, models.AccountNotice.user_id == user.id, models.AccountNotice.read_at.is_(None)).all():

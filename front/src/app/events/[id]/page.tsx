@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Tag } from "lucide-react";
 import { getEventById, getFestEvents } from "@/lib/api";
-import { formatLongDay, formatTime, mapsLink, priceLabel, startOfToday } from "@/lib/format";
+import { formatDay, formatLongDay, formatTime, mapsLink, priceLabel, startOfToday } from "@/lib/format";
 import { PosterArt } from "@/components/Poster";
 import { RegisterPanel } from "@/components/RegisterPanel";
 import { ShareButtons } from "@/components/ShareButtons";
@@ -30,12 +30,19 @@ export default async function EventPage({ params }: Props) {
   if (!event) notFound();
 
   const more = event.fest_slug ? ((await getFestEvents(event.fest_slug)) ?? []).filter((e) => e.id !== event.id) : [];
-  const hasEnded = new Date(event.date) < startOfToday();
+  const spanDays = event.span_days ?? 1;
+  const lastDay = spanDays > 1 ? new Date(new Date(event.date).getTime() + (spanDays - 1) * 86_400_000).toISOString() : event.date;
+  const hasEnded = new Date(lastDay) < startOfToday();
+  const dateText = spanDays > 1 ? `${formatDay(event.date)} to ${formatDay(lastDay)}` : formatLongDay(event.date);
   const facts = [
-    { icon: CalendarDays, label: "Date", value: formatLongDay(event.date) },
-    ...(event.time ? [{ icon: Clock, label: "Time", value: formatTime(event.time) + (event.end_time ? `–${formatTime(event.end_time)}` : "") }] : []),
+    { icon: CalendarDays, label: spanDays > 1 ? `Dates (${spanDays} days)` : "Date", value: dateText },
+    ...(event.time ? [{ icon: Clock, label: spanDays > 1 ? "Time, every day" : "Time", value: formatTime(event.time) + (event.end_time ? `–${formatTime(event.end_time)}` : "") }] : []),
     ...(event.location ? [{ icon: MapPin, label: "Venue", value: event.location }] : []),
     { icon: Tag, label: "Price", value: priceLabel(event) },
+    ...(event.coordinator_name ? [{ icon: Tag, label: "Contact", value: [event.coordinator_name, event.coordinator_phone].filter(Boolean).join(" · ") }] : []),
+    ...(event.requires_registration && event.registration_state === "scheduled" && event.registration_opens_on ? [{ icon: Clock, label: "Registration opens", value: formatLongDay(`${event.registration_opens_on}T00:00:00`) }] : []),
+    ...(event.requires_registration && event.registration_state === "not_open" ? [{ icon: Clock, label: "Registration", value: "Not open yet" }] : []),
+    ...(event.requires_registration && event.registration_deadline ? [{ icon: Clock, label: "Register by", value: formatLongDay(event.registration_deadline) }] : []),
   ];
 
   return (
@@ -44,7 +51,7 @@ export default async function EventPage({ params }: Props) {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-white/70 to-transparent" aria-hidden />
         <div className="relative mx-auto max-w-4xl">
           <FadeUp className="flex flex-wrap justify-center gap-2.5">
-            <InfoChip icon={<CalendarDays className="h-4 w-4" />}>{formatLongDay(event.date)}</InfoChip>
+            <InfoChip icon={<CalendarDays className="h-4 w-4" />}>{dateText}</InfoChip>
             {event.location && <InfoChip icon={<MapPin className="h-4 w-4" />}>{event.location}</InfoChip>}
           </FadeUp>
           <FadeUp delay={0.08}><h1 className="mt-7 font-display text-5xl font-semibold leading-[1.02] tracking-[-0.03em] sm:text-7xl">{event.title}</h1></FadeUp>

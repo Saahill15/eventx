@@ -11,11 +11,12 @@ import { EmptyState, ErrorNote, Field, Pill, Skeleton } from "@/components/ui/bi
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [{ id: "todo", label: "To do" }, { id: "doing", label: "In progress" }, { id: "done", label: "Done" }];
 
-function TaskForm({ slug, org, task, onDone }: { slug: string; org: Org; task: FestTask | null; onDone: (changed: boolean) => void }) {
+function TaskForm({ slug, org, task, lockTeam, onDone }: { slug: string; org: Org; task: FestTask | null; lockTeam?: number; onDone: (changed: boolean) => void }) {
   const [f, setF] = useState({
     title: task?.title ?? "", description: task?.description ?? "", due: task?.due_date ?? "",
-    assignee: task?.assignee_member_id ? String(task.assignee_member_id) : "", team: task?.committee_team_id ? String(task.committee_team_id) : "",
+    assignee: task?.assignee_member_id ? String(task.assignee_member_id) : "", team: lockTeam ? String(lockTeam) : task?.committee_team_id ? String(task.committee_team_id) : "",
   });
+  const people = lockTeam ? org.members.filter((m) => m.committee_team_id === lockTeam) : org.members;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -36,8 +37,8 @@ function TaskForm({ slug, org, task, onDone }: { slug: string; org: Org; task: F
       <ErrorNote>{error}</ErrorNote>
       <Field label="What needs doing"><input className="field" required autoFocus maxLength={200} value={f.title} onChange={set("title")} placeholder="e.g. Print 200 posters" /></Field>
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Who"><select className="field" value={f.assignee} onChange={set("assignee")}><option value="">Nobody yet</option>{org.members.map((m) => <option key={m.id} value={m.id}>{m.user_name}{m.title ? `, ${m.title}` : ""}</option>)}</select></Field>
-        <Field label="Team"><select className="field" value={f.team} onChange={set("team")}><option value="">No team</option>{org.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
+        <Field label="Who"><select className="field" value={f.assignee} onChange={set("assignee")}><option value="">Nobody yet</option>{people.map((m) => <option key={m.id} value={m.id}>{m.user_name}{m.title ? `, ${m.title}` : ""}</option>)}</select></Field>
+        <Field label="Team"><select className="field" value={f.team} disabled={!!lockTeam} onChange={set("team")}><option value="">No team</option>{org.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
         <Field label="Due"><input className="field" type="date" value={f.due} onChange={set("due")} /></Field>
       </div>
       <Field label="Details (optional)"><textarea className="field min-h-20" maxLength={2000} value={f.description} onChange={set("description")} /></Field>
@@ -50,7 +51,7 @@ function TaskForm({ slug, org, task, onDone }: { slug: string; org: Org; task: F
  * The committee's task board. Staff add, edit, assign and delete; anyone can see the board; the person a task is assigned to can
  * move it along. With `mineOnly` it is the short list a volunteer sees: just their own tasks.
  */
-export function TasksTab({ slug, canManage, mineOnly = false }: { slug: string; canManage: boolean; mineOnly?: boolean }) {
+export function TasksTab({ slug, canManage, mineOnly = false, onlyTeamId }: { slug: string; canManage: boolean; mineOnly?: boolean; onlyTeamId?: number }) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<FestTask[] | null>(null);
   const [org, setOrg] = useState<Org>({ teams: [], members: [] });
@@ -63,10 +64,10 @@ export function TasksTab({ slug, canManage, mineOnly = false }: { slug: string; 
 
   const load = useCallback(async () => {
     try {
-      const [t, o] = await Promise.all([api<FestTask[]>(`/api/fests/${slug}/tasks${mineOnly ? "?assignee=me" : ""}`), canManage ? api<Org>(`/api/fests/${slug}/org`) : Promise.resolve({ teams: [], members: [] } as Org)]);
+      const [t, o] = await Promise.all([api<FestTask[]>(`/api/fests/${slug}/tasks${mineOnly ? "?assignee=me" : onlyTeamId ? `?team_id=${onlyTeamId}` : ""}`), canManage ? api<Org>(`/api/fests/${slug}/org`) : Promise.resolve({ teams: [], members: [] } as Org)]);
       setTasks(t); setOrg(o);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load the tasks."); setTasks([]); }
-  }, [slug, mineOnly, canManage]);
+  }, [slug, mineOnly, onlyTeamId, canManage]);
   useEffect(() => { load(); }, [load]);
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -78,7 +79,7 @@ export function TasksTab({ slug, canManage, mineOnly = false }: { slug: string; 
   const remove = (t: FestTask) => { if (window.confirm(`Delete "${t.title}"?`)) act(() => api(`/api/fests/${slug}/tasks/${t.id}`, { method: "DELETE" })); };
 
   if (tasks === null) return <Skeleton className="h-48" />;
-  if (editing && canManage) return <div className="max-w-3xl"><TaskForm slug={slug} org={org} task={editing === "new" ? null : editing} onDone={(c) => { setEditing(null); if (c) load(); }} /></div>;
+  if (editing && canManage) return <div className="max-w-3xl"><TaskForm slug={slug} org={org} task={editing === "new" ? null : editing} lockTeam={onlyTeamId} onDone={(c) => { setEditing(null); if (c) load(); }} /></div>;
 
   const shown = tasks.filter((t) => (filter === "mine" ? t.assignee_member_id === myMember?.id : filter === "overdue" ? t.overdue : true) && (!teamId || t.committee_team_id === Number(teamId)));
   const mine = (t: FestTask) => canManage || (mineOnly && true) || (myMember && t.assignee_member_id === myMember.id);
@@ -98,7 +99,7 @@ export function TasksTab({ slug, canManage, mineOnly = false }: { slug: string; 
           {t.status === "todo" && <Button size="sm" variant="outline" disabled={busy} onClick={() => move(t, "doing")}>Start</Button>}
           {t.status !== "done" && <Button size="sm" variant="outline" disabled={busy} onClick={() => move(t, "done")}>Done</Button>}
           {t.status === "done" && <Button size="sm" variant="ghost" disabled={busy} onClick={() => move(t, "todo")}>Reopen</Button>}
-          {canManage && <><button onClick={() => setEditing(t)} className="px-1 text-xs font-semibold underline underline-offset-4">Edit</button><button disabled={busy} onClick={() => remove(t)} className="px-1 text-xs font-semibold text-red-600 underline underline-offset-4">Delete</button></>}
+          {canManage && <><button onClick={() => setEditing(t)} className="px-1 text-xs font-semibold underline underline-offset-4">Edit</button>{!onlyTeamId && <button disabled={busy} onClick={() => remove(t)} className="px-1 text-xs font-semibold text-red-600 underline underline-offset-4">Delete</button>}</>}
         </div>
       )}
     </div>

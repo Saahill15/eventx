@@ -1,5 +1,6 @@
 """Rules for what a fest must contain before an admin can review it."""
 
+from datetime import timedelta
 from typing import List
 
 from app import models
@@ -44,7 +45,8 @@ def fest_missing(fest: models.Fest, events: List[models.Event]) -> List[str]:
         gaps = [label for label, value in (("venue", e.location), ("start time", e.time), ("end time", e.end_time), ("description", e.description)) if not (value or "").strip()]
         if gaps:
             missing.append(f"event '{e.title}': " + ", ".join(gaps))
-        if fest.start_date and fest.end_date and not (fest.start_date <= e.date.date() <= fest.end_date):
+        last_day = e.date.date() + timedelta(days=(getattr(e, "span_days", 1) or 1) - 1)
+        if fest.start_date and fest.end_date and not (fest.start_date <= e.date.date() and last_day <= fest.end_date):
             missing.append(f"event '{e.title}' is dated outside the fest's start and end dates")
     return missing
 
@@ -73,7 +75,7 @@ def fest_checklist_items(fest: models.Fest, events: List[models.Event], member_c
     flags = _flags(fest)
     items = [
         {"key": "dates", "label": "Set your dates", "done": dates_ok or tba, "required": True, "tab": "details",
-         "hint": "Not final yet? Choose 'Dates coming soon' and your fest is listed without dates. Add them when you know."},
+         "hint": "Pick the first and last day; the number of days follows. Not final yet? Choose 'Dates coming soon' and list it without dates."},
         {"key": "banner", "label": "Add a banner image", "done": _present(fest.banner_url), "required": True, "tab": "details",
          "hint": "This is the first thing students see."},
         {"key": "description", "label": "Describe your fest", "done": _present(fest.description), "required": True, "tab": "details"},

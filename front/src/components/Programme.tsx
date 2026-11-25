@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Clock, MapPin } from "lucide-react";
 import type { FestEvent } from "@/lib/types";
-import { dayKey, formatLongDay, formatTime, priceLabel } from "@/lib/format";
+import { dayKey, formatLongDay, formatTime, priceLabel, registrationBadge } from "@/lib/format";
 import { EmptyState } from "./ui/bits";
 
 const dayLabel = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
@@ -47,7 +47,7 @@ export function Programme({ events, title = "Programme" }: { events: FestEvent[]
               <div className="flex shrink-0 flex-wrap gap-2 sm:max-w-[14rem] sm:justify-end">
                 {e.time && <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-chip-ink shadow-[var(--shadow-card)]"><Clock className="h-3.5 w-3.5" />{formatTime(e.time)}</span>}
                 {e.location && <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-medium text-chip-ink shadow-[var(--shadow-card)]"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{e.location}</span></span>}
-                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-semibold ${e.is_free || !e.price ? "bg-mint text-emerald-800" : "bg-chip text-chip-ink"}`}>{e.requires_registration && (e.is_free || !e.price) ? "Register free" : priceLabel(e)}</span>
+                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-semibold ${e.is_free || !e.price ? "bg-mint text-emerald-800" : "bg-chip text-chip-ink"}`}>{e.requires_registration ? (registrationBadge(e) ?? ((e.is_free || !e.price) ? "Register free" : priceLabel(e))) : priceLabel(e)}</span>
               </div>
             </Link>
           </motion.li>

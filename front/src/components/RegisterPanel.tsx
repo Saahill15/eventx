@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Clock, Copy, Ticket, Users, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatLongDay, registrationNote } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import type { CityPass, FestEvent, FestPass, Question, Registration, Team } from "@/lib/types";
 import { Button } from "./ui/Button";
@@ -128,7 +129,14 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
 
   if (hasEnded) return <p className="rounded-2xl bg-wash px-4 py-4 text-center text-sm font-semibold text-mute">This event has already taken place.</p>;
   if (event.cancelled) return <p className="rounded-2xl bg-red-50 px-4 py-4 text-center text-sm font-semibold text-red-700">This event has been cancelled.</p>;
+  // Whether registration is open is worked out by the server, so every page says the same thing
+  const regState = needsRegistration ? event.registration_state : null;
+  const regNote = registrationNote(event) && regState !== "closed" ? registrationNote(event) : null;
+  const closed = regState === "closed";
+  const notice = (text: string) => <p className="rounded-2xl bg-wash px-4 py-4 text-center text-sm font-semibold text-mute">{text}</p>;
   if (loading) return <div className="h-14 animate-pulse rounded-full bg-wash" />;
+
+  if (regNote && !user) return notice(`${regNote}.`);
 
   if (!user) {
     return (
@@ -156,6 +164,9 @@ export function RegisterPanel({ event, hasEnded }: { event: FestEvent; hasEnded:
   if (state === "waiting") return done(<Clock className="h-5 w-5 text-chip-ink" />, "Request sent", "The organisers will confirm your spot. It will show here once approved.", needsRegistration);
   if (state === "rejected") return done(<XCircle className="h-5 w-5 text-red-600" />, "Not approved", "The organisers could not confirm this registration.");
   if (isFest && !needsRegistration && hasFestPass) return done(<Ticket className="h-5 w-5 text-chip-ink" />, "Entry included", "No registration needed. Your fest pass gets you in.");
+
+  if (regNote) return notice(`${regNote}.`);
+  if (closed) return notice(event.registration_mode !== "closed" && event.registration_deadline ? `Registration closed on ${formatLongDay(`${event.registration_deadline}T00:00:00`)}.` : "Registration is closed.");
 
   if (isTeam) {
     return (

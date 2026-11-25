@@ -13,7 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import committee, models, schemas
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.permissions import is_fest_member, is_fest_staff
@@ -84,11 +84,22 @@ def list_tasks(
     return tasks
 
 
+def _check_assignee_in_team(db: Session, fest: models.Fest, member_id, team_id) -> None:
+    if member_id is None:
+        return
+    m = db.query(models.FestMember).filter(models.FestMember.id == member_id, models.FestMember.fest_id == fest.id).first()
+    if not m or m.committee_team_id != team_id:
+        raise HTTPException(status_code=403, detail="A team's leaders can give tasks to people in their own team")
+
+
 @router.post("/{slug}/tasks", response_model=schemas.TaskOut, status_code=status.HTTP_201_CREATED)
 def add_task(slug: str, data: schemas.TaskIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     fest = _fest(db, slug)
     if not is_fest_staff(db, fest.id, user):
-        raise HTTPException(status_code=403, detail="Only the fest's director or core team can add tasks")
+        # A head or co-head can set tasks for their own team, and only to people in it
+        if not committee.leads_team(db, fest.id, user, data.committee_team_id):
+            raise HTTPException(status_code=403, detail="Only the fest's director or core team can add tasks")
+        _check_assignee_in_team(db, fest, data.assignee_member_id, data.committee_team_id)
     if db.query(models.FestTask).filter(models.FestTask.fest_id == fest.id).count() >= MAX_TASKS:
         raise HTTPException(status_code=400, detail=f"A fest can have at most {MAX_TASKS} tasks. Delete finished ones first.")
     _check_links(db, fest, data.assignee_member_id, data.committee_team_id, data.meeting_id)
@@ -111,7 +122,13 @@ def update_task(slug: str, task_id: int, data: schemas.TaskUpdate, db: Session =
     task = _task(db, fest, task_id)
     updates = data.model_dump(exclude_unset=True)
 
-    if not is_fest_staff(db, fest.id, user):
+    leads = (not is_fest_staff(db, fest.id, user)) and committee.leads_team(db, fest.id, user, task.committee_team_id)
+    if leads:
+        if updates.get("committee_team_id", task.committee_team_id) != task.committee_team_id:
+            raise HTTPException(status_code=403, detail="You can only manage tasks of your own team")
+        if "assignee_member_id" in updates:
+            _check_assignee_in_team(db, fest, updates["assignee_member_id"], task.committee_team_id)
+    elif not is_fest_staff(db, fest.id, user):
         mine = _my_member(db, fest, user)
         if not mine or task.assignee_member_id != mine.id:
             raise HTTPException(status_code=403, detail="Only the director, the core team, or the person it is assigned to can change this task")

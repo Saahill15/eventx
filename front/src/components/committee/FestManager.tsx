@@ -15,14 +15,17 @@ import { GateTab } from "./GateTab";
 import { RegistrationsTab } from "./RegistrationsTab";
 import { TeamTab } from "./TeamTab";
 import { TasksTab } from "./TasksTab";
+import { MyTeamPanel } from "./MyTeamPanel";
+import { SponsorsTab } from "./SponsorsTab";
 import { MeetingsTab } from "./MeetingsTab";
 import { ScheduleTab } from "./ScheduleTab";
 import { ContingentsTab } from "./ContingentsTab";
 import { HandOverCard } from "./HandOverCard";
+import { GuidedTour, type TourStep } from "@/components/GuidedTour";
 
 const TABS = [
   { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true }, { id: "schedule", label: "Schedule", staff: true },
-  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
+  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "sponsors", label: "Sponsors", staff: true }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -35,6 +38,11 @@ export function FestManager({ slug }: { slug: string }) {
   const [tab, setTab] = useState<TabId>("overview");
 
   const isStaff = role === "owner" || role === "core" || role === "admin";
+
+  // A short tour of this page: once, the first time an organiser opens a fest, and again whenever they ask (?tour=1 or the button)
+  const [touring, setTouring] = useState(false);
+  const FEST_TOUR_KEY = "hiveout:tour:fest:v1";
+  const endTour = () => { setTouring(false); try { window.localStorage.setItem(FEST_TOUR_KEY, "1"); } catch { /* storage blocked */ } if (window.location.search.includes("tour=")) window.history.replaceState(null, "", window.location.pathname + window.location.hash); };
 
   const loadFest = useCallback(async () => {
     setFest(await api<FestManage>(`/api/fests/${slug}/manage`));
@@ -53,6 +61,12 @@ export function FestManager({ slug }: { slug: string }) {
     loadEvents();
   }, [isStaff, loadFest, loadEvents]);
   useEffect(() => { if (role) api<FestEvent[]>(`/api/fests/${slug}/events`).then(setPublicEvents).catch(() => {}); }, [role, slug, events]);
+  useEffect(() => {
+    if (!isStaff || !fest || role === "admin") return;
+    let seen = false;
+    try { seen = !!window.localStorage.getItem(FEST_TOUR_KEY); } catch { /* storage blocked: do not nag */ seen = true; }
+    if (new URLSearchParams(window.location.search).get("tour") === "1" || !seen) { const t = window.setTimeout(() => setTouring(true), 700); return () => window.clearTimeout(t); }
+  }, [isStaff, fest, role]);
   useEffect(() => {
     const t = window.location.hash.slice(1) as TabId;
     if (TABS.some((x) => x.id === t)) setTab(t);
@@ -77,6 +91,7 @@ export function FestManager({ slug }: { slug: string }) {
         <Link href="/dashboard/fests" className="text-sm text-mute hover:text-ink">← Your fests</Link>
         <h1 className="mb-2 mt-3 text-[26px] leading-tight">Check-in</h1>
         <p className="mb-6 text-mute">You are a volunteer on this fest. You can check people in on the day.</p>
+        <MyTeamPanel slug={slug} />
         <div className="mb-8"><TasksTab slug={slug} canManage={false} mineOnly /></div>
         <GateTab slug={slug} events={publicEvents} canUndo={false} />
       </div>
@@ -84,6 +99,16 @@ export function FestManager({ slug }: { slug: string }) {
   }
 
   const f = fest!;
+  const tour: TourStep[] = [
+    { title: "This is your fest's control room", body: "Everything for this fest is in these tabs. Here is what each one is for, in under a minute." },
+    { target: "tab-overview", title: "Overview", body: "Your fest at a glance, and a checklist of what is left before you can send it for review." },
+    { target: "tab-details", title: "Fest details", body: "The name, dates, banner and logo, where it is, and who HiveOut can contact. The number of days is worked out from your dates." },
+    { target: "tab-events", title: "Events", body: "Add your events from a template. Choose which day or days each one runs, whether people register, and team sizes." },
+    { target: "tab-schedule", title: "Schedule", body: "Every day of your fest, with each event in its place. If two events want the same venue at the same time, it tells you." },
+    { target: "tab-tasks", title: "Tasks, meetings and committee", body: "Keep your team organised: give out tasks, run meetings with an agenda and minutes, and set up your teams and who reports to whom." },
+    { target: "tab-colleges", title: "Visiting colleges", body: "If other colleges take part, switch this on to let their leaders register their teams. Leave it off if your fest is just for your own college." },
+    ...(f.review_status === "draft" || f.review_status === "changes_requested" || f.review_status === "rejected" ? [{ target: "checklist", title: "When this is all ticked", body: "Send the fest to HiveOut for review. After approval, one click makes it live for students." }] : []),
+  ];
   const frozen = f.review_status === "in_review" && role !== "admin";
   const pending = events.reduce((n, e) => n + e.pending_count, 0);
 
@@ -98,6 +123,7 @@ export function FestManager({ slug }: { slug: string }) {
             <ReviewPill status={f.review_status} />
           </div>
           {f.status === "live" && <Link href={`/fests/${f.slug}`} className="mt-1 inline-block text-sm font-semibold hover:underline">View public page →</Link>}
+          {role !== "admin" && <button onClick={() => setTouring(true)} className="mt-1 block text-sm font-semibold text-mute underline underline-offset-4 hover:text-ink">Take a tour of this page</button>}
         </div>
       </div>
 
@@ -105,12 +131,13 @@ export function FestManager({ slug }: { slug: string }) {
 
       <nav role="tablist" aria-label="Fest sections" className="no-scrollbar -mx-1 mb-8 flex gap-2 overflow-x-auto px-1">
         {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => go(t.id)} className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>
+          <button key={t.id} role="tab" data-tour={`tab-${t.id}`} aria-selected={tab === t.id} onClick={() => go(t.id)} className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold transition ${tab === t.id ? "bg-ink text-white" : "bg-white text-mute shadow-[var(--shadow-card)] hover:text-ink"}`}>
             {t.label}{t.id === "registrations" && pending > 0 && <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs text-on-brand">{pending}</span>}
           </button>
         ))}
       </nav>
 
+      {touring && <GuidedTour steps={tour} onClose={() => endTour()} />}
       {tab === "overview" && <FestOverviewTab fest={f} role={role} reload={loadFest} goTo={go} />}
       {tab === "details" && <FestDetailsTab key={f.review_status + f.name} fest={f} frozen={frozen} onSaved={loadFest} />}
       {tab === "events" && <EventsTab fest={f} events={events} frozen={frozen} goTo={go} reload={() => { loadEvents(); loadFest(); }} />}
@@ -120,6 +147,7 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "tasks" && <TasksTab slug={slug} canManage />}
       {tab === "meetings" && <MeetingsTab slug={slug} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
+      {tab === "sponsors" && <SponsorsTab slug={slug} live={f.status === "live"} />}
       {tab === "announcements" && <AnnouncementsTab slug={slug} live={f.status === "live"} events={publicEvents} />}
       {tab === "team" && <div className="max-w-4xl space-y-8"><TeamTab slug={slug} myRole={role} />{role === "owner" && <HandOverCard slug={slug} />}</div>}
     </div>

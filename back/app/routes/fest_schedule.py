@@ -2,11 +2,11 @@
 The master schedule: every event of the fest by day and venue, with clashes marked.
 
   GET /api/fests/{slug}/schedule                                           the schedule (any committee member)
-  GET /api/fests/{slug}/schedule/check?day=&time=&end_time=&location=&exclude_event_id=
+  GET /api/fests/{slug}/schedule/check?day=&time=&end_time=&location=&exclude_event_id=&span_days=
                                                                           would an event here clash with an existing one? (used while editing an event)
 """
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -33,8 +33,9 @@ def _fest_and_events(db: Session, slug: str, user):
 
 @router.get("/{slug}/schedule", response_model=schemas.ScheduleOut)
 def get_schedule(slug: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    _, events = _fest_and_events(db, slug, user)
-    return build_schedule(events)
+    fest, events = _fest_and_events(db, slug, user)
+    days = [fest.start_date + timedelta(days=i) for i in range(fest.days_count)] if fest.start_date and fest.days_count else None
+    return build_schedule(events, days)
 
 
 @router.get("/{slug}/schedule/check", response_model=schemas.ClashCheckOut)
@@ -45,9 +46,15 @@ def check_clash(
     end_time: Optional[str] = None,
     location: Optional[str] = None,
     exclude_event_id: Optional[int] = None,
+    span_days: int = 1,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
     _, events = _fest_and_events(db, slug, user)
-    hits = clashing_with(events, day, time, end_time, location, exclude_event_id)
-    return {"clashes": build_schedule(hits)["days"][0]["items"] if hits else []}
+    hits = clashing_with(events, day, time, end_time, location, exclude_event_id, span_days)
+    first = {}
+    for h in hits:
+        first[h.id] = h
+    # one entry per clashing event, shown on its first day
+    items = [i for d in build_schedule(list(first.values()))["days"] for i in d["items"] if i["day_of_event"] == 1]
+    return {"clashes": items}

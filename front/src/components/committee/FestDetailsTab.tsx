@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import type { FestManage, ReviewFieldNote } from "@/lib/types";
 import { REVIEW_FIELDS, reviewFieldLabel } from "@/lib/reviewFields";
+import { daysBetween, daysLabel } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { ErrorNote, Field, Notice } from "@/components/ui/bits";
 import { ImageUpload } from "@/components/ui/ImageUpload";
@@ -68,13 +69,14 @@ export function FestDetailsTab({ fest, frozen, onSaved }: { fest: FestManage; fr
             <Field label="Starts"><input className="field" type="date" value={tba ? "" : f.start_date} disabled={tba} onChange={set("start_date")} /></Field>
             <Field label="Ends"><input className="field" type="date" value={tba ? "" : f.end_date} min={f.start_date || undefined} disabled={tba} onChange={set("end_date")} /></Field>
           </div>
+          {!tba && daysBetween(f.start_date, f.end_date) !== null && <p className="rounded-2xl bg-wash px-4 py-3 text-sm" aria-live="polite"><span className="font-semibold">Runs for {daysLabel(daysBetween(f.start_date, f.end_date) ?? 1)}.</span> <span className="text-mute">Worked out from your dates. Events are planned day by day within them.</span></p>}
           <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#111]" checked={tba} onChange={(e) => { setSaved(false); setTba(e.target.checked); }} /><span><span className="font-medium">The dates are not final yet</span><span className="block text-mute">Your fest is listed as &ldquo;Dates coming soon&rdquo; and needs no events until you set them. Untick this and add the dates when you know.</span></span></label>
         </Card>
 
         <Card title="Pictures" flags={flagsFor("pictures")}>
-          <div className="grid gap-6 sm:grid-cols-2">
-            <ImageUpload label="Banner" value={banner} onChange={(u) => { setSaved(false); setBanner(u); }} aspect="aspect-[21/9]" />
-            <ImageUpload label="Logo (optional)" value={logo} onChange={(u) => { setSaved(false); setLogo(u); }} aspect="aspect-square max-w-[11rem]" />
+          <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+            <ImageUpload kind="banner" value={banner} onChange={(u) => { setSaved(false); setBanner(u); }} maxWidthClass="max-w-xl" />
+            <ImageUpload kind="logo" label="Logo (optional)" value={logo} onChange={(u) => { setSaved(false); setLogo(u); }} maxWidthClass="max-w-[11rem]" />
           </div>
         </Card>
 
