@@ -49,8 +49,7 @@ def get_image(media_id: str, db: Session = Depends(get_db)):
     media = db.query(models.Media).filter(models.Media.id == media_id).first()
     if not media:
         raise HTTPException(status_code=404, detail="Image not found")
-    return Response(
-        content=media.data,
-        media_type=media.mime,
-        headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'"},
-    )
+    headers = {"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'"}
+    if media.mime == "application/pdf":
+        headers["Content-Disposition"] = 'attachment; filename="receipt.pdf"'   # a PDF is always downloaded, never opened in the page
+    return Response(content=media.data, media_type=media.mime, headers=headers)

@@ -13,7 +13,7 @@ from typing import Dict, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app import contingent_money, models, schemas
+from app import contingent_money, finance, models, schemas
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.fest_review import fest_checklist_items
@@ -86,6 +86,16 @@ def organiser_dashboard(db: Session = Depends(get_db), user: models.User = Depen
                 attention.append(schemas.DashAttention(
                     kind="approvals", tone="amber", fest_slug=fest.slug, fest_name=fest.name,
                     title=f"{card.pending} registration{'s' if card.pending != 1 else ''} to approve", tab="registrations"))
+            # Money: spend requests waiting for a decision, and budget lines that have gone over
+            waiting_requests = db.query(models.Expense).filter(models.Expense.fest_id == fest.id, models.Expense.status == "pending").count()
+            if waiting_requests:
+                attention.append(schemas.DashAttention(kind="spend_requests", tone="amber", fest_slug=fest.slug, fest_name=fest.name,
+                                                       title=f"{waiting_requests} spend request{'s' if waiting_requests != 1 else ''} to decide", tab="finance"))
+            spent = finance.spent_by_line(db, fest.id)
+            over = [l for l in db.query(models.BudgetLine).filter(models.BudgetLine.fest_id == fest.id).all() if spent.get(l.id, {}).get("committed", 0) > l.planned_paise]
+            if over:
+                attention.append(schemas.DashAttention(kind="over_budget", tone="red", fest_slug=fest.slug, fest_name=fest.name,
+                                                       title=f"{len(over)} budget line{'s are' if len(over) != 1 else ' is'} over budget", detail=", ".join(l.title for l in over[:2]) + ("…" if len(over) > 2 else ""), tab="finance"))
             # Visiting colleges waiting on the committee: accommodation to place, and fees past their due date
             cs = db.query(models.ContingentSettings).filter(models.ContingentSettings.fest_id == fest.id, models.ContingentSettings.enabled.is_(True)).first()
             if cs:

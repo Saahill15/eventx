@@ -2251,3 +2251,259 @@ class FeeSummary(BaseModel):
     paid: float = 0
     balance: float = 0
     rows: List[FeeSummaryRow] = []
+
+
+# ─── Finance ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+MAX_RECEIPTS = 5
+EXPENSE_STATUSES = ("pending", "approved", "rejected", "paid", "cancelled")
+
+
+def check_receipts(v):
+    """Receipts are links to files uploaded through the finance receipt upload."""
+    if v is None:
+        return []
+    if len(v) > MAX_RECEIPTS:
+        raise ValueError(f"at most {MAX_RECEIPTS} receipts")
+    for url in v:
+        if not re.fullmatch(r"/api/media/[0-9a-f]{32}", url):
+            raise ValueError("a receipt must be a file uploaded here")
+    return v
+
+
+class FinanceSettingsIn(BaseModel):
+    auto_approve_below: Optional[Rupees] = None        # requests under this are approved on the spot; 0 means every request is decided by the committee
+    receipt_required_above: Optional[Rupees] = None    # a request above this needs a receipt; null means never
+    receipts_never_needed: Optional[bool] = None       # send true to switch receipts off
+
+
+class FinanceSettingsOut(BaseModel):
+    auto_approve_below: float = 0
+    receipt_required_above: Optional[float] = None
+
+
+class CategoryIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    kind: Literal["income", "expense"]
+
+
+class CategoryUpdate(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+
+
+class CategoryOut(BaseModel):
+    id: int
+    name: str
+    kind: str
+    position: int = 0
+    used: bool = False   # something is filed under it, so it cannot be deleted
+
+
+class BudgetLineIn(BaseModel):
+    category_id: int
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    planned: Rupees
+    committee_team_id: Optional[int] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+
+class BudgetLineUpdate(BaseModel):
+    category_id: Optional[int] = None
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    planned: Optional[Rupees] = None
+    committee_team_id: Optional[int] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+
+class BudgetLineOut(BaseModel):
+    id: int
+    category_id: int
+    category_name: str
+    title: str
+    planned: float
+    committee_team_id: Optional[int] = None
+    team_name: Optional[str] = None
+    notes: Optional[str] = None
+    pending: float = 0       # asked for, not decided yet
+    committed: float = 0     # approved or paid
+    paid: float = 0
+    remaining: float = 0     # planned less committed (negative when over budget)
+    over_budget: bool = False
+
+
+class SpendOptions(BaseModel):
+    """What anyone on the committee needs to file a spend request: the expense categories and the budget lines, with no amounts."""
+    categories: List[CategoryOut] = []
+    lines: List[Dict[str, object]] = []
+
+
+class ExpenseIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    amount: float = Field(gt=0, le=10000000)
+    spent_on: Optional[date] = None
+    budget_line_id: Optional[int] = None
+    category_id: Optional[int] = None   # needed when no budget line is chosen
+    vendor: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    receipts: Optional[List[str]] = None
+    paid_by_me: bool = False   # I paid it from my own pocket and need it back
+    _check_receipts = field_validator("receipts")(check_receipts)
+
+    @model_validator(mode="after")
+    def where(self):
+        if self.budget_line_id is None and self.category_id is None:
+            raise ValueError("choose a budget line or a category")
+        return self
+
+
+class ExpenseUpdate(BaseModel):
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    amount: Optional[float] = Field(default=None, gt=0, le=10000000)
+    spent_on: Optional[date] = None
+    budget_line_id: Optional[int] = None
+    category_id: Optional[int] = None
+    vendor: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+    receipts: Optional[List[str]] = None
+    paid_by_me: Optional[bool] = None
+    _check_receipts = field_validator("receipts")(check_receipts)
+
+
+class ExpenseDecision(BaseModel):
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]] = None
+
+
+class ExpenseReject(BaseModel):
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=300)]
+
+
+class ExpensePay(BaseModel):
+    paid_on: Optional[date] = None
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+
+
+class ExpenseOut(BaseModel):
+    id: int
+    title: str
+    amount: float
+    spent_on: date
+    status: str
+    budget_line_id: Optional[int] = None
+    line_title: Optional[str] = None
+    category_id: int
+    category_name: str
+    vendor: Optional[str] = None
+    notes: Optional[str] = None
+    receipts: List[str] = []
+    requested_by_id: int
+    requested_by_name: Optional[str] = None
+    out_of_pocket_by: Optional[str] = None   # the member who paid and is owed it back
+    decided_by_name: Optional[str] = None
+    decided_at: Optional[datetime] = None
+    decision_note: Optional[str] = None
+    paid_on: Optional[date] = None
+    paid_note: Optional[str] = None
+    created_at: datetime
+    auto_approved: bool = False
+
+
+class IncomeIn(BaseModel):
+    category_id: int
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    source: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    sponsor_id: Optional[int] = None
+    expected: Rupees
+    due_on: Optional[date] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+
+class IncomeUpdate(BaseModel):
+    category_id: Optional[int] = None
+    title: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    source: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    sponsor_id: Optional[int] = None
+    expected: Optional[Rupees] = None
+    due_on: Optional[date] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]] = None
+
+
+class IncomePaymentIn(BaseModel):
+    amount: float = Field(gt=0, le=10000000)
+    received_on: Optional[date] = None
+    method: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]] = None
+    note: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]] = None
+
+
+class IncomePaymentOut(BaseModel):
+    id: int
+    amount: float
+    received_on: date
+    method: Optional[str] = None
+    note: Optional[str] = None
+
+
+class IncomeOut(BaseModel):
+    id: int
+    category_id: int
+    category_name: str
+    title: str
+    source: Optional[str] = None
+    sponsor_id: Optional[int] = None
+    sponsor_name: Optional[str] = None
+    expected: float
+    received: float
+    outstanding: float
+    status: str   # pledged | partial | received | overdue
+    due_on: Optional[date] = None
+    notes: Optional[str] = None
+    payments: List[IncomePaymentOut] = []
+
+
+class CategoryTotal(BaseModel):
+    category_id: int
+    name: str
+    kind: str
+    planned: float = 0      # expense categories: budgeted. income categories: expected
+    committed: float = 0    # expense: approved or paid. income: received
+    paid: float = 0
+
+
+class TeamTotal(BaseModel):
+    team_id: Optional[int] = None
+    name: str
+    planned: float = 0
+    committed: float = 0
+    paid: float = 0
+
+
+class OwedToMember(BaseModel):
+    member_id: int
+    name: str
+    amount: float
+    expenses: int
+
+
+class FinanceSummary(BaseModel):
+    # Money coming in
+    income_expected: float = 0
+    income_received: float = 0
+    registration_income: float = 0          # collected through HiveOut registrations for paid events
+    college_fees_due: float = 0             # what visiting colleges owe in total
+    college_fees_received: float = 0
+    # Money going out
+    budget_planned: float = 0
+    pending: float = 0
+    approved: float = 0                     # approved but not yet paid
+    paid: float = 0
+    committed: float = 0                    # approved + paid
+    # Where it leaves the fest
+    cash_in: float = 0
+    cash_out: float = 0
+    cash_position: float = 0                # received so far, less paid so far
+    expected_income: float = 0              # everything expected to arrive
+    projected_net: float = 0                # expected income less the larger of the budget and what is committed
+    pending_requests: int = 0
+    over_budget_lines: int = 0
+    unbudgeted: float = 0                   # committed spending that is not under any budget line
+    by_category: List[CategoryTotal] = []
+    by_team: List[TeamTotal] = []
+    owed_to_members: List[OwedToMember] = []

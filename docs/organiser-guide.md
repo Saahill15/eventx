@@ -191,13 +191,24 @@ Three more things a visiting college does, each with the fest's own numbers. All
 
 **Fees.** The fest sets its charges (a registration fee for each team, a fee for each person on its list, both 0 by default), a due date and how to pay (bank details, a UPI id). Event entry fees are set on each event and accommodation prices on each place. A contingent's **statement is worked out from what it has actually done**: registration, people, the events it entered, the nights it was placed, plus lines the committee adds by hand (a late fee, a waiver as a minus), less the payments recorded. Nothing is a stored total, so withdrawing an entry or changing the list changes the bill. The committee records payments (amount, how, reference), sees every college's status (unpaid, part, paid, extra) with totals, and can download the lot as a CSV. The leader sees their statement and the payment instructions. Online payment is not part of this yet. The dashboard flags accommodation waiting to be placed and colleges that have not paid by the due date.
 
+## 11. Finance
+
+The Finance tab is for the director and core team. Everyone on the committee can **ask to spend money** (volunteers get that on their own page). Every fest runs its money its own way: categories, limits and receipts are all the committee's choice, with a usual set to start from. Amounts are kept in whole paise, so totals are exact, and nothing is a stored total: every figure is worked out from the requests and payments themselves.
+
+- **Settings.** The rules: approve small requests on the spot below an amount you choose (0 means the committee decides every request), and ask for a receipt above an amount you choose (or never). **Categories** are your own: "Add the usual categories" gives sponsorship, ticket income, venue, logistics, marketing, prizes, food, tech, security, printing, travel and contingency; rename, delete (only when nothing is filed under one) or add your own, for spending or for income.
+- **Budget.** A line says what you expect to spend on, in a spending category, how much, and optionally which committee team looks after it. Each line shows what is approved or paid, what is still waiting, and what is left (or how far over). Spending filed under a line follows it if the line moves to another category.
+- **Spending.** Anyone on the committee asks to spend: what for, how much, which budget line (or just a category), who is paid, a receipt (photo or PDF up to 3 MB, up to five), and whether they **paid it from their own pocket**. Receipts above the fest's limit are required. The core team is told of each new request; they **approve** it, **turn it down with a reason**, then **mark it paid** (for an out-of-pocket request that means the member has been paid back). The requester is told each time. A member can change or withdraw a request while it waits; the core team can edit until it is paid; a paid expense is part of the record and cannot be deleted. A member sees only their own requests.
+- **Income.** Money the fest expects (a sponsor's pledge, the college grant, stall fees), optionally linked to a listed sponsor and with a due date. Record each payment as it arrives: the item moves from Expected to Part received to Received, or shows Overdue past its date. Money collected through HiveOut (paid events) and visiting college fees is counted for you.
+- **Overview.** Cash so far (received less paid), what is still to come in, the budget against what is committed, requests waiting, what is approved but unpaid, and what the fest ends with if everything goes to plan (expected income less the larger of the budget and what is committed). Spending against budget by category and by team, income by category, and the members who are owed money. Warnings for lines over budget and for approved spending that is under no budget line. One click downloads every rupee in and out as a spreadsheet.
+- **On the dashboard.** The core team is shown spend requests waiting for a decision and budget lines that have gone over.
+
 ## Not built yet
 
 Already built, so not on this list: transferring a fest to a new director, and importing events from a spreadsheet.
 
 - **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
 - **Waitlists, ticket tiers, promo codes and certificates.**
-- **Budget and finance:** a budget, expenses with receipts and approvals, and sponsorship money coming in.
+- **Finance, further on:** per-event profit and loss, sponsor deliverables, GST and invoices, and paying vendors online.
 - **Paying fees online:** colleges pay as the fest's instructions say and the committee records it. A payment gateway (Cashfree test keys are set up in `.env`) is still to wire in.
 - **Volunteers' own area:** today a volunteer sees check-in and their tasks; meetings and more are still to do.
 - **Sponsor deal tracking** (deliverables, follow-ups) is deliberately left out for now. Sponsors are listed with logos and tiers.

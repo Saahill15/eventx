@@ -153,6 +153,22 @@ export async function uploadImage(file: File): Promise<string> {
   return (body as { url: string }).url;
 }
 
+/** Upload a receipt (a photo or a PDF) for a fest's spend request. Returns the link to attach to the request. */
+export async function uploadReceipt(slug: string, file: File): Promise<string> {
+  const token = window.localStorage.getItem("token");
+  const form = new FormData();
+  form.append("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/fests/${encodeURIComponent(slug)}/finance/receipts`, { method: "POST", body: form, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError("Cannot reach the server. Check your connection and try again.", 0);
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(messageFrom(res.status, body), res.status);
+  return (body as { url: string }).url;
+}
+
 /** Where a custom short name (hiveout.in/name) leads, or null when it is unknown or the fest is not public. */
 export async function resolveShortLink(name: string): Promise<string | null> {
   try {

@@ -1281,3 +1281,5 @@ class FeePayment(Base):
     note          = Column(String(200), nullable=True)
     recorded_by_id = Column(Integer, ForeignKey("users.id", name="fk_fee_pay_recorder"), nullable=True)
     created_at    = Column(DateTime, nullable=False, server_default=func.now())
+
+    contingent = relationship("Contingent")

@@ -487,3 +487,31 @@ export interface FeeStatement {
 }
 export interface FeeSummaryRow { contingent_id: number; contingent_label: string | null; college_name: string; total: number; paid: number; balance: number; status: FeeStatement["status"] }
 export interface FeeSummary { total: number; paid: number; balance: number; rows: FeeSummaryRow[] }
+
+/** Finance: budget, spending with approvals, and money coming in. Amounts are in rupees. */
+export interface FinanceSettings { auto_approve_below: number; receipt_required_above: number | null }
+export interface FinanceCategory { id: number; name: string; kind: "income" | "expense"; position: number; used: boolean }
+export interface BudgetLine {
+  id: number; category_id: number; category_name: string; title: string; planned: number; committee_team_id: number | null; team_name: string | null; notes: string | null;
+  pending: number; committed: number; paid: number; remaining: number; over_budget: boolean;
+}
+export interface SpendOptions { categories: FinanceCategory[]; lines: { id: number; title: string; category_id: number; category_name: string; team_name: string | null }[] }
+export type SpendStatus = "pending" | "approved" | "rejected" | "paid" | "cancelled";
+export interface SpendRequest {
+  id: number; title: string; amount: number; spent_on: string; status: SpendStatus; budget_line_id: number | null; line_title: string | null; category_id: number; category_name: string;
+  vendor: string | null; notes: string | null; receipts: string[]; requested_by_id: number; requested_by_name: string | null; out_of_pocket_by: string | null;
+  decided_by_name: string | null; decided_at: string | null; decision_note: string | null; paid_on: string | null; paid_note: string | null; created_at: string; auto_approved: boolean;
+}
+export interface IncomePayment { id: number; amount: number; received_on: string; method: string | null; note: string | null }
+export interface IncomeItem {
+  id: number; category_id: number; category_name: string; title: string; source: string | null; sponsor_id: number | null; sponsor_name: string | null; expected: number; received: number;
+  outstanding: number; status: "pledged" | "partial" | "received" | "overdue"; due_on: string | null; notes: string | null; payments: IncomePayment[];
+}
+export interface CategoryTotal { category_id: number; name: string; kind: "income" | "expense"; planned: number; committed: number; paid: number }
+export interface TeamTotal { team_id: number | null; name: string; planned: number; committed: number; paid: number }
+export interface FinanceSummary {
+  income_expected: number; income_received: number; registration_income: number; college_fees_due: number; college_fees_received: number;
+  budget_planned: number; pending: number; approved: number; paid: number; committed: number; cash_in: number; cash_out: number; cash_position: number;
+  expected_income: number; projected_net: number; pending_requests: number; over_budget_lines: number; unbudgeted: number;
+  by_category: CategoryTotal[]; by_team: TeamTotal[]; owed_to_members: { member_id: number; name: string; amount: number; expenses: number }[];
+}

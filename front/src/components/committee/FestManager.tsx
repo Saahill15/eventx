@@ -18,6 +18,8 @@ import { TasksTab } from "./TasksTab";
 import { MyTeamPanel } from "./MyTeamPanel";
 import { SponsorsTab } from "./SponsorsTab";
 import { CompetitionTab } from "./CompetitionTab";
+import { FinanceTab } from "./FinanceTab";
+import { MySpendPanel } from "./FinanceSpend";
 import { MeetingsTab } from "./MeetingsTab";
 import { ScheduleTab } from "./ScheduleTab";
 import { ContingentsTab } from "./ContingentsTab";
@@ -26,7 +28,7 @@ import { GuidedTour, type TourStep } from "@/components/GuidedTour";
 
 const TABS = [
   { id: "overview", label: "Overview", staff: true }, { id: "details", label: "Fest details", staff: true }, { id: "events", label: "Events", staff: true }, { id: "schedule", label: "Schedule", staff: true },
-  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "competition", label: "Competition", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "sponsors", label: "Sponsors", staff: true }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
+  { id: "registrations", label: "Registrations", staff: true }, { id: "colleges", label: "Visiting colleges", staff: true }, { id: "competition", label: "Competition", staff: true }, { id: "tasks", label: "Tasks", staff: true }, { id: "meetings", label: "Meetings", staff: true }, { id: "gate", label: "Check-in", staff: false }, { id: "finance", label: "Finance", staff: true }, { id: "sponsors", label: "Sponsors", staff: true }, { id: "announcements", label: "Announcements", staff: true }, { id: "team", label: "Committee", staff: true },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -93,6 +95,7 @@ export function FestManager({ slug }: { slug: string }) {
         <h1 className="mb-2 mt-3 text-[26px] leading-tight">Check-in</h1>
         <p className="mb-6 text-mute">You are a volunteer on this fest. You can check people in on the day.</p>
         <MyTeamPanel slug={slug} />
+        <MySpendPanel slug={slug} />
         <div className="mb-8"><TasksTab slug={slug} canManage={false} mineOnly /></div>
         <GateTab slug={slug} events={publicEvents} canUndo={false} />
       </div>
@@ -149,6 +152,7 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "tasks" && <TasksTab slug={slug} canManage />}
       {tab === "meetings" && <MeetingsTab slug={slug} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
+      {tab === "finance" && <FinanceTab slug={slug} />}
       {tab === "sponsors" && <SponsorsTab slug={slug} live={f.status === "live"} />}
       {tab === "announcements" && <AnnouncementsTab slug={slug} live={f.status === "live"} events={publicEvents} />}
       {tab === "team" && <div className="max-w-4xl space-y-8"><TeamTab slug={slug} myRole={role} />{role === "owner" && <HandOverCard slug={slug} />}</div>}
