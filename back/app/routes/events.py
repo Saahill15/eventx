@@ -356,6 +356,7 @@ def _clear_event_links(db: Session, event_id: int) -> None:
     """Everything that points at an event, tidied away before the event itself goes (it had no registrations, so nothing is lost)."""
     db.query(models.TicketTier).filter(models.TicketTier.event_id == event_id).delete(synchronize_session=False)
     db.query(models.WaitlistEntry).filter(models.WaitlistEntry.event_id == event_id).delete(synchronize_session=False)
+    db.query(models.Shift).filter(models.Shift.event_id == event_id).update({"event_id": None}, synchronize_session=False)
     for entry in db.query(models.ContingentEntry).filter(models.ContingentEntry.event_id == event_id).all():
         db.delete(entry)
     db.query(models.PointsEntry).filter(models.PointsEntry.event_id == event_id).delete(synchronize_session=False)

@@ -434,7 +434,7 @@ export interface DashFest {
 }
 export interface DashAttention { kind: string; tone: "red" | "amber" | "green"; fest_slug: string; fest_name: string; title: string; detail: string | null; tab: string }
 export interface DashTask { id: number; fest_slug: string; fest_name: string; title: string; status: "todo" | "doing" | "done"; due_date: string | null; overdue: boolean }
-export interface DashUpcoming { kind: "event" | "meeting"; fest_slug: string; fest_name: string; title: string; when: string; time: string | null; detail: string | null; tab: string }
+export interface DashUpcoming { kind: "event" | "meeting" | "shift"; fest_slug: string; fest_name: string; title: string; when: string; time: string | null; detail: string | null; tab: string }
 export interface Dashboard { fests: DashFest[]; attention: DashAttention[]; my_tasks: DashTask[]; coming_up: DashUpcoming[] }
 
 /** The competition between colleges: points, CL meets, name auction, results, penalties and awards. */
@@ -544,3 +544,12 @@ export interface Certificate {
   fest_name: string; event_title: string | null; issued_at: string; revoked: boolean; revoked_reason: string | null; has_account: boolean;
 }
 export interface CertificateCheck { valid: boolean; revoked: boolean; certificate: Certificate | null }
+
+/** The duty roster. */
+export interface ShiftPerson { member_id: number; user_id: number | null; user_name: string | null; title: string | null; arrived_at: string | null; no_show: boolean }
+export interface Shift {
+  id: number; title: string; event_id: number | null; event_title: string | null; committee_team_id: number | null; team_name: string | null; location: string | null;
+  starts_at: string; ends_at: string; needed: number; filled: number; open_spots: number; open_signup: boolean; notes: string | null; state: "upcoming" | "now" | "over";
+  people: ShiftPerson[]; mine: boolean; can_claim: boolean; can_leave: boolean; can_arrive: boolean;
+}
+export interface ShiftCoverage { upcoming: number; understaffed: number; open_spots: number; soon: { shift_id: number; title: string; starts_at: string; needed: number; filled: number }[]; unassigned_people: string[] }

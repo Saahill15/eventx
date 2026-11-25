@@ -563,6 +563,7 @@ def remove_fest_member(
     db.query(models.FestMember).filter(models.FestMember.reports_to_id == member.id).update({"reports_to_id": None}, synchronize_session=False)
     db.query(models.FestTask).filter(models.FestTask.assignee_member_id == member.id).update({"assignee_member_id": None}, synchronize_session=False)
     db.query(models.FestMeetingAttendee).filter(models.FestMeetingAttendee.member_id == member.id).delete(synchronize_session=False)
+    db.query(models.ShiftAssignment).filter(models.ShiftAssignment.member_id == member.id).delete(synchronize_session=False)
     db.delete(member)
     db.commit()
 

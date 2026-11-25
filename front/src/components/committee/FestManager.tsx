@@ -15,11 +15,11 @@ import { GateTab } from "./GateTab";
 import { RegistrationsTab } from "./RegistrationsTab";
 import { TeamTab } from "./TeamTab";
 import { TasksTab } from "./TasksTab";
-import { MyTeamPanel } from "./MyTeamPanel";
+import { VolunteerArea } from "./VolunteerArea";
+import { ShiftsTab } from "./ShiftsTab";
 import { SponsorsTab } from "./SponsorsTab";
 import { CompetitionTab } from "./CompetitionTab";
 import { FinanceTab } from "./FinanceTab";
-import { MySpendPanel } from "./FinanceSpend";
 import { MeetingsTab } from "./MeetingsTab";
 import { ScheduleTab } from "./ScheduleTab";
 import { ContingentsTab } from "./ContingentsTab";
@@ -29,12 +29,12 @@ import { SubTabs } from "@/components/ui/SubTabs";
 import { CertificatesAdmin, PromoAdmin, WaitlistAdmin } from "./TicketingAdmin";
 
 // The sections of a fest, grouped so the whole set fits on screen: five groups, with the sections of the chosen group shown beneath.
-type TabId = "overview" | "details" | "events" | "schedule" | "sponsors" | "announcements" | "registrations" | "gate" | "colleges" | "competition" | "waitlist" | "promos" | "certificates" | "team" | "tasks" | "meetings" | "finance";
+type TabId = "overview" | "details" | "events" | "schedule" | "sponsors" | "announcements" | "registrations" | "gate" | "colleges" | "competition" | "waitlist" | "promos" | "certificates" | "team" | "tasks" | "meetings" | "shifts" | "finance";
 const GROUPS: { id: string; label: string; tabs: { id: TabId; label: string }[] }[] = [
   { id: "overview", label: "Overview", tabs: [{ id: "overview", label: "Overview" }] },
   { id: "fest", label: "Your fest", tabs: [{ id: "details", label: "Fest details" }, { id: "events", label: "Events" }, { id: "schedule", label: "Schedule" }, { id: "sponsors", label: "Sponsors" }, { id: "announcements", label: "Announcements" }] },
   { id: "guests", label: "Guests", tabs: [{ id: "registrations", label: "Registrations" }, { id: "waitlist", label: "Waiting lists" }, { id: "promos", label: "Promo codes" }, { id: "certificates", label: "Certificates" }, { id: "gate", label: "Check-in" }, { id: "colleges", label: "Visiting colleges" }, { id: "competition", label: "Competition" }] },
-  { id: "team", label: "Team", tabs: [{ id: "team", label: "Committee" }, { id: "tasks", label: "Tasks" }, { id: "meetings", label: "Meetings" }] },
+  { id: "team", label: "Team", tabs: [{ id: "team", label: "Committee" }, { id: "tasks", label: "Tasks" }, { id: "meetings", label: "Meetings" }, { id: "shifts", label: "Duty roster" }] },
   { id: "finance", label: "Finance", tabs: [{ id: "finance", label: "Finance" }] },
 ];
 const TABS = GROUPS.flatMap((g) => g.tabs);
@@ -102,20 +102,8 @@ export function FestManager({ slug }: { slug: string }) {
     );
   }
 
-  // Volunteers help on the day: they only get the check-in screen
-  if (!isStaff) {
-    return (
-      <div>
-        <Link href="/dashboard/fests" className="text-sm text-mute hover:text-ink">← Your fests</Link>
-        <h1 className="mb-2 mt-3 text-[26px] leading-tight">Check-in</h1>
-        <p className="mb-6 text-mute">You are a volunteer on this fest. You can check people in on the day.</p>
-        <MyTeamPanel slug={slug} />
-        <MySpendPanel slug={slug} />
-        <div className="mb-8"><TasksTab slug={slug} canManage={false} mineOnly /></div>
-        <GateTab slug={slug} events={publicEvents} canUndo={false} />
-      </div>
-    );
-  }
+  // Volunteers get their own area: what is coming up for them, their duties, meetings, tasks, spending and the gate
+  if (!isStaff) return <VolunteerArea slug={slug} />;
 
   const f = fest!;
   const tour: TourStep[] = [
@@ -127,6 +115,7 @@ export function FestManager({ slug }: { slug: string }) {
     { target: "group-finance", title: "Finance", body: "The budget, requests to spend with approvals, income from sponsors and others, and where the money stands." },
     ...(f.review_status === "draft" || f.review_status === "changes_requested" || f.review_status === "rejected" ? [{ target: "checklist", title: "When this is all ticked", body: "Send the fest to HiveOut for review. After approval, one click makes it live for students." }] : []),
   ];
+  const festDays = (() => { const out: string[] = []; if (!f.start_date) return out; const end = f.end_date || f.start_date; for (let d = new Date(`${f.start_date}T00:00:00`); d <= new Date(`${end}T00:00:00`) && out.length < 31; d.setDate(d.getDate() + 1)) out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`); return out; })();
   const frozen = f.review_status === "in_review" && role !== "admin";
   const pending = events.reduce((n, e) => n + e.pending_count, 0);
 
@@ -179,6 +168,7 @@ export function FestManager({ slug }: { slug: string }) {
       {tab === "tasks" && <TasksTab slug={slug} canManage />}
       {tab === "meetings" && <MeetingsTab slug={slug} />}
       {tab === "gate" && <GateTab slug={slug} events={publicEvents} canUndo />}
+      {tab === "shifts" && <ShiftsTab slug={slug} canManage festDays={festDays} />}
       {tab === "waitlist" && <WaitlistAdmin slug={slug} />}
       {tab === "promos" && <PromoAdmin slug={slug} />}
       {tab === "certificates" && <CertificatesAdmin slug={slug} />}

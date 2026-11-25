@@ -1400,3 +1400,61 @@ class Certificate(Base):
     issued_by_id = Column(Integer, ForeignKey("users.id", name="fk_certificate_issuer"), nullable=True)
     revoked_at  = Column(DateTime, nullable=True)
     revoked_reason = Column(String(200), nullable=True)
+
+
+class Shift(Base):
+    """A duty on the fest's roster: where someone is needed, when, and how many people. Committee members take it or are given it."""
+    __tablename__ = "shifts"
+    id                = Column(Integer, primary_key=True, index=True)
+    fest_id           = Column(Integer, ForeignKey("fests.id"), nullable=False, index=True)
+    title             = Column(String(120), nullable=False)             # "Main gate", "Registration desk"
+    event_id          = Column(Integer, ForeignKey("events.id", name="fk_shift_event"), nullable=True)
+    committee_team_id = Column(Integer, ForeignKey("committee_teams.id", name="fk_shift_team"), nullable=True)
+    location          = Column(String(255), nullable=True)
+    starts_at         = Column(DateTime, nullable=False)                # wall-clock, like event and meeting times
+    ends_at           = Column(DateTime, nullable=False)
+    needed            = Column(Integer, nullable=False, default=1, server_default="1")
+    open_signup       = Column(Boolean, nullable=False, default=False, server_default="0")   # members may put themselves down
+    notes             = Column(Text, nullable=True)
+    created_by_id     = Column(Integer, ForeignKey("users.id", name="fk_shift_creator"), nullable=True)
+    created_at        = Column(DateTime, nullable=False, server_default=func.now())
+
+    event          = relationship("Event")
+    committee_team = relationship("CommitteeTeam")
+    assignments    = relationship("ShiftAssignment", cascade="all, delete-orphan", order_by="ShiftAssignment.created_at")
+
+    @property
+    def event_title(self):
+        return self.event.title if self.event else None
+
+    @property
+    def team_name(self):
+        return self.committee_team.name if self.committee_team else None
+
+    @property
+    def filled(self):
+        return len(self.assignments)
+
+
+class ShiftAssignment(Base):
+    """One person on one duty, and whether they turned up."""
+    __tablename__ = "shift_assignments"
+    shift_id   = Column(Integer, ForeignKey("shifts.id"), primary_key=True)
+    member_id  = Column(Integer, ForeignKey("fest_members.id"), primary_key=True)
+    arrived_at = Column(DateTime, nullable=True)       # they said "I am here", or the committee marked them
+    no_show    = Column(Boolean, nullable=False, default=False, server_default="0")
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    member = relationship("FestMember")
+
+    @property
+    def user_name(self):
+        return self.member.user_name if self.member else None
+
+    @property
+    def title(self):
+        return self.member.title if self.member else None
+
+    @property
+    def user_id(self):
+        return self.member.user_id if self.member else None

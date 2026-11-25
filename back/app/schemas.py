@@ -548,7 +548,7 @@ class DashTask(BaseModel):
     overdue: bool = False
 
 class DashUpcoming(BaseModel):
-    kind: str            # event | meeting
+    kind: str            # event | meeting | shift
     fest_slug: str
     fest_name: str
     title: str
@@ -2768,3 +2768,105 @@ class CertificateCheck(BaseModel):
     valid: bool
     revoked: bool = False
     certificate: Optional[CertificateOut] = None
+
+
+# ─── duty roster ─────────────────────────────────────────────────────────────
+
+ShiftTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+
+class ShiftIn(BaseModel):
+    title: ShiftTitle
+    event_id: Optional[int] = None
+    committee_team_id: Optional[int] = None
+    location: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    starts_at: datetime
+    ends_at: datetime
+    needed: int = Field(default=1, ge=1, le=200)
+    open_signup: bool = False
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]] = None
+    member_ids: List[int] = Field(default_factory=list, max_length=200)    # put these people on the duty straight away
+    repeat_on: List[date] = Field(default_factory=list, max_length=30)     # the same duty, same hours, on these other days
+
+    @model_validator(mode="after")
+    def _hours(self):
+        if self.ends_at <= self.starts_at:
+            raise ValueError("A duty must end after it starts")
+        if self.ends_at - self.starts_at > timedelta(hours=18):
+            raise ValueError("A duty can be at most 18 hours long. Split it into shifts")
+        return self
+
+
+class ShiftUpdate(BaseModel):
+    """Send only what changes; null clears the optional fields."""
+    title: Optional[ShiftTitle] = None
+    event_id: Optional[int] = None
+    committee_team_id: Optional[int] = None
+    location: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    needed: Optional[int] = Field(default=None, ge=1, le=200)
+    open_signup: Optional[bool] = None
+    notes: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]] = None
+
+
+class ShiftAssignIn(BaseModel):
+    member_id: int
+
+
+class ShiftMark(BaseModel):
+    member_id: int
+    status: Literal["arrived", "no_show", "clear"]
+
+
+class ShiftAttendanceIn(BaseModel):
+    marks: List[ShiftMark] = Field(min_length=1, max_length=200)
+
+
+class ShiftPerson(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    member_id: int
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    title: Optional[str] = None
+    arrived_at: Optional[datetime] = None
+    no_show: bool = False
+
+
+class ShiftOut(BaseModel):
+    id: int
+    title: str
+    event_id: Optional[int] = None
+    event_title: Optional[str] = None
+    committee_team_id: Optional[int] = None
+    team_name: Optional[str] = None
+    location: Optional[str] = None
+    starts_at: datetime
+    ends_at: datetime
+    needed: int
+    filled: int
+    open_spots: int
+    open_signup: bool
+    notes: Optional[str] = None
+    state: str                  # upcoming | now | over
+    people: List[ShiftPerson] = []
+    mine: bool = False          # the person asking is on it
+    can_claim: bool = False     # the person asking may put themselves down for it
+    can_leave: bool = False
+    can_arrive: bool = False    # the person asking is on it and it is time to say "I am here"
+
+
+class ShiftGap(BaseModel):
+    shift_id: int
+    title: str
+    starts_at: datetime
+    needed: int
+    filled: int
+
+
+class ShiftCoverage(BaseModel):
+    upcoming: int
+    understaffed: int            # upcoming duties with fewer people than needed
+    open_spots: int
+    soon: List[ShiftGap] = []    # understaffed duties in the next few days, soonest first
+    unassigned_people: List[str] = []   # committee members with no upcoming duty

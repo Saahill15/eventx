@@ -211,6 +211,16 @@ Everything here is set by the committee, per event or per fest. Paid events are 
 - **Waiting lists.** Tick "Let students join a waiting list when it is full" in an event's form (and, if you like, cap the queue). When the event is full, students can join; the first in line gets a seat by itself when someone cancels or is turned down, or when you raise the seat limit, and is told straight away. Under Guests, *Waiting lists* shows every queue: you can let someone in now (even past the limit) or take them off with a reason they are told.
 - **Certificates.** Under Guests, *Certificates*. Write your own wording or "Add the usual wordings" (participation, winner, appreciation) and change them. Wording can use {name}, {event}, {fest}, {college}, {date} and {award}, and carry up to three signatures. Issue to everyone who attended an event (checked in), to the entries of visiting colleges, or to one person (for example the winner). Pressing a button twice never gives anyone two. Students see theirs under *My passes*; anyone can open a certificate by its link or ten-character code, see whether it is real, and print it as a PDF. A mistake can be withdrawn with a reason: it stays on record, marked withdrawn.
 
+## 13. The duty roster and the volunteer area
+
+**Duty roster** (Team, then *Duty roster*). A duty is a place and hours where you need people: the main gate, the registration desk, the stage. Add one with its hours, how many people it needs, an optional place, event and team in charge, and notes for whoever is on it. Pick the other fest days to repeat the same hours across the whole fest in one go. Put people on it straight away, or tick "Members can put themselves down" and let the committee choose their own duties. The roster refuses a double booking and names the duty that clashes; back-to-back duties are fine. The people on a duty are told when they are put on, when the time or place changes, when it is cancelled, and when they are taken off. The director is told when someone leaves a duty. A cover strip shows duties coming up, empty spots and members with no duty, and the dashboard warns the core team when duties in the next three days still have empty spots. On the day, members say "I am here" from 30 minutes before their duty; the core team can also mark who came and who did not.
+
+**The volunteer area.** A volunteer (committee member with the Volunteer access level) gets their own page for the fest instead of a bare check-in screen:
+- *Home:* what is coming up for them (their duties and the meetings they are invited to), their tasks, their team, and anything that needs them.
+- *My duty:* the roster, with their own duties marked, the open duties they can take, "I am here" and leaving a duty before it starts.
+- *Meetings:* every meeting with its agenda before and its minutes and action items after. Volunteers can read but not change.
+- *My tasks* and *Spending* (their own requests to spend money), and *Check-in* for the gate on the day.
+
 ## Not built yet
 
 Already built, so not on this list: transferring a fest to a new director, and importing events from a spreadsheet.
@@ -218,5 +228,4 @@ Already built, so not on this list: transferring a fest to a new director, and i
 - **Payments.** Paid events are simulated: a registration to a paid event is confirmed straight away and no money moves. A payment gateway (in test mode first), refunds and payouts are still to do.
 - **Finance, further on:** per-event profit and loss, sponsor deliverables, GST and invoices, and paying vendors online.
 - **Paying fees online:** colleges pay as the fest's instructions say and the committee records it. A payment gateway (Cashfree test keys are set up in `.env`) is still to wire in.
-- **Volunteers' own area:** today a volunteer sees check-in and their tasks; meetings and more are still to do.
 - **Sponsor deal tracking** (deliverables, follow-ups) is deliberately left out for now. Sponsors are listed with logos and tiers.

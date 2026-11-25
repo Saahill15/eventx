@@ -13,7 +13,7 @@ from typing import Dict, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app import contingent_money, finance, models, schemas
+from app import contingent_money, finance, models, schemas, shifts as roster
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.fest_review import fest_checklist_items
@@ -96,6 +96,12 @@ def organiser_dashboard(db: Session = Depends(get_db), user: models.User = Depen
             if over:
                 attention.append(schemas.DashAttention(kind="over_budget", tone="red", fest_slug=fest.slug, fest_name=fest.name,
                                                        title=f"{len(over)} budget line{'s are' if len(over) != 1 else ' is'} over budget", detail=", ".join(l.title for l in over[:2]) + ("…" if len(over) > 2 else ""), tab="finance"))
+            # The duty roster: duties in the next few days that still need people
+            short = roster.gaps_within(db, fest.id, datetime.now(), 3)
+            if short:
+                spots = sum(x.needed - x.filled for x in short)
+                attention.append(schemas.DashAttention(kind="shifts_gaps", tone="amber", fest_slug=fest.slug, fest_name=fest.name,
+                                                       title=f"{spots} duty spot{'s' if spots != 1 else ''} still empty in the next 3 days", detail=", ".join(x.title for x in short[:2]) + ("…" if len(short) > 2 else ""), tab="shifts"))
             # Visiting colleges waiting on the committee: accommodation to place, and fees past their due date
             cs = db.query(models.ContingentSettings).filter(models.ContingentSettings.fest_id == fest.id, models.ContingentSettings.enabled.is_(True)).first()
             if cs:
@@ -142,6 +148,14 @@ def organiser_dashboard(db: Session = Depends(get_db), user: models.User = Depen
                 if not staff and not any(a.member_id == (member.id if member else -1) for a in mtg.attendees):
                     continue
                 upcoming.append(schemas.DashUpcoming(kind="meeting", fest_slug=fest.slug, fest_name=fest.name, title=mtg.title, when=mtg.starts_at, time=mtg.starts_at.strftime("%H:%M"), detail=mtg.location or None, tab="meetings"))
+
+        # ── my own duties ──
+        if member is not None:
+            now = datetime.now()
+            for sh in roster.upcoming_shifts(db, fest.id, now):
+                if sh.starts_at.date() <= horizon and any(x.member_id == member.id for x in sh.assignments):
+                    upcoming.append(schemas.DashUpcoming(kind="shift", fest_slug=fest.slug, fest_name=fest.name, title=f"On duty: {sh.title}", when=sh.starts_at, time=sh.starts_at.strftime("%H:%M"),
+                                                         detail=sh.location or None, tab="shifts" if staff else "duty"))
 
         # ── my own tasks ──
         if member is not None:
